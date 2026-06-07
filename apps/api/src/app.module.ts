@@ -41,6 +41,7 @@ import { ExecutionsController } from './modules/executions/executions.controller
 import { ReportsController } from './modules/reports/reports.controller';
 import { CatalogController } from './modules/triggers/catalog.controller';
 import { WebhooksController } from './modules/webhooks/webhooks.controller';
+import { WebhooksOutService } from './modules/webhooks/webhooks-out.worker';
 import { RetailerController } from './modules/retailer/retailer.controller';
 import { NotificationsService } from './modules/notifications/notifications.service';
 import { WhatsAppService } from './modules/notifications/whatsapp.service';
@@ -53,7 +54,7 @@ import { MarketWatcherWorker } from './workers/market-watcher.worker';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     BullModule.forRoot({
-      redis: { host: 'localhost', port: 6379 }
+      redis: process.env.REDIS_URL || 'redis://localhost:6379'
     }),
     BullModule.registerQueue(
       { name: 'trigger-evaluation' },
