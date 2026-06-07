@@ -9,9 +9,10 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Dependências de sistema
-# - openssl: pro Prisma 3.x
-# - openssl1.1-compat: pro Prisma 1.1 (libs antigas precisam)
-RUN apk add --no-cache openssl openssl1.1-compat libc6-compat
+# - openssl + libssl3: pro Prisma com OpenSSL 3.x
+# - libssl1.1: pro Prisma com OpenSSL 1.1 (libs antigas)
+# - libc6-compat: libs de glibc pra alguns binários
+RUN apk add --no-cache openssl libssl3 libssl1.1 libc6-compat
 
 # Copia package files do monorepo
 COPY package.json ./
