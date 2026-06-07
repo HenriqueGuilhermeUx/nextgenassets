@@ -9,6 +9,9 @@ FROM node:20-bookworm-slim AS builder
 
 WORKDIR /app
 
+# Instala openssl pro Prisma generate detectar a versão
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
 # Copia package files do monorepo
 COPY package.json ./
 COPY package-lock.json* ./
