@@ -1,18 +1,13 @@
 # ============================================
 #  API DOCKERFILE — NextGen Assets
-#  Multi-stage build otimizado pra Render
+#  Base: Debian (tem libssl 1.1 E 3.0 nativamente)
+#  Resolve compat issues do Alpine com Prisma
 # ============================================
 
 # Stage 1: Build
-FROM node:20-alpine AS builder
+FROM node:20-bookworm-slim AS builder
 
 WORKDIR /app
-
-# Dependências de sistema
-# - openssl + libssl3: pro Prisma com OpenSSL 3.x
-# - libssl1.1: pro Prisma com OpenSSL 1.1 (libs antigas)
-# - libc6-compat: libs de glibc pra alguns binários
-RUN apk add --no-cache openssl libssl3 libssl1.1 libc6-compat
 
 # Copia package files do monorepo
 COPY package.json ./
@@ -39,7 +34,7 @@ RUN npm run build
 WORKDIR /app
 
 # Stage 2: Runtime
-FROM node:20-alpine AS runner
+FROM node:20-bookworm-slim AS runner
 
 WORKDIR /app
 
@@ -47,8 +42,8 @@ ENV NODE_ENV=production
 ENV PORT=3001
 
 # Cria usuário não-root pra segurança
-RUN addgroup --system --gid 1001 nga && \
-    adduser --system --uid 1001 nga
+RUN groupadd --system --gid 1001 nga && \
+    useradd --system --uid 1001 --gid nga nga
 
 # Copia artifacts do builder
 WORKDIR /app/apps/api
