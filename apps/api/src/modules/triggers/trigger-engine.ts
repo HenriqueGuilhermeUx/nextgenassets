@@ -361,10 +361,10 @@ export class TriggerEngine {
     const execution = await this.prisma.execution.create({
       data: {
         partnerId: trigger.partnerId,
-        userId: trigger.userId,
-        triggerId: trigger.id,
+        user: { connect: { id: trigger.userId } },
+        trigger: { connect: { id: trigger.id } },
         status: 'EVALUATING',
-        intent: evaluationData,
+        intent: evaluationData as any,
         destination: this.resolveDestinationName(trigger.partner, trigger.code),
         amountBrl: trigger.params['amountBrl'] || 0
       }

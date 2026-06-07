@@ -12,6 +12,7 @@
     "baseUrl": "./",
     "incremental": true,
     "skipLibCheck": true,
+    "strict": false,
     "strictNullChecks": false,
     "noImplicitAny": false,
     "strictBindCallApply": false,
@@ -19,6 +20,9 @@
     "noFallthroughCasesInSwitch": false,
     "esModuleInterop": true,
     "resolveJsonModule": true,
+    "noImplicitThis": false,
+    "alwaysStrict": false,
+    "useUnknownInCatchVariables": false,
     "paths": {
       "@/*": ["src/*"]
     }

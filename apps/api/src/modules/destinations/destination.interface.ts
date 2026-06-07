@@ -22,7 +22,7 @@ export type DestinationAction =
   | { type: 'BUY_CRYPTO'; asset: string; amountBrl: number; userId: string }
   | { type: 'SELL_CRYPTO'; asset: string; quantity: number; userId: string }
   | { type: 'TRANSFER'; destinationAccount: string; amountBrl: number; userId: string }
-  | { type: 'BUY_PRODUCT'; sku: string; quantity: number; userId: string }
+  | { type: 'BUY_PRODUCT'; sku: string; quantity: number; userId: string; amountBrl?: number }
   | { type: 'PAY_BILL'; billType: string; providerId: string; amountBrl: number; userId: string }
   | { type: 'PAY_INSURANCE'; policyId: string; amountBrl: number; userId: string };
 
@@ -59,7 +59,7 @@ export interface ReconciliationResult {
 
 export interface DestinationAdapter {
   readonly type: DestinationType;
-  readonly partnerId: string;
+  readonly partnerId?: string;
   readonly adapterName: string;  // 'MOCK_STOCK_BROKER', 'XP_BROKER', 'ORAMA_FUND', etc.
 
   // ========== Métodos Obrigatórios ==========

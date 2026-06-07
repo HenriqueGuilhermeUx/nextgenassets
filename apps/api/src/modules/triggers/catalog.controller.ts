@@ -1,5 +1,5 @@
 // Catalog controller — expõe o catálogo de gatilhos
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, Param } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();

@@ -14,6 +14,14 @@ import { MockFundDistributor } from '../modules/destinations/mock-providers/mock
 import { MockCryptoExchange } from '../modules/destinations/mock-providers/mock-crypto-exchange';
 import { MockBankTransfer } from '../modules/destinations/mock-providers/mock-bank-transfer';
 import { MockRetailer } from '../modules/destinations/mock-providers/mock-retailer';
+import { ShopifyAdapter } from '../modules/destinations/providers/shopify-adapter';
+import { WooCommerceAdapter } from '../modules/destinations/providers/woocommerce-adapter';
+import { MercadoLivreAdapter } from '../modules/destinations/providers/mercado-livre-adapter';
+import { MagaluAdapter } from '../modules/destinations/providers/magalu-adapter';
+import { NubankOpenFinanceAdapter } from '../modules/destinations/providers/nubank-openfinance-adapter';
+import { VtexAdapter } from '../modules/destinations/providers/vtex-adapter';
+import { IFoodAdapter } from '../modules/destinations/providers/ifood-adapter';
+import { RappiAdapter } from '../modules/destinations/providers/rappi-adapter';
 
 const prisma = new PrismaClient();
 const marketData = new MarketDataService();
@@ -22,7 +30,19 @@ const mockStock = new MockStockBroker();
 const mockFund = new MockFundDistributor();
 const mockCrypto = new MockCryptoExchange();
 const mockRetailer = new MockRetailer();
-const destinations = new DestinationRegistry(mockStock, mockFund, mockCrypto, mockBank, mockRetailer);
+const shopify = new ShopifyAdapter();
+const woocommerce = new WooCommerceAdapter();
+const mercadoLivre = new MercadoLivreAdapter();
+const magalu = new MagaluAdapter();
+const nubank = new NubankOpenFinanceAdapter();
+const vtex = new VtexAdapter();
+const ifood = new IFoodAdapter();
+const rappi = new RappiAdapter();
+const destinations = new DestinationRegistry(
+  mockStock, mockFund, mockCrypto, mockBank, mockRetailer,
+  shopify, woocommerce, mercadoLivre, magalu, nubank, vtex,
+  ifood, rappi
+);
 const bankService = new BankTransferService(destinations);
 const aiService = new AiService();
 const triggerEngine = new TriggerEngine(
