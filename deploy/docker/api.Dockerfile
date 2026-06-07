@@ -48,11 +48,11 @@ RUN addgroup --system --gid 1001 nga && \
     adduser --system --uid 1001 nga
 
 # Copia artifacts do builder
+WORKDIR /app/apps/api
 COPY --from=builder --chown=nga:nga /app/apps/api/dist ./dist
-COPY --from=builder --chown=nga:nga /app/apps/api/node_modules ./node_modules
+COPY --from=builder --chown=nga:nga /app/node_modules /app/apps/api/node_modules
 COPY --from=builder --chown=nga:nga /app/apps/api/prisma ./prisma
 COPY --from=builder --chown=nga:nga /app/apps/api/package.json ./package.json
-COPY --from=builder --chown=nga:nga /app/node_modules ./root_node_modules
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
