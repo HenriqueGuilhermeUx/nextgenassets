@@ -1,0 +1,58 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: orkest-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: orkest
+      POSTGRES_PASSWORD: orkest_dev
+      POSTGRES_DB: orkest
+    ports:
+      - "5432:5432"
+    volumes:
+      - orkest_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orkest"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: orkest-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - orkest_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  vault:
+    image: hashicorp/vault:1.15
+    container_name: orkest-vault
+    restart: unless-stopped
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: orkest-dev-token
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+    ports:
+      - "8200:8200"
+    cap_add:
+      - IPC_LOCK
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: orkest-mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI
+
+volumes:
+  orkest_pg_data:
+  orkest_redis_data:

@@ -1,0 +1,27 @@
+{
+  "name": "orkest",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Motor de Automação Financeira Plug-and-Play (B2B2C)",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api": "cd apps/api && npm run start:dev",
+    "dev:admin": "cd apps/admin && npm run dev",
+    "dev:partner": "cd apps/partner && npm run dev",
+    "dev:consumer": "cd apps/consumer && npm run dev",
+    "dev:marketing": "cd apps/marketing && npm run dev",
+    "db:migrate": "cd apps/api && npx prisma migrate dev",
+    "db:seed": "cd apps/api && npx ts-node prisma/seed.ts",
+    "db:reset": "cd apps/api && npx prisma migrate reset --force",
+    "test:scenarios": "cd apps/api && npm run test:scenarios",
+    "mock:market": "cd apps/api && npm run mock:market",
+    "infra:up": "cd infrastructure && docker-compose up -d",
+    "infra:down": "cd infrastructure && docker-compose down"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

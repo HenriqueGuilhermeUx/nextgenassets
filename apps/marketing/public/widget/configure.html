@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Orkest - Configurar Gatilho</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+      color: #0a0a0a;
+      min-height: 100vh;
+      overflow-y: auto;
+    }
+    .header {
+      background: linear-gradient(135deg, #5B6CFF 0%, #8B5CF6 100%);
+      color: white;
+      padding: 20px 24px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      box-shadow: 0 2px 12px rgba(91, 108, 255, 0.2);
+    }
+    .header-row { display: flex; align-items: center; justify-content: space-between; }
+    .logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 16px; }
+    .logo-icon { width: 28px; height: 28px; background: rgba(255,255,255,0.25); border-radius: 7px; display: flex; align-items: center; justify-content: center; font-weight: 800; }
+    .close { background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 18px; }
+    .close:hover { background: rgba(255,255,255,0.3); }
+
+    .product-card {
+      margin: 20px;
+      padding: 16px;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+      display: flex;
+      gap: 14px;
+      align-items: center;
+    }
+    .product-image {
+      width: 64px; height: 64px;
+      background: linear-gradient(135deg, #fce7f3, #fbcfe8);
+      border-radius: 12px;
+      flex-shrink: 0;
+      background-size: cover;
+      background-position: center;
+    }
+    .product-info { flex: 1; min-width: 0; }
+    .product-name { font-weight: 600; font-size: 14px; line-height: 1.3; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .product-price { font-size: 20px; font-weight: 800; color: #5B6CFF; }
+
+    .step { padding: 0 20px 20px; }
+    .step-title { font-size: 12px; font-weight: 700; color: #5B6CFF; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+    .step-h { font-size: 20px; font-weight: 800; margin-bottom: 6px; }
+    .step-sub { font-size: 13px; color: #6b7280; margin-bottom: 16px; line-height: 1.5; }
+
+    /* Trigger options */
+    .trigger-options { display: flex; flex-direction: column; gap: 10px; }
+    .trigger-option {
+      padding: 14px;
+      background: white;
+      border: 2px solid #e5e7eb;
+      border-radius: 14px;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .trigger-option:hover { border-color: #c7d2fe; background: #f5f3ff; }
+    .trigger-option.selected { border-color: #5B6CFF; background: #eef2ff; }
+    .trigger-icon { font-size: 28px; flex-shrink: 0; }
+    .trigger-text { flex: 1; }
+    .trigger-name { font-weight: 700; font-size: 14px; margin-bottom: 2px; }
+    .trigger-desc { font-size: 12px; color: #6b7280; }
+    .trigger-check { width: 24px; height: 24px; border: 2px solid #d1d5db; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+    .trigger-option.selected .trigger-check { background: #5B6CFF; border-color: #5B6CFF; color: white; }
+
+    /* Form fields */
+    .field { margin-top: 12px; }
+    .field label { display: block; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 6px; }
+    .field input, .field select {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 10px;
+      font-size: 14px;
+      font-family: inherit;
+      transition: all 0.15s;
+    }
+    .field input:focus, .field select:focus { outline: none; border-color: #5B6CFF; box-shadow: 0 0 0 3px rgba(91, 108, 255, 0.1); }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    /* Consent */
+    .consent-box {
+      background: #fef3c7;
+      border: 1px solid #fcd34d;
+      border-radius: 12px;
+      padding: 14px;
+      font-size: 12px;
+      color: #78350f;
+      line-height: 1.5;
+      margin: 16px 0;
+    }
+    .consent-box strong { color: #422006; }
+
+    /* Bank selection */
+    .banks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
+    .bank {
+      padding: 12px 6px;
+      background: white;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 10px;
+      cursor: pointer;
+      text-align: center;
+      font-size: 11px;
+      font-weight: 600;
+      transition: all 0.15s;
+    }
+    .bank:hover { border-color: #5B6CFF; }
+    .bank.selected { border-color: #5B6CFF; background: #eef2ff; }
+    .bank-icon { font-size: 20px; margin-bottom: 4px; }
+
+    /* CTA */
+    .cta-container { padding: 16px 20px 24px; }
+    .cta {
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(135deg, #5B6CFF 0%, #8B5CF6 100%);
+      color: white;
+      border: none;
+      border-radius: 14px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(91, 108, 255, 0.3);
+      transition: all 0.2s;
+    }
+    .cta:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(91, 108, 255, 0.4); }
+    .cta:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .cta-sub { text-align: center; font-size: 11px; color: #6b7280; margin-top: 8px; }
+
+    .hidden { display: none; }
+
+    /* Success state */
+    .success { text-align: center; padding: 40px 20px; }
+    .success-icon { font-size: 64px; margin-bottom: 16px; }
+    .success-title { font-size: 22px; font-weight: 800; margin-bottom: 8px; }
+    .success-text { font-size: 14px; color: #6b7280; line-height: 1.5; }
+    .success-detail { background: #f0fdf4; border: 1px solid #86efac; border-radius: 12px; padding: 14px; margin-top: 20px; font-size: 13px; color: #166534; text-align: left; }
+
+    .progress { display: flex; gap: 4px; padding: 12px 20px; background: white; border-bottom: 1px solid #e5e7eb; }
+    .progress-step { flex: 1; height: 4px; background: #e5e7eb; border-radius: 2px; }
+    .progress-step.active { background: #5B6CFF; }
+    .progress-step.done { background: #10b981; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-row">
+      <div class="logo">
+        <div class="logo-icon">O</div>
+        <span>Orkest</span>
+      </div>
+      <button class="close" id="closeBtn" aria-label="Fechar">×</button>
+    </div>
+  </div>
+
+  <div class="progress">
+    <div class="progress-step active" id="step1"></div>
+    <div class="progress-step" id="step2"></div>
+    <div class="progress-step" id="step3"></div>
+  </div>
+
+  <div class="product-card" id="productCard">
+    <div class="product-image" id="productImage"></div>
+    <div class="product-info">
+      <div class="product-name" id="productName">Carregando...</div>
+      <div class="product-price" id="productPrice">—</div>
+    </div>
+  </div>
+
+  <!-- STEP 1: Escolher tipo de gatilho -->
+  <div class="step" id="step1Content">
+    <div class="step-title">Passo 1 de 3</div>
+    <h2 class="step-h">Quando você quer comprar?</h2>
+    <p class="step-sub">Escolha uma regra baseada na sua vida real. Você não paga nada agora.</p>
+
+    <div class="trigger-options">
+      <div class="trigger-option" data-trigger="BALANCE_TRIGGER_BUY">
+        <div class="trigger-icon">💰</div>
+        <div class="trigger-text">
+          <div class="trigger-name">Quando meu saldo subir</div>
+          <div class="trigger-desc">Compra quando o saldo da minha conta passar de X</div>
+        </div>
+        <div class="trigger-check">✓</div>
+      </div>
+
+      <div class="trigger-option" data-trigger="POST_BILLS_BUY">
+        <div class="trigger-icon">📅</div>
+        <div class="trigger-text">
+          <div class="trigger-name">Depois das contas</div>
+          <div class="trigger-desc">No dia X, se sobrar Y depois de pagar tudo</div>
+        </div>
+        <div class="trigger-check">✓</div>
+      </div>
+
+      <div class="trigger-option" data-trigger="SALARY_TRIGGER_BUY">
+        <div class="trigger-icon">💼</div>
+        <div class="trigger-text">
+          <div class="trigger-name">Quando cair meu salário</div>
+          <div class="trigger-desc">Compra se detectar crédito salarial maior que X</div>
+        </div>
+        <div class="trigger-check">✓</div>
+      </div>
+
+      <div class="trigger-option" data-trigger="GOAL_ACCUMULATION_BUY">
+        <div class="trigger-icon">🎯</div>
+        <div class="trigger-text">
+          <div class="trigger-name">Guardando aos poucos</div>
+          <div class="trigger-desc">Acumulo valor por semana até bater o preço</div>
+        </div>
+        <div class="trigger-check">✓</div>
+      </div>
+
+      <div class="trigger-option" data-trigger="AUTO_BUY_ON_RESTOCK">
+        <div class="trigger-icon">🔄</div>
+        <div class="trigger-text">
+          <div class="trigger-name">Quando voltar ao estoque</div>
+          <div class="trigger-desc">Produto esgotado — compra quando tiver disponível</div>
+        </div>
+        <div class="trigger-check">✓</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2: Configurar regra -->
+  <div class="step hidden" id="step2Content">
+    <div class="step-title">Passo 2 de 3</div>
+    <h2 class="step-h">Configure sua regra</h2>
+    <p class="step-sub" id="triggerDesc">Defina os valores que combinam com você.</p>
+
+    <div id="triggerFields"></div>
+
+    <div class="consent-box">
+      <strong>🔒 Por que preciso de Open Finance?</strong><br>
+      Pra monitorar seu saldo/contas em tempo real. É a mesma tecnologia do Banco Central que apps como Nubank, PicPay e Mercado Pago usam. <strong>Read-only</strong> — não movemos dinheiro sem sua autorização.
+    </div>
+  </div>
+
+  <!-- STEP 3: Conectar banco -->
+  <div class="step hidden" id="step3Content">
+    <div class="step-title">Passo 3 de 3</div>
+    <h2 class="step-h">Conecte seu banco</h2>
+    <p class="step-sub">Escolha seu banco pra liberar a leitura do saldo via Open Finance.</p>
+
+    <div class="banks">
+      <div class="bank selected" data-bank="itau"><div class="bank-icon">🏦</div>Itaú</div>
+      <div class="bank" data-bank="nubank"><div class="bank-icon">💜</div>Nubank</div>
+      <div class="bank" data-bank="bradesco"><div class="bank-icon">🔴</div>Bradesco</div>
+      <div class="bank" data-bank="santander"><div class="bank-icon">🔴</div>Santander</div>
+      <div class="bank" data-bank="inter"><div class="bank-icon">🟠</div>Inter</div>
+      <div class="bank" data-bank="cef"><div class="bank-icon">🌳</div>Caixa</div>
+      <div class="bank" data-bank="bb"><div class="bank-icon">💛</div>BB</div>
+      <div class="bank" data-bank="c6"><div class="bank-icon">⚫</div>C6</div>
+      <div class="bank" data-bank="original"><div class="bank-icon">⚫</div>Original</div>
+    </div>
+
+    <div class="consent-box" style="margin-top: 16px;">
+      Ao continuar, você autoriza o Orkest a:
+      <ul style="margin: 8px 0 0 16px; line-height: 1.7;">
+        <li>Ler seu saldo e extrato (read-only)</li>
+        <li>Iniciar Pix de até <strong>R$ <span id="maxAmount">500</span></strong> por transação</li>
+        <li>Receber notificação quando executar a compra</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- SUCCESS -->
+  <div class="success hidden" id="successContent">
+    <div class="success-icon">🎉</div>
+    <div class="success-title">Gatilho ativado!</div>
+    <div class="success-text" id="successText">
+      Vamos monitorar sua conta. Quando a condição for atingida, compramos automaticamente.
+    </div>
+    <div class="success-detail" id="successDetail">
+      <strong>📋 Resumo:</strong><br>
+      <span id="successSummary"></span>
+    </div>
+  </div>
+
+  <div class="cta-container">
+    <button class="cta" id="ctaBtn">Continuar</button>
+    <div class="cta-sub">Powered by Orkest · Open Finance</div>
+  </div>
+
+  <script>
+    // Lê parâmetros da URL
+    const params = new URLSearchParams(window.location.search);
+    const product = {
+      sku: params.get('sku'),
+      name: params.get('name'),
+      price: parseFloat(params.get('price') || '0'),
+      currency: params.get('currency') || 'BRL',
+      image: params.get('image'),
+      apiKey: params.get('apiKey')
+    };
+
+    let selectedTrigger = null;
+    let triggerParams = {};
+    let currentStep = 1;
+
+    // Render product
+    document.getElementById('productName').textContent = product.name || 'Produto';
+    document.getElementById('productPrice').textContent = `R$ ${product.price.toFixed(2)}`;
+    if (product.image) {
+      document.getElementById('productImage').style.backgroundImage = `url(${product.image})`;
+    }
+
+    // Trigger selection
+    document.querySelectorAll('.trigger-option').forEach(opt => {
+      opt.addEventListener('click', () => {
+        document.querySelectorAll('.trigger-option').forEach(o => o.classList.remove('selected'));
+        opt.classList.add('selected');
+        selectedTrigger = opt.getAttribute('data-trigger');
+        updateCTA();
+      });
+    });
+
+    // Bank selection
+    document.querySelectorAll('.bank').forEach(bank => {
+      bank.addEventListener('click', () => {
+        document.querySelectorAll('.bank').forEach(b => b.classList.remove('selected'));
+        bank.classList.add('selected');
+      });
+    });
+
+    // Close button
+    document.getElementById('closeBtn').addEventListener('click', () => {
+      window.parent.postMessage({ source: 'orkest-widget', type: 'close' }, '*');
+    });
+
+    // CTA
+    document.getElementById('ctaBtn').addEventListener('click', () => {
+      if (currentStep === 1 && selectedTrigger) {
+        goToStep(2);
+        renderTriggerFields();
+      } else if (currentStep === 2) {
+        if (validateStep2()) goToStep(3);
+      } else if (currentStep === 3) {
+        activateTrigger();
+      }
+    });
+
+    function updateCTA() {
+      const btn = document.getElementById('ctaBtn');
+      if (currentStep === 1) btn.textContent = selectedTrigger ? 'Continuar' : 'Escolha um gatilho';
+      else if (currentStep === 2) btn.textContent = 'Continuar';
+      else if (currentStep === 3) btn.textContent = '🔒 Autorizar e ativar';
+    }
+
+    function goToStep(step) {
+      currentStep = step;
+      ['step1Content', 'step2Content', 'step3Content', 'successContent'].forEach((id, i) => {
+        document.getElementById(id).classList.toggle('hidden', i !== step - 1);
+      });
+      ['step1', 'step2', 'step3'].forEach((id, i) => {
+        const el = document.getElementById(id);
+        el.classList.remove('active', 'done');
+        if (i + 1 < step) el.classList.add('done');
+        if (i + 1 === step) el.classList.add('active');
+      });
+      document.querySelector('.cta-container').classList.toggle('hidden', step === 4);
+      updateCTA();
+    }
+
+    function renderTriggerFields() {
+      const desc = {
+        BALANCE_TRIGGER_BUY: 'Define o saldo mínimo que sua conta precisa ter.',
+        POST_BILLS_BUY: 'Define o dia do mês e quanto precisa sobrar.',
+        SALARY_TRIGGER_BUY: 'Define o salário mínimo detectado neste mês.',
+        GOAL_ACCUMULATION_BUY: 'Define quanto guardar por semana até bater o preço.',
+        AUTO_BUY_ON_RESTOCK: 'Aguarda o produto voltar disponível (até R$ X).'
+      };
+      document.getElementById('triggerDesc').textContent = desc[selectedTrigger] || '';
+
+      const fields = document.getElementById('triggerFields');
+      const maxAmount = product.price * 1.2;
+      document.getElementById('maxAmount').textContent = maxAmount.toFixed(2);
+
+      if (selectedTrigger === 'BALANCE_TRIGGER_BUY') {
+        fields.innerHTML = `
+          <div class="field">
+            <label>Saldo mínimo (R$)</label>
+            <input type="number" id="minBalance" value="${(product.price * 2).toFixed(0)}" />
+          </div>
+          <div class="field">
+            <label>Desistir após (dias)</label>
+            <input type="number" id="maxWaitDays" value="90" />
+          </div>
+        `;
+      } else if (selectedTrigger === 'POST_BILLS_BUY') {
+        fields.innerHTML = `
+          <div class="field">
+            <label>Dia do mês</label>
+            <input type="number" id="dayOfMonth" min="1" max="28" value="20" />
+          </div>
+          <div class="field">
+            <label>Saldo mínimo após contas (R$)</label>
+            <input type="number" id="minBalanceAfterBills" value="${(product.price * 2).toFixed(0)}" />
+          </div>
+        `;
+      } else if (selectedTrigger === 'SALARY_TRIGGER_BUY') {
+        fields.innerHTML = `
+          <div class="field">
+            <label>Salário mínimo detectado (R$)</label>
+            <input type="number" id="minSalary" value="${(product.price * 8).toFixed(0)}" />
+          </div>
+        `;
+      } else if (selectedTrigger === 'GOAL_ACCUMULATION_BUY') {
+        const weeks = Math.ceil(product.price / 50);
+        fields.innerHTML = `
+          <div class="field-row">
+            <div class="field">
+              <label>Valor semanal (R$)</label>
+              <input type="number" id="weeklyAmount" value="50" />
+            </div>
+            <div class="field">
+              <label>Total a guardar (R$)</label>
+              <input type="number" id="targetAmount" value="${product.price.toFixed(0)}" />
+            </div>
+          </div>
+          <p style="font-size: 12px; color: #6b7280; margin-top: 8px;">
+            ⏱ Em ~${weeks} semanas você atinge a meta.
+          </p>
+        `;
+      } else if (selectedTrigger === 'AUTO_BUY_ON_RESTOCK') {
+        fields.innerHTML = `
+          <div class="field">
+            <label>Preço máximo aceitável (R$)</label>
+            <input type="number" id="maxPriceBrl" value="${(product.price * 1.1).toFixed(0)}" />
+          </div>
+        `;
+      }
+    }
+
+    function validateStep2() {
+      const inputs = document.querySelectorAll('#triggerFields input');
+      triggerParams = {};
+      let valid = true;
+      inputs.forEach(input => {
+        if (!input.value) valid = false;
+        triggerParams[input.id] = parseFloat(input.value) || input.value;
+      });
+      return valid;
+    }
+
+    function activateTrigger() {
+      const btn = document.getElementById('ctaBtn');
+      btn.textContent = '⏳ Ativando...';
+      btn.disabled = true;
+
+      // Simula ativação (em produção, chama API do Orkest)
+      setTimeout(() => {
+        goToStep(4);  // Sucesso
+        document.getElementById('successSummary').innerHTML = `
+          Produto: <strong>${product.name}</strong><br>
+          Preço: <strong>R$ ${product.price.toFixed(2)}</strong><br>
+          Gatilho: <strong>${getTriggerName(selectedTrigger)}</strong><br>
+          Parâmetros: <code>${JSON.stringify(triggerParams)}</code>
+        `;
+
+        // Notifica parent
+        setTimeout(() => {
+          window.parent.postMessage({
+            source: 'orkest-widget',
+            type: 'configured',
+            message: `Gatilho "${getTriggerName(selectedTrigger)}" ativado! Vamos monitorar e comprar quando sua condição for atingida.`
+          }, '*');
+        }, 2000);
+      }, 1500);
+    }
+
+    function getTriggerName(code) {
+      const names = {
+        BALANCE_TRIGGER_BUY: 'Quando saldo subir',
+        POST_BILLS_BUY: 'Depois das contas',
+        SALARY_TRIGGER_BUY: 'Quando cair salário',
+        GOAL_ACCUMULATION_BUY: 'Guardando aos poucos',
+        AUTO_BUY_ON_RESTOCK: 'Quando voltar ao estoque'
+      };
+      return names[code] || code;
+    }
+  </script>
+</body>
+</html>

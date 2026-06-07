@@ -1,0 +1,381 @@
+// Orkest — Database Schema
+// Stack: PostgreSQL 16 + Prisma 5
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// PARCEIROS B2B (Corretoras, Fundos, Bancos, Varejo)
+// ============================================
+
+model Partner {
+  id              String   @id @default(cuid())
+  slug            String   @unique
+  name            String
+  type            PartnerType
+  status          PartnerStatus @default(ACTIVE)
+  
+  // Config do parceiro
+  config          Json     // adapters ativos, fee split, take-rate
+  
+  // Credenciais Efí (criptografadas no Vault)
+  efiClientId     String?
+  efiClientSecret String?  // armazenado no Vault
+  
+  // Webhook URL para receber notificações
+  webhookUrl      String?
+  webhookSecret   String?
+  
+  // Plano comercial
+  tier            PlanTier @default(STARTER)
+  monthlyFeeBrl   Decimal  @default(2500.00)
+  takeRateBrl     Decimal  @default(0.15)
+  
+  // Limites
+  maxMau          Int      @default(1000)
+  
+  // Audit
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  users           ConsumerUser[]
+  triggers        Trigger[]
+  executions      Execution[]
+  apiKeys         ApiKey[]
+  
+  @@index([type])
+  @@index([status])
+}
+
+enum PartnerType {
+  BROKER          // Corretora de valores
+  FUND_DISTRIBUTOR  // Distribuidora de fundos
+  BANK            // Banco digital
+  RETAILER        // Varejo / E-commerce
+  NEOBANK         // Banco digital desafiante
+  FINTECH         // Fintech generalista
+  UTILITY         // Concessionária / Telecom
+  INSURER         // Seguradora
+}
+
+enum PartnerStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  CHURNED
+}
+
+enum PlanTier {
+  STARTER
+  GROWTH
+  SCALE
+  ENTERPRISE
+}
+
+// ============================================
+// API KEYS (autenticação de parceiros)
+// ============================================
+
+model ApiKey {
+  id          String   @id @default(cuid())
+  partnerId   String
+  key         String   @unique
+  secretHash  String   // bcrypt
+  name        String
+  scopes      String[] // ['partners:read', 'triggers:write', ...]
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  
+  partner     Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  
+  @@index([partnerId])
+}
+
+// ============================================
+// USUÁRIOS FINAIS (consumidores — clientes do cliente)
+// ============================================
+
+model ConsumerUser {
+  id                String   @id @default(cuid())
+  partnerId         String
+  externalUserId    String   // ID do usuário no sistema do parceiro
+  
+  email             String?
+  name              String?
+  phone             String?
+  
+  // Status do Open Finance
+  consentStatus     ConsentStatus @default(PENDING)
+  consentToken      String?       // armazenado no Vault
+  consentExpiresAt  DateTime?
+  
+  // Conta bancária conectada (via Open Finance)
+  bankName          String?
+  bankAccountMask   String?       // ex: "0001-9 / 12345-6"
+  
+  // Configurações
+  notifyChannels    NotifyChannel[]
+  locale            String   @default("pt-BR")
+  timezone          String   @default("America/Sao_Paulo")
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  partner           Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  triggers          Trigger[]
+  executions        Execution[]
+  
+  @@unique([partnerId, externalUserId])
+  @@index([email])
+}
+
+enum ConsentStatus {
+  PENDING
+  ACTIVE
+  REVOKED
+  EXPIRED
+  FAILED
+}
+
+enum NotifyChannel {
+  PUSH
+  EMAIL
+  SMS
+  WHATSAPP
+  IN_APP
+}
+
+// ============================================
+// GATILHOS (regras configuradas pelo consumidor)
+// ============================================
+
+model Trigger {
+  id                String   @id @default(cuid())
+  partnerId         String
+  userId            String
+  
+  // Identificação
+  code              String   // 'BUY_DIP_STOCK', 'DCA_FUND', 'RECURRING_BUY', etc.
+  name              String   // nome customizado pelo usuário
+  description       String?  // descrição legível
+  
+  // Estado
+  status            TriggerStatus @default(ACTIVE)
+  isPaused          Boolean  @default(false)
+  pauseReason       String?
+  
+  // Configuração da regra (JSON flexível por tipo de gatilho)
+  params            Json     // { ticker, dipPct, amountBrl, minBalance, ... }
+  
+  // Estado interno
+  lastEvaluatedAt   DateTime?
+  lastExecutedAt    DateTime?
+  nextEvaluationAt  DateTime?
+  executionCount    Int      @default(0)
+  failureCount      Int      @default(0)
+  
+  // Limites
+  maxExecutions     Int?     // null = infinito
+  totalSpentBrl     Decimal  @default(0.00)
+  maxTotalSpendBrl  Decimal?
+  
+  // Audit
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  partner           Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  user              ConsumerUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  executions        Execution[]
+  
+  @@index([partnerId])
+  @@index([userId])
+  @@index([status])
+  @@index([nextEvaluationAt])
+}
+
+enum TriggerStatus {
+  ACTIVE
+  PAUSED
+  EXHAUSTED       // atingiu maxExecutions
+  BUDGET_EXCEEDED // atingiu maxTotalSpendBrl
+  FAILED
+  CANCELED
+}
+
+// ============================================
+// EXECUÇÕES (tentativas de executar um gatilho)
+// ============================================
+
+model Execution {
+  id                String   @id @default(cuid())
+  partnerId         String
+  userId            String
+  triggerId         String
+  
+  // Estado da máquina
+  status            ExecutionStatus @default(PENDING)
+  state             Json     // histórico de transições
+  
+  // Detalhes da operação
+  intent            Json     // { type: 'BUY_STOCK', ticker: 'ITUB4', ... }
+  destination       String   // 'MOCK_STOCK_BROKER', 'XP_BROKER', etc.
+  
+  // Resultado
+  externalId        String?  // ID da ordem no destino final
+  result            Json?    // detalhes do resultado
+  
+  // Valores
+  amountBrl         Decimal?
+  amountTokens      Decimal? // para cripto
+  pricePerUnit      Decimal?
+  quantity          Decimal?
+  
+  // Erro
+  errorCode         String?
+  errorMessage      String?
+  retryCount        Int      @default(0)
+  
+  // Timestamps do ciclo de vida
+  createdAt         DateTime @default(now())
+  evaluatedAt       DateTime?
+  pixInitiatedAt    DateTime?
+  pixConfirmedAt    DateTime?
+  executionCompletedAt DateTime?
+  failedAt          DateTime?
+  
+  partner           Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  user              ConsumerUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trigger           Trigger  @relation(fields: [triggerId], references: [id], onDelete: Cascade)
+  
+  @@index([partnerId])
+  @@index([userId])
+  @@index([triggerId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum ExecutionStatus {
+  PENDING              // criado, aguardando avaliação
+  EVALUATING           // checando condições de mercado + saldo
+  EVALUATION_PASSED    // condições ok, vai executar
+  EVALUATION_FAILED    // condições não ok (skip)
+  INITIATING_PIX       // disparando Pix via Efí
+  PIX_PENDING          // Pix em trânsito
+  PIX_CONFIRMED        // Pix caiu no destino
+  EXECUTING_DESTINATION // chamando adapter do destino
+  COMPLETED            // ✅ tudo ok
+  FAILED               // ❌ erro permanente
+  CANCELED             // usuário cancelou
+  RETRYING             // vai tentar de novo
+}
+
+// ============================================
+// AUDIT LOG (trilha de auditoria financeira)
+// ============================================
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  partnerId   String?
+  userId      String?
+  triggerId   String?
+  executionId String?
+  
+  actor       String   // 'system', 'user:xxx', 'partner:yyy', 'cron:market-watcher'
+  action      String   // 'TRIGGER_CREATED', 'EXECUTION_STARTED', 'PIX_INITIATED', etc.
+  resource    String   // 'trigger', 'execution', 'user', 'partner'
+  resourceId  String
+  
+  metadata    Json?    // dados contextuais (sem PII sensível)
+  ipAddress   String?
+  userAgent   String?
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([partnerId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// ============================================
+// CATÁLOGO DE GATILHOS (config global, read-only)
+// ============================================
+
+model TriggerCatalog {
+  id              String   @id @default(cuid())
+  code            String   @unique
+  name            String
+  description     String
+  category        TriggerCategory
+  destinationType String   // qual tipo de destino esse gatilho usa
+  
+  // Schema JSON dos parâmetros aceitos
+  paramsSchema    Json     // JSON Schema dos params
+  
+  // Metadata
+  iconUrl         String?
+  isPremium       Boolean  @default(false)
+  isActive        Boolean  @default(true)
+  minPlanTier     PlanTier @default(STARTER)
+  
+  // Exemplo de uso
+  exampleParams   Json
+  exampleNarrative String  // descrição humanizada
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([category])
+  @@index([destinationType])
+}
+
+enum TriggerCategory {
+  INVESTMENT_AUTO    // buy the dip, dca, stop loss
+  INVESTMENT_PASSIVE // aportes programados
+  BANKING            // arredondamento, sweep, goals
+  CONSUMPTION        // compras recorrentes, alertas de preço
+  UTILITY            // contas, telecom
+  INSURANCE          // prêmios, renovações
+  CUSTOM             // regras via IA em linguagem natural
+}
+
+// ============================================
+// NOTIFICAÇÕES ENVIADAS
+// ============================================
+
+model Notification {
+  id          String   @id @default(cuid())
+  userId      String
+  type        String   // 'TRIGGER_EXECUTED', 'TRIGGER_FAILED', 'BUDGET_WARNING', etc.
+  channel     NotifyChannel
+  title       String
+  body        String
+  metadata    Json?
+  
+  status      NotificationStatus @default(PENDING)
+  sentAt      DateTime?
+  deliveredAt DateTime?
+  readAt      DateTime?
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}

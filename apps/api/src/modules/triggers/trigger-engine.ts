@@ -1,0 +1,545 @@
+// ============================================
+//  TRIGGER ENGINE — O Coração do Orkest
+// ============================================
+// Avalia gatilhos, executa ações, gerencia state machine.
+
+import { Injectable, Logger } from '@nestjs/common';
+import { PrismaClient, Trigger, ExecutionStatus } from '@prisma/client';
+import { InjectQueue } from '@nestjs/bull';
+import { Queue } from 'bull';
+import { DestinationRegistry } from '../destinations/destination-registry';
+import { DestinationAction, DestinationType } from '../destinations/destination.interface';
+import { MarketDataService } from '../market-data/market-data.service';
+import { BankTransferService } from '../open-finance/bank-transfer.service';
+
+@Injectable()
+export class TriggerEngine {
+  private readonly logger = new Logger(TriggerEngine.name);
+  private prisma = new PrismaClient();
+
+  constructor(
+    @InjectQueue('trigger-evaluation') private evaluationQueue: Queue,
+    @InjectQueue('trigger-execution') private executionQueue: Queue,
+    private destinations: DestinationRegistry,
+    private marketData: MarketDataService,
+    private bankService: BankTransferService
+  ) {}
+
+  // ============================================
+  // 1. AVALIAÇÃO — verifica se gatilho deve disparar
+  // ============================================
+
+  async evaluateTrigger(triggerId: string): Promise<{ shouldFire: boolean; reason: string; data?: any }> {
+    const trigger = await this.prisma.trigger.findUnique({
+      where: { id: triggerId },
+      include: { user: true }
+    });
+    if (!trigger) return { shouldFire: false, reason: 'Trigger não encontrado' };
+    if (trigger.status !== 'ACTIVE') return { shouldFire: false, reason: `Status: ${trigger.status}` };
+
+    const result = await this.evaluateByCode(trigger);
+    return result;
+  }
+
+  private async evaluateByCode(trigger: Trigger): Promise<{ shouldFire: boolean; reason: string; data?: any }> {
+    const params = trigger.params as any;
+    const triggerCode = trigger.code;
+
+    switch (triggerCode) {
+      case 'BUY_DIP_STOCK':
+        return this.evaluateBuyDipStock(trigger, params);
+
+      case 'DCA_STOCK':
+        return this.evaluateDcaStock(trigger, params);
+
+      case 'DCA_FUND':
+        return this.evaluateDcaFund(trigger, params);
+
+      case 'RASI_CAIXA_FUND':
+        return this.evaluateRasiCaixa(trigger, params);
+
+      case 'BUY_DIP_CRYPTO':
+        return this.evaluateBuyDipCrypto(trigger, params);
+
+      case 'DCA_CRYPTO':
+        return this.evaluateDcaCrypto(trigger, params);
+
+      case 'RECURRING_BUY':
+        return this.evaluateRecurringBuy(trigger, params);
+
+      case 'PRICE_ALERT_BUY':
+        return this.evaluatePriceAlertBuy(trigger, params);
+
+      case 'BILL_AUTO_PAY':
+        return this.evaluateBillAutoPay(trigger, params);
+
+      case 'BALANCE_TRIGGER_BUY':
+        return this.evaluateBalanceTriggerBuy(trigger, params);
+
+      case 'POST_BILLS_BUY':
+        return this.evaluatePostBillsBuy(trigger, params);
+
+      case 'SALARY_TRIGGER_BUY':
+        return this.evaluateSalaryTriggerBuy(trigger, params);
+
+      case 'AUTO_BUY_ON_RESTOCK':
+        return this.evaluateAutoBuyOnRestock(trigger, params);
+
+      case 'GOAL_ACCUMULATION_BUY':
+        return this.evaluateGoalAccumulation(trigger, params);
+
+      case 'CUSTOM_NL':
+        return { shouldFire: false, reason: 'Regras custom NL requerem avaliação manual' };
+
+      default:
+        return { shouldFire: false, reason: `Tipo de gatilho ${triggerCode} ainda não implementado` };
+    }
+  }
+
+  // ========== Evaluators específicos ==========
+
+  private async evaluateBuyDipStock(trigger: Trigger, params: any): Promise<{ shouldFire: boolean; reason: string; data?: any }> {
+    // 1. Busca cotação real
+    const quote = await this.marketData.getStockQuote(params.ticker);
+    if (!quote) return { shouldFire: false, reason: 'Sem cotação disponível' };
+
+    // 2. Calcula variação no período
+    const historical = await this.marketData.getStockHistory(params.ticker, params.windowDays);
+    const maxPrice = Math.max(...historical.map(h => h.close));
+    const dropPct = ((maxPrice - quote.price) / maxPrice) * 100;
+
+    if (dropPct < params.dipPct) {
+      return { shouldFire: false, reason: `Queda atual ${dropPct.toFixed(2)}% < gatilho ${params.dipPct}%` };
+    }
+
+    // 3. Verifica saldo
+    const balance = await this.bankService.getBalance(trigger.userId);
+    if (balance < (params.minBalance || 0)) {
+      return { shouldFire: false, reason: `Saldo ${balance.toFixed(2)} < mínimo ${params.minBalance}` };
+    }
+    if (balance < params.amountBrl) {
+      return { shouldFire: false, reason: `Saldo insuficiente pra operação de R$ ${params.amountBrl}` };
+    }
+
+    return {
+      shouldFire: true,
+      reason: `Queda de ${dropPct.toFixed(2)}% detectada`,
+      data: { quote, dropPct }
+    };
+  }
+
+  private async evaluateDcaStock(trigger: Trigger, params: any): Promise<{ shouldFire: boolean; reason: string; data?: any }> {
+    const today = new Date();
+    if (today.getDate() !== params.dayOfMonth) {
+      return { shouldFire: false, reason: `Hoje é dia ${today.getDate()}, gatilho roda dia ${params.dayOfMonth}` };
+    }
+    const balance = await this.bankService.getBalance(trigger.userId);
+    if (balance < (params.minBalance || 0)) {
+      return { shouldFire: false, reason: `Saldo ${balance.toFixed(2)} < mínimo ${params.minBalance}` };
+    }
+    if (balance < params.amountBrl) {
+      return { shouldFire: false, reason: `Saldo insuficiente` };
+    }
+    return { shouldFire: true, reason: `Dia ${params.dayOfMonth} — aporte programado`, data: { balance } };
+  }
+
+  private async evaluateDcaFund(trigger: Trigger, params: any): Promise<{ shouldFire: boolean; reason: string; data?: any }> {
+    const today = new Date();
+    if (today.getDate() !== params.dayOfMonth) {
+      return { shouldFire: false, reason: `Hoje é dia ${today.getDate()}, gatilho roda dia ${params.dayOfMonth}` };
+    }
+    const balance = await this.bankService.getBalance(trigger.userId);
+    if (balance < (params.minBalance || 0)) {
+      return { shouldFire: false, reason: `Saldo ${balance.toFixed(2)} < mínimo ${params.minBalance}` };
+    }
+    if (balance < params.amountBrl) {
+      return { shouldFire: false, reason: `Saldo insuficiente` };
+    }
+    return { shouldFire: true, reason: `Aporte programado em fundo`, data: { balance } };
+  }
+
+  private async evaluateRasiCaixa(trigger: Trigger, params: any): Promise<{ shouldFire: boolean; reason: string; data?: any }> {
+    const today = new Date();
+    if (today.getDate() !== params.dayOfMonth) {
+      return { shouldFire: false, reason: `Dia ${today.getDate()} ≠ ${params.dayOfMonth}` };
+    }
+    const balance = await this.bankService.getBalance(trigger.userId);
+    if (balance <= params.minCashReserve) {
+      return { shouldFire: false, reason: `Saldo ${balance.toFixed(2)} ≤ reserva ${params.minCashReserve}` };
+    }
+    const excess = balance - params.minCashReserve;
+    const transferAmount = Math.min(excess, params.maxTransferBrl || excess);
+    return {
+      shouldFire: true,
+      reason: `Excedente detectado: R$ ${transferAmount.toFixed(2)}`,
+      data: { transferAmount, balance, excess }
+    };
+  }
+
+  private async evaluateBuyDipCrypto(trigger: Trigger, params: any): Promise<{ shouldFire: boolean; reason: string; data?: any }> {
+    const quote = await this.marketData.getCryptoQuote(params.asset);
+    if (!quote) return { shouldFire: false, reason: 'Sem cotação' };
+
+    const historical = await this.marketData.getCryptoHistory(params.asset, params.windowHours);
+    const maxPrice = Math.max(...historical.map(h => h.close));
+    const dropPct = ((maxPrice - quote.price) / maxPrice) * 100;
+
+    if (dropPct < params.dipPct) {
+      return { shouldFire: false, reason: `Queda ${dropPct.toFixed(2)}% < ${params.dipPct}%` };
+    }
+
+    const balance = await this.bankService.getBalance(trigger.userId);
+    if (balance < params.amountBrl) {
+      return { shouldFire: false, reason: 'Saldo insuficiente' };
+    }
+    return { shouldFire: true, reason: `Cripto caiu ${dropPct.toFixed(2)}%`, data: { quote, dropPct } };
+  }
+
+  private async evaluateDcaCrypto(trigger: Trigger, params: any): Promise<{ shouldFire: boolean; reason: string; data?: any }> {
+    return this.evaluateDcaStock(trigger, params);  // mesma lógica
+  }
+
+  private async evaluateRecurringBuy(trigger: Trigger, params: any): Promise<{ shouldFire: boolean; reason: string; data?: any }> {
+    const lastExecution = await this.prisma.execution.findFirst({
+      where: { triggerId: trigger.id, status: 'COMPLETED' },
+      orderBy: { executionCompletedAt: 'desc' }
+    });
+    const now = new Date();
+    if (lastExecution?.executionCompletedAt) {
+      const daysSince = (now.getTime() - lastExecution.executionCompletedAt.getTime()) / (1000 * 60 * 60 * 24);
+      if (daysSince < params.frequencyDays) {
+        return { shouldFire: false, reason: `Última compra há ${daysSince.toFixed(0)} dias, frequência é ${params.frequencyDays}` };
+      }
+    }
+    const quote = await this.marketData.getProductQuote(params.sku);
+    if (!quote) return { shouldFire: false, reason: 'Produto não encontrado' };
+    if (quote.price < params.minPriceBrl || quote.price > params.maxPriceBrl) {
+      return { shouldFire: false, reason: `Preço R$ ${quote.price.toFixed(2)} fora do range R$ ${params.minPriceBrl}-${params.maxPriceBrl}` };
+    }
+    return { shouldFire: true, reason: `Preço R$ ${quote.price.toFixed(2)} no range`, data: { quote } };
+  }
+
+  private async evaluatePriceAlertBuy(trigger: Trigger, params: any): Promise<{ shouldFire: boolean; reason: string; data?: any }> {
+    const quote = await this.marketData.getProductQuote(params.sku);
+    if (!quote) return { shouldFire: false, reason: 'Produto não encontrado' };
+    if (quote.price > params.targetPriceBrl) {
+      return { shouldFire: false, reason: `Preço R$ ${quote.price.toFixed(2)} > alvo R$ ${params.targetPriceBrl}` };
+    }
+    return { shouldFire: true, reason: `Atingiu preço alvo!`, data: { quote } };
+  }
+
+  private async evaluateBillAutoPay(trigger: Trigger, params: any): Promise<{ shouldFire: boolean; reason: string; data?: any }> {
+    // Mock — em produção consultaria API da concessionária
+    const mockBillAmount = 280 + Math.random() * 200;
+    if (mockBillAmount > params.maxAmountBrl) {
+      return { shouldFire: false, reason: `Conta R$ ${mockBillAmount.toFixed(2)} > limite R$ ${params.maxAmountBrl}` };
+    }
+    const balance = await this.bankService.getBalance(trigger.userId);
+    if (balance < mockBillAmount) {
+      return { shouldFire: false, reason: 'Saldo insuficiente' };
+    }
+    return { shouldFire: true, reason: `Conta R$ ${mockBillAmount.toFixed(2)} dentro do limite`, data: { amount: mockBillAmount } };
+  }
+
+  // ========== NOVOS EVALUATORS — Contexto Financeiro ==========
+
+  private async evaluateBalanceTriggerBuy(trigger: Trigger, params: any): Promise<{ shouldFire: boolean; reason: string; data?: any }> {
+    const balance = await this.bankService.getBalance(trigger.userId);
+    if (balance < params.minBalance) {
+      return { shouldFire: false, reason: `Saldo R$ ${balance.toFixed(2)} < gatilho R$ ${params.minBalance}` };
+    }
+    // Verifica timeout (maxWaitDays)
+    if (params.maxWaitDays && trigger.createdAt) {
+      const ageDays = (Date.now() - trigger.createdAt.getTime()) / (1000 * 60 * 60 * 24);
+      if (ageDays > params.maxWaitDays) {
+        return { shouldFire: false, reason: `Expirou após ${params.maxWaitDays} dias (${ageDays.toFixed(0)} dias desde criação)` };
+      }
+    }
+    return {
+      shouldFire: true,
+      reason: `Saldo R$ ${balance.toFixed(2)} >= gatilho R$ ${params.minBalance}`,
+      data: { balance, minBalance: params.minBalance }
+    };
+  }
+
+  private async evaluatePostBillsBuy(trigger: Trigger, params: any): Promise<{ shouldFire: boolean; reason: string; data?: any }> {
+    const today = new Date();
+    if (today.getDate() !== params.dayOfMonth) {
+      return { shouldFire: false, reason: `Hoje é dia ${today.getDate()}, gatilho dispara dia ${params.dayOfMonth}` };
+    }
+    // Mock: em produção, consultaria o extrato via Open Finance pra confirmar pagamento das contas
+    const mockBillsPaid = Math.random() > 0.3;  // 70% chance de contas terem sido pagas
+    if (!mockBillsPaid) {
+      return { shouldFire: false, reason: 'Ainda há contas fixas a pagar este mês' };
+    }
+    const balance = await this.bankService.getBalance(trigger.userId);
+    if (balance < params.minBalanceAfterBills) {
+      return { shouldFire: false, reason: `Saldo pós-contas R$ ${balance.toFixed(2)} < mínimo R$ ${params.minBalanceAfterBills}` };
+    }
+    return {
+      shouldFire: true,
+      reason: `Contas pagas + saldo R$ ${balance.toFixed(2)} >= R$ ${params.minBalanceAfterBills}`,
+      data: { balance, billsPaid: true }
+    };
+  }
+
+  private async evaluateSalaryTriggerBuy(trigger: Trigger, params: any): Promise<{ shouldFire: boolean; reason: string; data?: any }> {
+    // Mock: 40% chance de ter recebido salário > X neste mês
+    const salaryReceived = 1000 + Math.random() * 5000;
+    if (salaryReceived < params.minSalary) {
+      return { shouldFire: false, reason: `Salário simulado R$ ${salaryReceived.toFixed(2)} < gatilho R$ ${params.minSalary}` };
+    }
+    const balance = await this.bankService.getBalance(trigger.userId);
+    const productPrice = await this.marketData.getProductQuote(params.sku);
+    const totalCost = (productPrice?.price || 0) * (params.quantity || 1);
+    if (balance < totalCost) {
+      return { shouldFire: false, reason: 'Saldo insuficiente mesmo com salário detectado' };
+    }
+    if (params.maxAmountBrl && totalCost > params.maxAmountBrl) {
+      return { shouldFire: false, reason: `Custo R$ ${totalCost.toFixed(2)} > teto R$ ${params.maxAmountBrl}` };
+    }
+    return {
+      shouldFire: true,
+      reason: `Salário R$ ${salaryReceived.toFixed(2)} detectado, dispara compra`,
+      data: { salaryReceived, totalCost }
+    };
+  }
+
+  private async evaluateAutoBuyOnRestock(trigger: Trigger, params: any): Promise<{ shouldFire: boolean; reason: string; data?: any }> {
+    const quote = await this.marketData.getProductQuote(params.sku);
+    if (!quote) return { shouldFire: false, reason: 'Produto não encontrado' };
+    // Em produção, verificaria estoque real via adapter
+    // Aqui simulamos: se o produto está com restockDate no passado, volta ao estoque
+    const restockData = (this.marketData as any).restockSchedule?.[params.sku];
+    if (restockData && new Date(restockData) > new Date()) {
+      return { shouldFire: false, reason: `Produto volta ao estoque em ${new Date(restockData).toLocaleDateString('pt-BR')}` };
+    }
+    if (params.maxPriceBrl && quote.price > params.maxPriceBrl) {
+      return { shouldFire: false, reason: `Preço R$ ${quote.price.toFixed(2)} > máximo R$ ${params.maxPriceBrl}` };
+    }
+    const balance = await this.bankService.getBalance(trigger.userId);
+    if (balance < quote.price) {
+      return { shouldFire: false, reason: 'Saldo insuficiente' };
+    }
+    return {
+      shouldFire: true,
+      reason: `Produto voltou ao estoque por R$ ${quote.price.toFixed(2)}`,
+      data: { quote }
+    };
+  }
+
+  private async evaluateGoalAccumulation(trigger: Trigger, params: any): Promise<{ shouldFire: boolean; reason: string; data?: any }> {
+    // Mock: verifica quantas semanas desde a criação e simula acúmulo
+    const weeksElapsed = trigger.createdAt
+      ? Math.floor((Date.now() - trigger.createdAt.getTime()) / (1000 * 60 * 60 * 24 * 7))
+      : 0;
+    const accumulated = weeksElapsed * params.weeklyAmount;
+    if (accumulated < params.targetAmount) {
+      return { shouldFire: false, reason: `Acumulado R$ ${accumulated.toFixed(2)} < meta R$ ${params.targetAmount} (${weeksElapsed} semanas)` };
+    }
+    return {
+      shouldFire: true,
+      reason: `Meta atingida! R$ ${accumulated.toFixed(2)} = R$ ${params.targetAmount}`,
+      data: { accumulated, weeksElapsed }
+    };
+  }
+
+  // ============================================
+  // 2. EXECUÇÃO — quando shouldFire=true
+  // ============================================
+
+  async executeTrigger(triggerId: string, evaluationData: any) {
+    this.logger.log(`🚀 Executing trigger ${triggerId}`);
+
+    const trigger = await this.prisma.trigger.findUnique({
+      where: { id: triggerId },
+      include: { partner: true, user: true }
+    });
+    if (!trigger) throw new Error('Trigger não encontrado');
+
+    // Cria execution
+    const execution = await this.prisma.execution.create({
+      data: {
+        partnerId: trigger.partnerId,
+        userId: trigger.userId,
+        triggerId: trigger.id,
+        status: 'EVALUATING',
+        intent: evaluationData,
+        destination: this.resolveDestinationName(trigger.partner, trigger.code),
+        amountBrl: trigger.params['amountBrl'] || 0
+      }
+    });
+
+    try {
+      // 1. Atualiza status
+      await this.updateExecutionStatus(execution.id, 'INITIATING_PIX');
+
+      // 2. Inicia Pix via Open Finance (mock bank)
+      const bankAdapter = this.destinations.resolve(trigger.partnerId, 'BANK_ACCOUNT');
+      const pixResult = await bankAdapter.execute({
+        type: 'TRANSFER',
+        destinationAccount: `DEST-${trigger.code}`,
+        amountBrl: Number(execution.amountBrl),
+        userId: trigger.user.externalUserId
+      });
+
+      if (pixResult.status === 'FAILED') {
+        await this.failExecution(execution.id, 'PIX_FAILED', pixResult.errorMessage);
+        return;
+      }
+
+      // 3. Atualiza status
+      await this.updateExecutionStatus(execution.id, 'PIX_CONFIRMED', {
+        pixEndToEndId: pixResult.details.pixEndToEndId
+      });
+
+      // 4. Chama o adapter do destino final
+      const destinationType = this.resolveDestinationType(trigger.code);
+      const destinationAdapter = this.destinations.resolve(trigger.partnerId, destinationType);
+      const action = this.buildAction(trigger, evaluationData, trigger.user.externalUserId);
+
+      await this.updateExecutionStatus(execution.id, 'EXECUTING_DESTINATION');
+      const destResult = await destinationAdapter.execute(action);
+
+      if (destResult.status === 'FAILED') {
+        await this.failExecution(execution.id, destResult.errorCode, destResult.errorMessage);
+        return;
+      }
+
+      // 5. Sucesso!
+      await this.prisma.execution.update({
+        where: { id: execution.id },
+        data: {
+          status: 'COMPLETED',
+          externalId: destResult.externalId,
+          result: destResult.details,
+          executionCompletedAt: new Date()
+        }
+      });
+
+      // 6. Atualiza trigger
+      await this.prisma.trigger.update({
+        where: { id: trigger.id },
+        data: {
+          lastExecutedAt: new Date(),
+          executionCount: { increment: 1 },
+          totalSpentBrl: { increment: Number(execution.amountBrl) }
+        }
+      });
+
+      // 7. Audit log
+      await this.prisma.auditLog.create({
+        data: {
+          partnerId: trigger.partnerId,
+          userId: trigger.userId,
+          triggerId: trigger.id,
+          executionId: execution.id,
+          actor: 'system',
+          action: 'EXECUTION_COMPLETED',
+          resource: 'execution',
+          resourceId: execution.id,
+          metadata: { externalId: destResult.externalId, amountBrl: Number(execution.amountBrl) }
+        }
+      });
+
+      this.logger.log(`✅ Execution ${execution.id} completed: ${destResult.externalId}`);
+    } catch (err) {
+      this.logger.error(`❌ Execution ${execution.id} failed: ${err.message}`);
+      await this.failExecution(execution.id, 'INTERNAL_ERROR', err.message);
+    }
+  }
+
+  // ============================================
+  // 3. SCHEDULER — enfileira gatilhos pra avaliação
+  // ============================================
+
+  async scheduleEvaluation(triggerId: string, delayMs = 0) {
+    await this.evaluationQueue.add(
+      'evaluate',
+      { triggerId },
+      { delay: delayMs, attempts: 3, backoff: { type: 'exponential', delay: 5000 } }
+    );
+  }
+
+  async scheduleAllActive() {
+    const activeTriggers = await this.prisma.trigger.findMany({
+      where: { status: 'ACTIVE' },
+      take: 1000
+    });
+    for (const trigger of activeTriggers) {
+      await this.scheduleEvaluation(trigger.id, Math.random() * 60000);  // jitter
+    }
+    this.logger.log(`📅 Scheduled ${activeTriggers.length} triggers for evaluation`);
+  }
+
+  // ========== Helpers ==========
+
+  private async updateExecutionStatus(id: string, status: ExecutionStatus, metadata?: any) {
+    await this.prisma.execution.update({
+      where: { id },
+      data: {
+        status,
+        state: { history: 'transition', ...metadata } as any
+      }
+    });
+  }
+
+  private async failExecution(id: string, code: string, message: string) {
+    await this.prisma.execution.update({
+      where: { id },
+      data: { status: 'FAILED', errorCode: code, errorMessage: message, failedAt: new Date() }
+    });
+  }
+
+  private resolveDestinationType(triggerCode: string): DestinationType {
+    if (triggerCode.includes('STOCK')) return 'STOCK_BROKER';
+    if (triggerCode.includes('FUND') || triggerCode.includes('SAVINGS') || triggerCode.includes('CAIXA')) return 'FUND_DISTRIBUTOR';
+    if (triggerCode.includes('CRYPTO')) return 'CRYPTO_EXCHANGE';
+    if (triggerCode.includes('BILL')) return 'BILL_PAYER';
+    if (triggerCode.includes('INSURANCE')) return 'INSURER';
+    if (triggerCode.includes('BUY') || triggerCode.includes('RECURRING') || triggerCode.includes('GIFT') || triggerCode.includes('GROCERY')) return 'RETAILER';
+    return 'BANK_ACCOUNT';
+  }
+
+  private resolveDestinationName(partner: any, triggerCode: string): string {
+    const config = partner.config as any;
+    const type = this.resolveDestinationType(triggerCode);
+    switch (type) {
+      case 'STOCK_BROKER': return config.stockAdapter || 'MOCK_STOCK_BROKER';
+      case 'FUND_DISTRIBUTOR': return config.fundAdapter || 'MOCK_FUND_DISTRIBUTOR';
+      case 'CRYPTO_EXCHANGE': return config.cryptoAdapter || 'MOCK_CRYPTO_EXCHANGE';
+      case 'RETAILER': return config.retailerAdapter || 'MOCK_RETAILER';
+      case 'BILL_PAYER': return config.billAdapter || 'MOCK_BANK_ACCOUNT';
+      default: return 'MOCK_BANK_ACCOUNT';
+    }
+  }
+
+  private buildAction(trigger: Trigger, evaluationData: any, userId: string): DestinationAction {
+    const params = trigger.params as any;
+    const code = trigger.code;
+
+    if (code === 'BUY_DIP_STOCK' || code === 'DCA_STOCK') {
+      return { type: 'BUY_STOCK', ticker: params.ticker, amountBrl: params.amountBrl, userId };
+    }
+    if (code === 'STOP_LOSS_STOCK' || code === 'TAKE_PROFIT_STOCK') {
+      return { type: 'SELL_STOCK', ticker: params.ticker, quantity: params.quantity || 1, userId };
+    }
+    if (code === 'DCA_FUND' || code === 'RASI_CAIXA_FUND') {
+      const amount = evaluationData?.transferAmount || params.amountBrl;
+      return { type: 'SUBSCRIBE_FUND', fundId: params.fundId, amountBrl: amount, userId };
+    }
+    if (code === 'BUY_DIP_CRYPTO' || code === 'DCA_CRYPTO') {
+      return { type: 'BUY_CRYPTO', asset: params.asset, amountBrl: params.amountBrl, userId };
+    }
+    if (code === 'RECURRING_BUY' || code === 'PRICE_ALERT_BUY' || code === 'GIFT_AUTO_BUY' || code === 'GROCERY_REPLENISHMENT' || code === 'BALANCE_TRIGGER_BUY' || code === 'GOAL_ACCUMULATION_BUY' || code === 'POST_BILLS_BUY' || code === 'SALARY_TRIGGER_BUY' || code === 'AUTO_BUY_ON_RESTOCK') {
+      return { type: 'BUY_PRODUCT', sku: params.sku, quantity: params.quantity || 1, userId };
+    }
+    if (code === 'BILL_AUTO_PAY') {
+      return { type: 'PAY_BILL', billType: params.billType, providerId: params.providerId, amountBrl: evaluationData.amount, userId };
+    }
+    if (code === 'AUTO_PAY_INSURANCE') {
+      return { type: 'PAY_INSURANCE', policyId: params.policyId, amountBrl: params.amountBrl, userId };
+    }
+    return { type: 'TRANSFER', destinationAccount: 'UNKNOWN', amountBrl: 0, userId };
+  }
+}

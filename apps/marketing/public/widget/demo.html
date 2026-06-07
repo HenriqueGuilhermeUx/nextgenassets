@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Demo: Orkest Widget - Loja de Perfumaria Importados</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      color: #1a1a1a;
+    }
+    .topbar {
+      background: #fff;
+      border-bottom: 1px solid #e5e5e5;
+      padding: 14px 0;
+    }
+    .topbar-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .brand {
+      font-size: 18px;
+      font-weight: 700;
+      color: #5B6CFF;
+      text-decoration: none;
+    }
+    .demo-banner {
+      background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+      color: white;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .demo-banner strong { color: #fbbf24; }
+
+    .container { max-width: 1100px; margin: 30px auto; padding: 0 24px; }
+    .breadcrumb { font-size: 13px; color: #6b7280; margin-bottom: 20px; }
+    .breadcrumb a { color: #6b7280; text-decoration: none; }
+    .breadcrumb a:hover { color: #5B6CFF; }
+
+    .product-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 40px;
+      background: white;
+      border-radius: 16px;
+      padding: 32px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    @media (max-width: 768px) {
+      .product-layout { grid-template-columns: 1fr; }
+    }
+
+    .product-image-area {
+      aspect-ratio: 1;
+      background: linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 120px;
+    }
+    .product-info h1 {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      line-height: 1.2;
+    }
+    .product-rating {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+      font-size: 13px;
+      color: #6b7280;
+    }
+    .stars { color: #fbbf24; letter-spacing: 2px; }
+    .product-price-area {
+      padding: 20px 0;
+      border-top: 1px solid #e5e5e5;
+      border-bottom: 1px solid #e5e5e5;
+      margin-bottom: 20px;
+    }
+    .price-old {
+      font-size: 14px;
+      color: #9ca3af;
+      text-decoration: line-through;
+    }
+    .price-current {
+      font-size: 36px;
+      font-weight: 800;
+      color: #1a1a1a;
+    }
+    .price-installment {
+      font-size: 13px;
+      color: #6b7280;
+      margin-top: 4px;
+    }
+    .product-stock { color: #10b981; font-weight: 600; font-size: 13px; margin-top: 6px; }
+
+    .buy-section { display: flex; flex-direction: column; gap: 10px; }
+
+    .btn-buy {
+      width: 100%;
+      padding: 16px;
+      background: #1a1a1a;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .btn-buy:hover { background: #000; }
+    .btn-pix {
+      background: #00b894;
+    }
+    .btn-pix:hover { background: #00a381; }
+    .btn-installment {
+      background: white;
+      color: #1a1a1a;
+      border: 2px solid #1a1a1a;
+    }
+    .btn-installment:hover { background: #f3f4f6; }
+
+    .product-features {
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid #e5e5e5;
+    }
+    .feature-item {
+      display: flex;
+      gap: 10px;
+      padding: 8px 0;
+      font-size: 13px;
+      color: #4b5563;
+    }
+    .feature-icon { font-size: 18px; }
+
+    /* Trust signals */
+    .trust-bar {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 30px;
+      display: flex;
+      justify-content: space-around;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .trust-item { text-align: center; font-size: 12px; color: #6b7280; }
+    .trust-item-icon { font-size: 24px; margin-bottom: 4px; }
+    .trust-item strong { color: #1a1a1a; display: block; font-size: 13px; }
+
+    /* Footer note about demo */
+    .demo-note {
+      max-width: 1100px;
+      margin: 30px auto 60px;
+      padding: 20px;
+      background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+      border-radius: 12px;
+      font-size: 13px;
+      color: #78350f;
+      line-height: 1.6;
+    }
+    .demo-note strong { color: #422006; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-inner">
+      <a href="#" class="brand">🛍️ Perfumaria Importados BR</a>
+      <div class="demo-banner">
+        ⚡ <strong>DEMO</strong> · Loja real com widget Orkest instalado
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="breadcrumb">
+      <a href="#">Home</a> / <a href="#">Perfumaria</a> / <a href="#">Importados</a> / <span>Perfume X 100ml</span>
+    </div>
+
+    <div class="product-layout">
+      <div class="product-image-area">🌸</div>
+      <div class="product-info">
+        <h1>Perfume X Eau de Parfum 100ml — Edição Limitada Importado</h1>
+        <div class="product-rating">
+          <span class="stars">★★★★★</span>
+          <span><strong>4.8</strong> (2.847 avaliações)</span>
+        </div>
+
+        <div class="product-price-area">
+          <div class="price-old">R$ 599,00</div>
+          <div class="price-current">R$ 489,00</div>
+          <div class="price-installment">ou 12x de R$ 40,75 sem juros</div>
+          <div class="product-stock">✓ Em estoque — envio em 24h</div>
+        </div>
+
+        <!-- BOTÕES DE COMPRA REAIS DO E-COMMERCE -->
+        <div class="buy-section">
+          <button class="btn-buy btn-pix">⚡ Comprar com Pix (5% off) — R$ 464,55</button>
+          <button class="btn-buy btn-installment">💳 Parcelar em 12x no cartão</button>
+
+          <!-- ⬇️⬇️⬇️ AQUI ENTRA O WIDGET ORKEST ⬇️⬇️⬇️ -->
+          <div data-orkest-button
+               data-orkest-sku="PERFUME_X_LIMITED_100ML"
+               data-orkest-price="489"
+               data-orkest-name="Perfume X Eau de Parfum 100ml — Edição Limitada">
+          </div>
+          <!-- ⬆️⬆️⬆️ FIM DO WIDGET ORKEST ⬆️⬆️⬆️ -->
+
+          <p style="font-size: 12px; color: #6b7280; text-align: center; margin-top: 4px;">
+            💡 Novo: compre agora OU programe sua compra com base na sua realidade financeira
+          </p>
+        </div>
+
+        <div class="product-features">
+          <div class="feature-item"><span class="feature-icon">🚚</span> Frete grátis para todo o Brasil</div>
+          <div class="feature-item"><span class="feature-icon">↩️</span> 30 dias para trocar ou devolver</div>
+          <div class="feature-item"><span class="feature-icon">🔒</span> Compra 100% segura (Mercado Pago)</div>
+          <div class="feature-item"><span class="feature-icon">⚡</span> Entrega expressa em 24h para capitais</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="trust-bar">
+      <div class="trust-item">
+        <div class="trust-item-icon">🛡️</div>
+        <strong>Compra Garantida</strong>
+        Receba o produto ou devolvemos seu dinheiro
+      </div>
+      <div class="trust-item">
+        <div class="trust-item-icon">🎯</div>
+        <strong>Compra por Gatilho</strong>
+        Compre quando puder, baseado na sua vida
+      </div>
+      <div class="trust-item">
+        <div class="trust-item-icon">💰</div>
+        <strong>Sem Juros</strong>
+        Pix com 5% off ou 12x sem juros
+      </div>
+    </div>
+
+    <div class="demo-note">
+      <strong>👀 Esta é uma DEMO.</strong> Você está vendo uma loja fictícia com o widget do Orkest já instalado.
+      O botão rosa "🎯 Comprar por Gatilho Inteligente" é renderizado automaticamente quando a página carrega — basta o lojista colar 1 linha de código no site.
+      <br><br>
+      <strong>👇 Clique no botão rosa abaixo pra ver o widget funcionando de verdade:</strong>
+    </div>
+  </div>
+
+  <!-- Carrega o widget real -->
+  <script src="orkest-widget.js"></script>
+  <script>
+    OrkestWidget.init({
+      apiKey: 'pk_demo_xxxxx',
+      mode: 'auto',
+      theme: 'light'
+    });
+  </script>
+</body>
+</html>

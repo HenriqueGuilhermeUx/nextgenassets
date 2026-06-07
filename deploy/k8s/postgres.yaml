@@ -1,0 +1,63 @@
+# Postgres StatefulSet (production-grade)
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: orkest
+spec:
+  ports:
+  - port: 5432
+    targetPort: 5432
+  selector:
+    app: postgres
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: orkest
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:16-alpine
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_USER
+          valueFrom: { secretKeyRef: { name: orkest-secrets, key: postgres-user } }
+        - name: POSTGRES_PASSWORD
+          valueFrom: { secretKeyRef: { name: orkest-secrets, key: postgres-password } }
+        - name: POSTGRES_DB
+          value: orkest
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/postgresql/data
+        - name: config
+          mountPath: /etc/postgresql/postgresql.conf
+          subPath: postgresql.conf
+        resources:
+          requests: { cpu: 500m, memory: 1Gi }
+          limits:   { cpu: 2,    memory: 4Gi }
+        livenessProbe:
+          exec: { command: ["pg_isready", "-U", "orkest"] }
+          initialDelaySeconds: 30
+          periodSeconds: 10
+      volumes:
+      - name: config
+        configMap: { name: postgres-config }
+  volumeClaimTemplates:
+  - metadata: { name: data }
+    spec:
+      accessModes: [ReadWriteOnce]
+      resources: { requests: { storage: 100Gi } }
+      storageClassName: gp3

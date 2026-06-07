@@ -1,0 +1,239 @@
+# ============================================
+#  CI/CD — GitHub Actions
+# ============================================
+name: Orkest CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  ORG: orkest
+
+jobs:
+  # ============================================
+  # 1. Lint + Type Check
+  # ============================================
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: orkest
+          POSTGRES_PASSWORD: orkest_test
+          POSTGRES_DB: orkest_test
+        ports: [5432:5432]
+        options: --health-cmd pg_isready --health-interval 10s
+      redis:
+        image: redis:7-alpine
+        ports: [6379:6379]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: 'npm' }
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint --workspaces --if-present
+
+      - name: TypeScript check
+        run: npx tsc --noEmit -p apps/api/tsconfig.json
+
+  # ============================================
+  # 2. Testes E2E
+  # ============================================
+  test:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: orkest
+          POSTGRES_PASSWORD: orkest_test
+          POSTGRES_DB: orkest_test
+        ports: [5432:5432]
+        options: --health-cmd pg_isready --health-interval 10s
+      redis:
+        image: redis:7-alpine
+        ports: [6379:6379]
+    env:
+      DATABASE_URL: postgresql://orkest:orkest_test@localhost:5432/orkest_test
+      REDIS_URL: redis://localhost:6379
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: 'npm' }
+      - run: npm ci
+      - run: cd apps/api && npx prisma migrate deploy
+      - run: cd apps/api && npm run test:e2e
+      - name: Upload coverage
+        if: always()
+        uses: codecov/codecov-action@v3
+        with: { file: apps/api/coverage/lcov.info }
+
+  # ============================================
+  # 3. Build & Push Docker images
+  # ============================================
+  build:
+    name: Build & Push Images
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    if: github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        service: [api, marketing, admin, partner, consumer]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Container Registry
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version
+        id: version
+        run: |
+          echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          echo "SHA=${GITHUB_SHA::8}" >> $GITHUB_OUTPUT
+          echo "DATE=$(date -u +'%Y%m%d')" >> $GITHUB_OUTPUT
+
+      - name: Build & push API
+        if: matrix.service == 'api'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: deploy/docker/api.Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ env.ORG }}/api:${{ steps.version.outputs.VERSION }}
+            ghcr.io/${{ env.ORG }}/api:${{ steps.version.outputs.SHA }}
+            ghcr.io/${{ env.ORG }}/api:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & push ${{ matrix.service }}
+        if: matrix.service != 'api'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: deploy/docker/nextjs.Dockerfile
+          push: true
+          build-args: |
+            APP_PATH=apps/${{ matrix.service }}
+            APP_PORT=${{ matrix.service == 'marketing' && '3000' || matrix.service == 'admin' && '3002' || matrix.service == 'partner' && '3003' || '3004' }}
+          tags: |
+            ghcr.io/${{ env.ORG }}/${{ matrix.service }}:${{ steps.version.outputs.VERSION }}
+            ghcr.io/${{ env.ORG }}/${{ matrix.service }}:${{ steps.version.outputs.SHA }}
+            ghcr.io/${{ env.ORG }}/${{ matrix.service }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ============================================
+  # 4. Deploy to staging (auto on develop)
+  # ============================================
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/develop'
+    environment:
+      name: staging
+      url: https://staging.orkest.com.br
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+      - name: Configure kubeconfig
+        run: |
+          echo "${{ secrets.KUBECONFIG_STAGING }}" | base64 -d > /tmp/kubeconfig
+      - name: Apply manifests
+        run: |
+          kubectl --kubeconfig=/tmp/kubeconfig apply -f deploy/k8s/ -n orkest-staging
+          kubectl --kubeconfig=/tmp/kubeconfig set image deployment/orkest-api api=ghcr.io/${{ env.ORG }}/api:${{ github.sha }} -n orkest-staging
+      - name: Wait for rollout
+        run: |
+          kubectl --kubeconfig=/tmp/kubeconfig rollout status deployment/orkest-api -n orkest-staging --timeout=5m
+
+  # ============================================
+  # 5. Deploy to production (manual approval on tag)
+  # ============================================
+  deploy-prod:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    environment:
+      name: production
+      url: https://orkest.com.br
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+      - name: Configure kubeconfig
+        run: echo "${{ secrets.KUBECONFIG_PROD }}" | base64 -d > /tmp/kubeconfig
+      - name: Apply manifests
+        run: kubectl --kubeconfig=/tmp/kubeconfig apply -f deploy/k8s/ -n orkest
+      - name: Set image
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          kubectl --kubeconfig=/tmp/kubeconfig set image deployment/orkest-api api=ghcr.io/${{ env.ORG }}/api:${VERSION} -n orkest
+          kubectl --kubeconfig=/tmp/kubeconfig set image deployment/orkest-marketing marketing=ghcr.io/${{ env.ORG }}/marketing:${VERSION} -n orkest
+          # ... outros
+      - name: Wait for rollout
+        run: kubectl --kubeconfig=/tmp/kubeconfig rollout status deployment/orkest-api -n orkest --timeout=10m
+      - name: Smoke tests
+        run: |
+          sleep 30
+          curl -f https://api.orkest.com.br/v1/health || exit 1
+          curl -f https://orkest.com.br || exit 1
+      - name: Notify Slack
+        if: always()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: |
+            🚀 Orkest ${{ github.ref_name }} deployed
+            Status: ${{ job.status }}
+            Commit: ${{ github.sha }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+
+  # ============================================
+  # 6. Security scan
+  # ============================================
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: CRITICAL,HIGH
+          exit-code: 1
+      - name: Run npm audit
+        run: npm audit --audit-level=high

@@ -1,0 +1,8 @@
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: orkest
+  labels:
+    name: orkest
+    environment: production

@@ -1,0 +1,86 @@
+# ============================================
+# Gitignore — NextGen Assets
+# ============================================
+
+# Dependências
+node_modules/
+.pnp
+.pnp.js
+
+# Builds
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# Ambiente
+.env
+.env.local
+.env.production
+.env.development
+.env.test
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+logs/
+
+# Runtime
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Certificados e secrets
+*.p12
+*.pem
+*.key
+*.crt
+cert-base64.txt
+secrets/
+
+# Banco de dados local
+*.db
+*.sqlite
+*.sqlite3
+
+# Cobertura de testes
+coverage/
+.nyc_output/
+
+# Cache
+.cache/
+.parcel-cache/
+.eslintcache
+
+# Terraform / IaC state
+.terraform/
+*.tfstate
+*.tfstate.backup
+
+# Docker
+docker-compose.override.yml
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+desktop.ini
+
+# Migrations geradas (mantém os arquivos mas ignora logs)
+prisma/migrations/*/migration_lock.toml.bak

@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background: #ffffff;
+  color: #0a0a0a;
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, #5B6CFF 0%, #8B5CF6 50%, #EC4899 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.hero-gradient {
+  background: radial-gradient(ellipse at top, rgba(91, 108, 255, 0.15) 0%, transparent 50%),
+              radial-gradient(ellipse at bottom right, rgba(139, 92, 246, 0.1) 0%, transparent 50%);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+}
+
+.dark-glass {
+  background: rgba(10, 10, 30, 0.6);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #5B6CFF 0%, #4a58e6 100%);
+  color: white;
+  padding: 14px 28px;
+  border-radius: 12px;
+  font-weight: 600;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(91, 108, 255, 0.3);
+}
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(91, 108, 255, 0.4);
+}
+
+.btn-secondary {
+  background: white;
+  color: #1a1f4d;
+  padding: 14px 28px;
+  border-radius: 12px;
+  font-weight: 600;
+  border: 1px solid #e5e7eb;
+  transition: all 0.2s;
+}
+.btn-secondary:hover {
+  border-color: #5B6CFF;
+  color: #5B6CFF;
+}
