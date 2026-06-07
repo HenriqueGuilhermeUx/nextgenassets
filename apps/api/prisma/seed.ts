@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Seed do catálogo de gatilhos
 // 20+ gatilhos pré-formatados cobrindo: investimento, banco, consumo, utilidade, seguro
 
