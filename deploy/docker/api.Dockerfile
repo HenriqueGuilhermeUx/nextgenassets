@@ -12,9 +12,6 @@ WORKDIR /app
 # Instala openssl + libssl-dev pro Prisma generate detectar a versão
 RUN apt-get update && apt-get install -y openssl libssl-dev && rm -rf /var/lib/apt/lists/*
 
-# Força Prisma CLI a gerar pra plataforma nativa
-ENV PRISMA_CLI_BINARY_TARGETS=native
-
 # Copia package files do monorepo
 COPY package.json ./
 COPY package-lock.json* ./
@@ -24,7 +21,9 @@ COPY apps/api/package.json ./apps/api/
 RUN mkdir -p ./packages
 
 # Instala dependências (raiz + api)
-RUN npm install --legacy-peer-deps --ignore-scripts
+# IMPORTANTE: SEM --ignore-scripts porque o Prisma precisa rodar seu
+# postinstall pra baixar o engine binary. Sem isso, prisma generate falha.
+RUN npm install --legacy-peer-deps
 
 # Copia código do backend
 COPY apps/api ./apps/api
