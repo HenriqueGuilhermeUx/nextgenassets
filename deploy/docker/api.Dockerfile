@@ -29,9 +29,8 @@ RUN npm install --legacy-peer-deps
 COPY apps/api ./apps/api
 
 # Limpa QUALQUER rastro do Prisma Client antigo e gera do zero
-# --no-engine-cache garante que nao usa cache local
 WORKDIR /app/apps/api
-RUN rm -rf ../../node_modules/.prisma/client && npx prisma generate --no-engine-cache
+RUN rm -rf ../../node_modules/.prisma/client && npx prisma generate
 
 # Build TypeScript
 RUN npm run build
