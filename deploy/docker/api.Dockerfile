@@ -28,9 +28,9 @@ RUN npm install --legacy-peer-deps
 # Copia código do backend
 COPY apps/api ./apps/api
 
-# Gera Prisma Client
+# Gera Prisma Client (--no-engine-cache força regenerar do zero, sem cache)
 WORKDIR /app/apps/api
-RUN npx prisma generate
+RUN npx prisma generate --no-engine-cache
 
 # Build TypeScript
 RUN npm run build
