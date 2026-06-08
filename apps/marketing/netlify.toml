@@ -1,5 +1,4 @@
 [build]
-  base    = "apps/marketing"
   publish = ".next"
   command = "npm run build"
 
