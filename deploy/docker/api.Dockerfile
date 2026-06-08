@@ -43,6 +43,12 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3001
 
+# IMPORTANTE: Instala openssl NO RUNNER tbm, porque o Prisma engine
+# carregado em runtime precisa do libssl 3.0 (Debian Bookworm) pra
+# resolver suas dependencias. Sem isso, falha com "libssl.so.1.1 missing"
+# pois o Prisma defaulta pra 1.1 quando nao detecta.
+RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+
 # Cria usuário não-root pra segurança
 RUN groupadd --system --gid 1001 nga && \
     useradd --system --uid 1001 --gid nga nga
