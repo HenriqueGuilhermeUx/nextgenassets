@@ -12,10 +12,10 @@ WORKDIR /app
 # Instala openssl + libssl-dev pro Prisma generate detectar a versão
 RUN apt-get update && apt-get install -y openssl libssl-dev && rm -rf /var/lib/apt/lists/*
 
-# Copia package files do monorepo
-COPY package.json ./
-COPY package-lock.json* ./
-COPY apps/api/package.json ./apps/api/
+# Copia TUDO (incluindo schema.prisma) ANTES do npm install
+# Motivo: o postinstall do @prisma/client precisa do schema.prisma pra
+# gerar os engines corretos (com binaryTargets certos)
+COPY . .
 
 # Cria diretório packages (vazio) pra evitar erros
 RUN mkdir -p ./packages
@@ -25,10 +25,7 @@ RUN mkdir -p ./packages
 # postinstall pra baixar o engine binary. Sem isso, prisma generate falha.
 RUN npm install --legacy-peer-deps
 
-# Copia código do backend
-COPY apps/api ./apps/api
-
-# Limpa QUALQUER rastro do Prisma Client antigo e gera do zero
+# Gera Prisma Client do zero (schema.prisma já tá no lugar, binaryTargets corretos)
 WORKDIR /app/apps/api
 RUN rm -rf ../../node_modules/.prisma/client && npx prisma generate
 
