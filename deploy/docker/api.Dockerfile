@@ -54,6 +54,9 @@ COPY --from=builder --chown=nga:nga /app/node_modules /app/apps/api/node_modules
 COPY --from=builder --chown=nga:nga /app/apps/api/prisma ./prisma
 COPY --from=builder --chown=nga:nga /app/apps/api/package.json ./package.json
 
+# Regenera Prisma Client no runner (invalida cache de engines velhas)
+RUN npx prisma generate
+
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1
