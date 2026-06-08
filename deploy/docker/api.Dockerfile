@@ -35,33 +35,34 @@ RUN npm run build
 # Volta pro workdir raiz
 WORKDIR /app
 
+# ============================================
 # Stage 2: Runtime
+# ============================================
 FROM node:20-bookworm-slim AS runner
-
-WORKDIR /app
 
 ENV NODE_ENV=production
 ENV PORT=3001
 
-# IMPORTANTE: Instala openssl NO RUNNER tbm, porque o Prisma engine
-# carregado em runtime precisa do libssl 3.0 (Debian Bookworm) pra
-# resolver suas dependencias. Sem isso, falha com "libssl.so.1.1 missing"
-# pois o Prisma defaulta pra 1.1 quando nao detecta.
+# Instala openssl + ca-certificates NO RUNTIME
+# (engine do Prisma precisa do libssl em runtime pra resolver deps)
 RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 
-# Cria usuário não-root pra segurança
+# Cria usuário não-root
 RUN groupadd --system --gid 1001 nga && \
     useradd --system --uid 1001 --gid nga nga
 
-# Copia artifacts do builder
 WORKDIR /app/apps/api
+
+# 1) Copia TODOS os artefatos do builder primeiro
 COPY --from=builder --chown=nga:nga /app/apps/api/dist ./dist
-COPY --from=builder --chown=nga:nga /app/node_modules /app/apps/api/node_modules
+COPY --from=builder --chown=nga:nga /app/node_modules ./node_modules
 COPY --from=builder --chown=nga:nga /app/apps/api/prisma ./prisma
 COPY --from=builder --chown=nga:nga /app/apps/api/package.json ./package.json
 
-# Regenera Prisma Client no runner (invalida cache de engines velhas)
-RUN npx prisma generate
+# 2) AGORA SIM: Limpa engines antigos e regenera do zero (camada FINAL)
+# Isso garante que qualquer engine antiga (com libssl 1.1) seja substituída
+# por engines compatíveis com o OpenSSL 3.0 do Debian Bookworm.
+RUN rm -rf ./node_modules/.prisma/client && npx prisma generate
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
