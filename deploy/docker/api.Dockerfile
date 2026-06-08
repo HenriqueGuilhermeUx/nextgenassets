@@ -9,8 +9,11 @@ FROM node:20-bookworm-slim AS builder
 
 WORKDIR /app
 
-# Instala openssl pro Prisma generate detectar a versão
-RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+# Instala openssl + libssl-dev pro Prisma generate detectar a versão
+RUN apt-get update && apt-get install -y openssl libssl-dev && rm -rf /var/lib/apt/lists/*
+
+# Força Prisma CLI a gerar pra plataforma nativa
+ENV PRISMA_CLI_BINARY_TARGETS=native
 
 # Copia package files do monorepo
 COPY package.json ./
