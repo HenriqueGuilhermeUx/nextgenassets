@@ -9,6 +9,7 @@
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+  pinned_version = "5.11.4"
 
 [[redirects]]
   from = "/*"
