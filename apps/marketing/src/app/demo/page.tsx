@@ -1,18 +1,7 @@
 'use client';
 import Script from 'next/script';
-import { useEffect } from 'react';
 
 export default function DemoPage() {
-  useEffect(() => {
-    // Inicializa o widget quando a página carrega
-    if (typeof window !== 'undefined' && (window as any).NGAWidget) {
-      (window as any).NGAWidget.init({
-        apiKey: 'demo_key_widget',
-        mode: 'auto',
-        theme: { primary: '#5B6CFF', radius: 12 }
-      });
-    }
-  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -38,7 +27,7 @@ export default function DemoPage() {
       </div>
 
       {/* Widget script */}
-      <Script src="/nga-widget.js" strategy="afterInteractive" />
+      <Script src="/nga-widget.js" data-nga-auto="true" data-api-key="demo" strategy="afterInteractive" />
 
       {/* Produtos */}
       <main className="max-w-6xl mx-auto px-6 py-8">

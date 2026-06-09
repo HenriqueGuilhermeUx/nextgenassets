@@ -15,6 +15,10 @@
     return 'https://api.nextgenassets.com.br';
   })();
 
+  // Auto-init se tiver data-nga-auto no <script>
+  const _autoScript = document.currentScript;
+  const _autoConfig = _autoScript && _autoScript.dataset.ngaAuto === 'true';
+
   // Estado global
   let config = null;
   let shadowHost = null;
@@ -463,4 +467,16 @@
   //  EXPORT
   // ============================================
   window.NGAWidget = { init, version: VERSION, open: openModal };
+
+  // Auto-init: se o <script> tem data-nga-auto="true" e DOM ta pronto
+  if (_autoConfig) {
+    const tryAutoInit = () => {
+      init({ apiKey: _autoScript.dataset.apiKey || 'demo', mode: 'auto' });
+    };
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', tryAutoInit);
+    } else {
+      tryAutoInit();
+    }
+  }
 })();
