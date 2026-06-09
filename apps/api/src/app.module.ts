@@ -44,6 +44,8 @@ import { CatalogController } from './modules/triggers/catalog.controller';
 import { WebhooksController } from './modules/webhooks/webhooks.controller';
 import { WebhooksOutService } from './modules/webhooks/webhooks-out.worker';
 import { RetailerController } from './modules/retailer/retailer.controller';
+import { OffersController } from './modules/offers/offers.controller';
+import { ConsentsController } from './modules/consents/consents.controller';
 import { NotificationsService } from './modules/notifications/notifications.service';
 import { WhatsAppService } from './modules/notifications/whatsapp.service';
 
@@ -74,6 +76,8 @@ import { MarketWatcherWorker } from './workers/market-watcher.worker';
     CatalogController,
     WebhooksController,
     RetailerController,
+    OffersController,
+    ConsentsController,
     AiSuggestionsController
   ],
   providers: [
