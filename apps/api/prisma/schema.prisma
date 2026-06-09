@@ -48,6 +48,7 @@ model Partner {
   // Relations
   users           ConsumerUser[]
   triggers        Trigger[]
+  transactions    Transaction[]
   offers          Offer[]
   consents        Consent[]
   executions      Execution[]
@@ -136,6 +137,7 @@ model ConsumerUser {
   triggers          Trigger[]
   executions        Execution[]
   consents          Consent[]
+  transactions      Transaction[]
   
   @@unique([partnerId, externalUserId])
   @@index([email])
@@ -429,6 +431,7 @@ model Offer {
   
   partner         Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
   triggers        Trigger[]
+  transactions    Transaction[]
   
   @@unique([partnerId, externalId])
   @@index([partnerId, type])
@@ -486,4 +489,54 @@ model Consent {
   
   @@unique([userId, provider])
   @@index([partnerId])
+}
+
+// ============================================
+//  TRANSAÇÕES (Open Finance / Webhooks)
+// ============================================
+model Transaction {
+  id              String   @id @default(cuid())
+  userId          String
+  partnerId       String
+
+  type            TransactionType
+  amountBrl       Decimal
+  description     String?
+  merchantName    String?
+
+  category        String?
+  endToEndId      String?
+
+  roundUpAmount   Decimal?
+  roundUpTier     Int?
+  roundUpMultiplier Decimal? @default(1.0)
+
+  isProcessed     Boolean  @default(false)
+  processedAt     DateTime?
+  triggerId       String?
+
+  rawData         Json?
+
+  transactedAt    DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            ConsumerUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  partner         Partner      @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  trigger         Trigger?     @relation(fields: [triggerId], references: [id], onDelete: SetNull)
+
+  @@index([userId, isProcessed])
+  @@index([userId, transactedAt])
+  @@index([partnerId])
+  @@index([triggerId])
+}
+
+enum TransactionType {
+  DEBIT
+  CREDIT
+  PIX_IN
+  PIX_OUT
+  BOLETO
+  CARD
+  TRANSFER
 }

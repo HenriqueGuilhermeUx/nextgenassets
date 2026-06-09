@@ -52,6 +52,7 @@ import { WhatsAppService } from './modules/notifications/whatsapp.service';
 // Workers
 import { TriggerEvaluationWorker } from './workers/trigger-evaluation.worker';
 import { TriggerCronWorker } from './workers/trigger-cron.worker';
+import { RoundUpAggregatorWorker } from './workers/round-up-aggregator.worker';
 import { MarketWatcherWorker } from './workers/market-watcher.worker';
 
 @Module({
@@ -108,6 +109,7 @@ import { MarketWatcherWorker } from './workers/market-watcher.worker';
     // Workers
     TriggerEvaluationWorker,
     TriggerCronWorker,
+    RoundUpAggregatorWorker,
     MarketWatcherWorker,
     // Notifications
     NotificationsService,

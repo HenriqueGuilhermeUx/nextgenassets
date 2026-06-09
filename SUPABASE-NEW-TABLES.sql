@@ -181,3 +181,14 @@ CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 ON CONFLICT (id) DO NOTHING;
 
 SELECT 'Total gatilhos no catalogo: ' || count(*) FROM "TriggerCatalog";
+
+-- ROUND-UP: 3 variantes
+INSERT INTO "TriggerCatalog" (id, code, name, description, category, "destinationType", "paramsSchema", "exampleParams", "exampleNarrative", "createdAt", "updatedAt") VALUES
+('cat-033', 'ROUND_UP_BASIC', 'Arredondamento Clássico (Troco R$ 10)', 'Cada gasto arredonda pro R$ 10 mais próximo. 1 PIX/dia consolidado.', 'INVESTMENT_PASSIVE', 'STOCK_BROKER', '{"type":"object","properties":{"tier":{"type":"number"},"roundUpTo":{"type":"number"},"destinationAsset":{"type":"string"},"minAccumulatedBrl":{"type":"number"}},"required":["destinationAsset"]}'::jsonb, '{"tier":1,"roundUpTo":10,"destinationAsset":"HGLG11","minAccumulatedBrl":5}'::jsonb, 'Quero arredondar cada compra pra R$ 10 e mandar o troco pra HGLG11 todo dia 23:55', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+
+('cat-034', 'ROUND_UP_BOOSTED', 'Arredondamento Turbinado (× 2)', 'Mesmo troco mas multiplicado por 2. Pra acelerar o patrimônio.', 'INVESTMENT_PASSIVE', 'STOCK_BROKER', '{"type":"object","properties":{"tier":{"type":"number"},"multiplier":{"type":"number"},"destinationAsset":{"type":"string"},"minAccumulatedBrl":{"type":"number"}},"required":["destinationAsset"]}'::jsonb, '{"tier":2,"multiplier":2,"destinationAsset":"ITSA4","minAccumulatedBrl":10}'::jsonb, 'Quero o troco TURBINADO (2x) e mandar pra ITSA4 todo dia', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+
+('cat-035', 'ROUND_UP_FIXED', 'Pedágio do Futuro (R$ 2 fixo)', 'Cada compra = R$ 2 fixo pra investimento. Independente do valor.', 'INVESTMENT_PASSIVE', 'STOCK_BROKER', '{"type":"object","properties":{"tier":{"type":"number"},"fixedAmount":{"type":"number"},"destinationAsset":{"type":"string"},"minAccumulatedBrl":{"type":"number"}},"required":["destinationAsset"]}'::jsonb, '{"tier":3,"fixedAmount":2,"destinationAsset":"HGLG11","minAccumulatedBrl":10}'::jsonb, 'Cada gasto que eu fizer, R$ 2 vai pra HGLG11 no fim do dia', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+ON CONFLICT (id) DO NOTHING;
+
+SELECT 'Total gatilhos: ' || count(*) FROM "TriggerCatalog";

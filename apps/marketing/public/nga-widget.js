@@ -285,13 +285,34 @@
         <div class="form-row">
           <label>Até juntar o valor do produto (R$ ${formatPrice(offer.price)})</label>
         </div>`;
-      conditions.push({ type: 'ACCUMULATE_WEEKLY', value: null, refField: 'weekly' });
-    } else if (preset === 'RESTOCK') {
+      conditions.push({ type: 'ACCUMULATE_WEEKLY', value: null, refField: 'weekly' }); else if (preset === 'RESTOCK') {
       html = `
         <div class="form-row">
           <label>Comprar quando voltar ao estoque (até R$ ${formatPrice(offer.price * 1.1)})</label>
         </div>`;
       conditions.push({ type: 'RESTOCK', value: true });
+    } else if (preset === 'ROUND_UP_PIX') {
+      html = `
+        <div class="form-row">
+          <label>Escolha o nível do arredondamento:</label>
+          <select id="nga-tier" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;">
+            <option value="1">Nível 1: Clássico (arredonda pro R$ 10 mais próximo)</option>
+            <option value="2">Nível 2: Turbinado (arredonda × 2)</option>
+            <option value="3">Nível 3: Fixo (R$ 2,00 por compra)</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>Ativo de destino (ex: HGLG11, ITSA4)</label>
+          <input type="text" id="nga-asset" value="HGLG11" placeholder="HGLG11">
+        </div>
+        <div class="form-row">
+          <label>Mínimo acumulado pra disparar Pix (R$)</label>
+          <input type="number" id="nga-min" value="10" step="0.01">
+        </div>
+        <div class="form-row" style="background:#f0fdf4;padding:10px;border-radius:8px;font-size:12px;color:#166534;">
+          💡 O robô <strong>consolida</strong> todos os trocos do dia em <strong>1 único PIX</strong> às 23:55.
+        </div>`;
+      conditions.push({ type: 'ROUND_UP', value: null, refField: 'tier' });
     } else if (preset === 'CUSTOM') {
       html = `
         <div class="form-row">
@@ -321,6 +342,11 @@
     }
     if (preset === 'SALARY') values.salary = parseFloat(shadowRoot.getElementById('nga-salary').value);
     if (preset === 'SAVINGS') values.weekly = parseFloat(shadowRoot.getElementById('nga-weekly').value);
+    if (preset === 'ROUND_UP_PIX') {
+      values.tier = parseInt(shadowRoot.getElementById('nga-tier').value);
+      values.asset = shadowRoot.getElementById('nga-asset').value;
+      values.min = parseFloat(shadowRoot.getElementById('nga-min').value);
+    }
     if (preset === 'CUSTOM') values.nl = shadowRoot.getElementById('nga-nl').value;
 
     submitBtn.disabled = true;
@@ -347,7 +373,11 @@
           params: {
             conditions: conditions.map(c => ({ ...c, value: values[c.refField] })),
             logic: 'AND',
-            preset
+            preset,
+            // Campos especificos do round-up
+            tier: values.tier,
+            destinationAsset: values.asset,
+            minAccumulatedBrl: values.min
           }
         })
       });

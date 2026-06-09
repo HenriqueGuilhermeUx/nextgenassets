@@ -141,6 +141,83 @@ function ProblemSection() {
     { icon: '📋', title: 'Open Finance/ITP demora 12-24 meses pra homologar', text: 'Capital de R$ 1M+, equipe jurídica, auditoria. Tempo que você não tem.' }
   ];
   return (
+    <section className="py-20 bg-gradient-to-br from-emerald-50 to-white">
+      <div className="max-w-7xl mx-auto px-6">
+        <div className="text-center mb-12">
+          <p className="text-emerald-600 font-semibold mb-3">ROUND-UP SAVINGS · MULTI-BANCO</p>
+          <h2 className="text-4xl md:text-5xl font-bold mb-4 text-gray-900">Fique rico com o <span className="gradient-text">troco do cafezinho</span></h2>
+          <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-12">
+            Você não precisa mudar sua rotina. A gente lê seus gastos no cartão de <strong>qualquer banco</strong> (Itaú, XP, Bradesco, Nubank) via Open Finance, recolhe os centavos e investe o troco na sua corretora favorita. <strong>100% invisível.</strong>
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+          <div className="bg-white rounded-2xl p-6 border-2 border-gray-200">
+            <div className="text-3xl mb-2">☕</div>
+            <h3 className="text-xl font-bold mb-2">Nível 1: Clássico</h3>
+            <p className="text-gray-600 text-sm mb-4">Arredonda cada gasto pro próximo R$ 10</p>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-gray-500">Mercado Livre R$ 37</span><span className="font-bold text-emerald-600">→ R$ 3,00</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">Uber R$ 6,40</span><span className="font-bold text-emerald-600">→ R$ 3,60</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">Posto R$ 102</span><span className="font-bold text-emerald-600">→ R$ 7,90</span></div>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-brand-500 to-purple-600 rounded-2xl p-6 text-white transform scale-105">
+            <div className="text-3xl mb-2">⚡</div>
+            <div className="text-xs font-bold mb-1">MAIS POPULAR</div>
+            <h3 className="text-xl font-bold mb-2">Nível 2: Turbinado</h3>
+            <p className="text-white/80 text-sm mb-4">Multiplica o troco por 2 (ou o que quiser)</p>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-white/70">Mercado Livre R$ 37</span><span className="font-bold">→ R$ 6,00</span></div>
+              <div className="flex justify-between"><span className="text-white/70">Uber R$ 6,40</span><span className="font-bold">→ R$ 7,20</span></div>
+              <div className="flex justify-between"><span className="text-white/70">Posto R$ 102</span><span className="font-bold">→ R$ 15,80</span></div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl p-6 border-2 border-gray-200">
+            <div className="text-3xl mb-2">🎯</div>
+            <h3 className="text-xl font-bold mb-2">Nível 3: Fixo</h3>
+            <p className="text-gray-600 text-sm mb-4">Cada gasto = R$ 2 fixo pro investimento</p>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-gray-500">5 compras no dia</span><span className="font-bold text-emerald-600">→ R$ 10,00</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">10 compras no dia</span><span className="font-bold text-emerald-600">→ R$ 20,00</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">20 compras no dia</span><span className="font-bold text-emerald-600">→ R$ 40,00</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl p-8 border border-gray-200">
+          <div className="text-center mb-6">
+            <h3 className="text-2xl font-bold text-gray-900">🧠 Consolidador Diário</h3>
+            <p className="text-gray-600 mt-2">Pra não entupir seu extrato com micro-Pix de R$ 1,50, o robô espera até 23:55, soma todos os trocos do dia e faz <strong>1 único PIX</strong>:</p>
+          </div>
+          <div className="bg-gray-50 rounded-xl p-6 font-mono text-sm text-gray-700">
+            <div>08:30  Mercado Livre     R$ 37,00  → troco <span className="text-emerald-600 font-bold">R$ 3,00</span></div>
+            <div>12:45  Uber               R$ 6,40  → troco <span className="text-emerald-600 font-bold">R$ 3,60</span></div>
+            <div>14:20  Posto              R$ 102,10 → troco <span className="text-emerald-600 font-bold">R$ 7,90</span></div>
+            <div>19:00  iFood              R$ 18,90  → troco <span className="text-emerald-600 font-bold">R$ 1,10</span></div>
+            <div>─────────────────────</div>
+            <div>23:55  <span className="text-brand-600 font-bold">1 PIX consolidado de R$ 15,60</span> → Corretora (compra HGLG11)</div>
+          </div>
+        </div>
+
+        <div className="text-center mt-12">
+          <a href="/demo" className="btn-primary text-lg inline-block">Testar com 3 produtos →</a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ProblemSection() {
+  const problems = [
+    { icon: '😴', title: 'Apps financeiros são reativos', text: 'Esperam o usuário abrir, decidir e clicar. Resultado: baixo engajamento e capital parado.' },
+    { icon: '⏰', title: 'Humano não consegue olhar mercado 24/7', text: 'A melhor hora de comprar é às 3h da manhã, quando o cliente está dormindo.' },
+    { icon: '💸', title: 'Desenvolvimento de IA custa milhões', text: 'Cada fintech quer automação, mas nenhuma tem squad pra construir. A concorrência vai.' },
+    { icon: '📋', title: 'Open Finance/ITP demora 12-24 meses pra homologar', text: 'Capital de R$ 1M+, equipe jurídica, auditoria. Tempo que você não tem.' }
+  ];
+  return (
     <section className="py-20">
       <div className="max-w-7xl mx-auto px-6">
         <div className="text-center mb-16">

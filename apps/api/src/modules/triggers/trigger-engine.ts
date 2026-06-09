@@ -584,13 +584,79 @@ export class TriggerEngine {
   //  INVESTIMENTOS SEM ESFORÇO (3 gatilhos)
   // ============================================
 
-  /** ROUND_UP_PIX: Arredonda gastos e investe o troco */
+  /** ROUND_UP_PIX: Arredonda gastos e investe o troco (3 niveis) */
   private async evaluateRoundUpPix(trigger: any, params: any) {
-    // TODO: detectar gastos via Open Finance ao longo do dia
+    const tier = params.tier || 1; // 1=basico, 2=turbinado, 3=fixo
+    const roundUpTo = params.roundUpTo || 10; // arredonda pra R$ 10
+    const fixedAmount = params.fixedAmount || 2.00; // nivel 3
+    const multiplier = params.multiplier || 2; // nivel 2
+    const minAccumulated = params.minAccumulatedBrl || 10; // minimo pra disparar
+
+    // Busca transacoes de hoje nao processadas
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const transactions = await this.prisma.transaction.findMany({
+      where: {
+        userId: trigger.userId,
+        isProcessed: false,
+        transactedAt: { gte: today },
+        type: { in: ['DEBIT', 'CARD', 'PIX_OUT', 'BOLETO'] }
+      }
+    });
+
+    if (transactions.length === 0) {
+      return { shouldFire: false, reason: 'Nenhuma transação hoje' };
+    }
+
+    let totalRoundUp = 0;
+    const details: any[] = [];
+
+    for (const tx of transactions) {
+      const amount = parseFloat(tx.amountBrl.toString());
+      let roundUpAmount = 0;
+      let tierUsed = tier;
+      let multUsed = 1.0;
+
+      if (tier === 1) {
+        // Basico: arredonda pro proximo multiplo de roundUpTo
+        const remainder = amount % roundUpTo;
+        roundUpAmount = remainder === 0 ? 0 : roundUpTo - remainder;
+      } else if (tier === 2) {
+        // Turbinado: arredonda * multiplicador
+        const remainder = amount % roundUpTo;
+        roundUpAmount = remainder === 0 ? 0 : (roundUpTo - remainder) * multiplier;
+        multUsed = multiplier;
+      } else if (tier === 3) {
+        // Fixo: valor fixo por transacao
+        roundUpAmount = fixedAmount;
+      }
+
+      totalRoundUp += roundUpAmount;
+      details.push({
+        tx: tx.id,
+        amount: amount.toFixed(2),
+        roundUp: roundUpAmount.toFixed(2),
+        merchant: tx.merchantName
+      });
+    }
+
+    if (totalRoundUp < minAccumulated) {
+      return {
+        shouldFire: false,
+        reason: `Acumulado R$ ${totalRoundUp.toFixed(2)} < minimo R$ ${minAccumulated}`,
+        data: { tier, transactions: transactions.length, total: totalRoundUp }
+      };
+    }
+
     return {
-      shouldFire: false,
-      reason: 'Monitorando gastos para arredondar (em breve)',
-      data: { roundUpTo: params.roundUpTo, destinationAsset: params.destinationAsset }
+      shouldFire: true,
+      reason: `Round-up nivel ${tier}: R$ ${totalRoundUp.toFixed(2)} de ${transactions.length} transacoes`,
+      data: {
+        tier,
+        total: totalRoundUp,
+        destination: params.destinationAsset,
+        details
+      }
     };
   }
 
