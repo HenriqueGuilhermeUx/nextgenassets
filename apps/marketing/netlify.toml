@@ -1,13 +1,13 @@
 [build]
   base    = "."
   publish = ".next"
-  command = "NEXT_TELEMETRY_DISABLED=1 cd apps/marketing && NEXT_TELEMETRY_DISABLED=1 npm run build"
+  command = "cd apps/marketing && NEXT_TELEMETRY_DISABLED=1 npm run build"
 
 [build.environment]
   NODE_VERSION = "20"
   NPM_FLAGS = "--legacy-peer-deps"
   NEXT_TELEMETRY_DISABLED = "1"
-  NEXT_DISABLE_TELEMETRY = "1"
+  NPM_CONFIG_PRODUCTION = "false"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
