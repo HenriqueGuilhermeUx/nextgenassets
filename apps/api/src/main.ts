@@ -70,7 +70,7 @@ async function bootstrap() {
 
   logger.log(`🚀 NextGen Assets API rodando em http://0.0.0.0:${port}`);
   logger.log(`💚 Health check: /health`);
-  logger.log(`📡 CORS liberado para: ${corsOrigins.join(', ')}`);
+  logger.log(`📡 CORS liberado para: ${corsOrigins === true ? '* (todos)' : corsOrigins.join(', ')}`);
   logger.log(`🌍 Ambiente: ${process.env.NODE_ENV || 'development'}`);
 }
 
