@@ -69,7 +69,7 @@ function Hero() {
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
           <a href="#demo" className="btn-primary text-base">Agendar Demo →</a>
-          <a href="#docs" className="btn-secondary text-base">Ver Documentação</a>
+          <a href="/demo" className="btn-secondary text-base">Ver Demo</a>
         </div>
 
         {/* Mockup visual */}
