@@ -25,7 +25,7 @@ export default function ConsumerPortal() {
           <div className="flex items-center gap-2">
             <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-brand-500 to-purple-500 flex items-center justify-center text-white font-bold">M</div>
             <div>
-              <div className="font-bold">Meu Orkest</div>
+              <div className="font-bold">Meu NextGen Assets</div>
               <div className="text-xs text-gray-500">Minhas automações financeiras</div>
             </div>
           </div>

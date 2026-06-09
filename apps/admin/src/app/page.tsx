@@ -20,7 +20,7 @@ export default function AdminHome() {
       <main className="ml-64 p-8">
         <header className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-500">Visão geral do Orkest</p>
+          <p className="text-gray-500">Visão geral do NextGen Assets</p>
         </header>
 
         {/* KPIs */}
@@ -119,7 +119,7 @@ function Sidebar() {
     <aside className="fixed left-0 top-0 bottom-0 w-64 bg-gray-900 text-white p-6 overflow-y-auto">
       <div className="flex items-center gap-2 mb-8">
         <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-brand-500 to-purple-500 flex items-center justify-center font-bold">O</div>
-        <span className="text-xl font-bold">Orkest Admin</span>
+        <span className="text-xl font-bold">NextGen Assets Admin</span>
       </div>
       <nav className="space-y-1">
         {[

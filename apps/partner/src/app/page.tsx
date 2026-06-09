@@ -29,7 +29,7 @@ export default function PartnerPortal() {
             <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-brand-500 to-purple-500 flex items-center justify-center text-white font-bold">P</div>
             <div>
               <div className="font-bold">Partner Portal</div>
-              <div className="text-xs text-gray-500">Orkest</div>
+              <div className="text-xs text-gray-500">NextGen Assets</div>
             </div>
           </div>
           <select value={selected?.id} onChange={e => setSelected(partners.find(p => p.id === e.target.value))} className="px-3 py-2 border border-gray-200 rounded-lg">
