@@ -43,6 +43,14 @@ export class RoundUpAggregatorWorker implements OnModuleInit {
 
     this.logger.log(`📅 Interval: ${isDemo ? '5min (DEMO)' : '1h (PROD, processa 23:55-00:00)'}`);
 
+    // Roda IMEDIATO no start + depois a cada X min
+    setImmediate(() => {
+      this.logger.log('⚡ Primeira execução IMEDIATA (sem esperar 5 min)');
+      this.aggregate(isDemo).catch((err) => {
+        this.logger.error(`❌ Erro na primeira execução: ${err.message}`);
+      });
+    });
+
     this.intervalHandle = setInterval(() => {
       this.aggregate(isDemo);
     }, intervalMs);
@@ -79,6 +87,10 @@ export class RoundUpAggregatorWorker implements OnModuleInit {
       });
 
       this.logger.log(`Encontrados ${roundUpTriggers.length} gatilhos round-up ativos`);
+
+      if (roundUpTriggers.length === 0) {
+        this.logger.warn('⚠️  Nenhum gatilho ROUND_UP_* ativo ainda. Crie 1 na demo!');
+      }
 
       let totalProcessed = 0;
       let totalTriggered = 0;
