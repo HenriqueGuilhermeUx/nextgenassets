@@ -33,7 +33,7 @@ function Navbar() {
       <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-brand-500 to-purple-500 flex items-center justify-center text-white font-bold text-lg">O</div>
-          <span className="text-xl font-bold text-gray-900">Orkest</span>
+          <span className="text-xl font-bold text-gray-900">NextGen Assets</span>
         </div>
         <div className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-600">
           <a href="#solucao" className="hover:text-brand-500">Solução</a>
@@ -170,7 +170,7 @@ function SolutionSection() {
           <p className="text-brand-500 font-semibold mb-3">A SOLUÇÃO</p>
           <h2 className="text-4xl md:text-5xl font-bold mb-4">Você pluga. <span className="gradient-text">A gente orquestra.</span></h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Orkest é a infraestrutura de automação financeira que conecta seu app ao Open Finance,
+            NextGen Assets é a infraestrutura de automação financeira que conecta seu app ao Open Finance,
             ao mercado e a qualquer destino — sem você homologar nada.
           </p>
         </div>
@@ -181,7 +181,7 @@ function SolutionSection() {
               {[
                 { num: '01', title: 'Cliente final autoriza Open Finance no app do parceiro', desc: 'Fluxo via Efí já homologado. Zero código de compliance pra você.' },
                 { num: '02', title: 'Cliente configura gatilhos em valores (ou NL)', desc: 'Cardápio pronto de 20+ gatilhos OU "se cair 2%, compra R$ 500" — IA estrutura.' },
-                { num: '03', title: 'Orkest monitora mercado e saldo 24/7', desc: 'Cron jobs + oráculos de preço (Yahoo, CoinGecko). Latência < 1min.' },
+                { num: '03', title: 'NextGen Assets monitora mercado e saldo 24/7', desc: 'Cron jobs + oráculos de preço (Yahoo, CoinGecko). Latência < 1min.' },
                 { num: '04', title: 'Condição bate → Pix inicia → destino executa', desc: 'Pix via Efí ITP → conta do destino (corretora/fundo/varejista) → ordem executada.' },
                 { num: '05', title: 'Webhooks + relatórios pra você e pro cliente', desc: 'Notificação push pro usuário, métrica de take-rate pra você, audit log pra compliance.' }
               ].map((s, i) => (
@@ -204,7 +204,7 @@ function SolutionSection() {
     ↓
 [Efí Bank] → token de consentimento
     ↓
-[Orkest] → lê saldo, extrato, faturas
+[NextGen Assets] → lê saldo, extrato, faturas
     ↓
 [Market Watcher] → detecta queda de ITUB4
     ↓
@@ -341,7 +341,7 @@ function UseCases() {
       <div className="max-w-7xl mx-auto px-6">
         <div className="text-center mb-16">
           <p className="text-brand-500 font-semibold mb-3">CASOS DE USO</p>
-          <h2 className="text-4xl md:text-5xl font-bold mb-4">Onde o Orkest gera valor</h2>
+          <h2 className="text-4xl md:text-5xl font-bold mb-4">Onde o NextGen Assets gera valor</h2>
         </div>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {cases.map((c, i) => (
@@ -399,9 +399,9 @@ function WidgetDemo() {
             <h3 className="text-2xl font-bold mb-4">Como instala na sua loja</h3>
             <div className="bg-gray-800 rounded-xl p-5 font-mono text-sm overflow-x-auto">
               <div className="text-gray-500 mb-2">// Cole no &lt;head&gt; do site:</div>
-              <div className="text-green-400">&lt;script src="https://widget.orkest.com.br/v1/orkest-widget.js"&gt;&lt;/script&gt;</div>
+              <div className="text-green-400">&lt;script src="https://widget.nextgenassets.com.br/v1/nga-widget.js"&gt;&lt;/script&gt;</div>
               <div className="text-green-400 mt-2">&lt;script&gt;</div>
-              <div className="text-blue-400 ml-4">OrkestWidget.init({`{`}</div>
+              <div className="text-blue-400 ml-4">NextGen AssetsWidget.init({`{`}</div>
               <div className="text-yellow-400 ml-8">apiKey: <span className="text-green-300">'pk_live_xxxxx'</span>,</div>
               <div className="text-yellow-400 ml-8">mode: <span className="text-green-300">'auto'</span></div>
               <div className="text-blue-400 ml-4">{`}`});</div>
@@ -445,7 +445,7 @@ function CheckoutDemo() {
           <p className="text-emerald-600 font-semibold mb-3">VAREJO FÍSICO + DIGITAL</p>
           <h2 className="text-4xl md:text-5xl font-bold mb-4">O checkout que vende o que o cliente <span className="text-emerald-500">não pode pagar hoje</span></h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            O consumidor quer o produto mas está sem limite, sem dinheiro na semana, esperando o salário. Orkest transforma "abandono de carrinho" em "compra agendada com compromisso financeiro".
+            O consumidor quer o produto mas está sem limite, sem dinheiro na semana, esperando o salário. NextGen Assets transforma "abandono de carrinho" em "compra agendada com compromisso financeiro".
           </p>
         </div>
 
@@ -484,7 +484,7 @@ function CheckoutDemo() {
                 </button>
               </div>
 
-              <div className="mt-4 text-xs text-gray-500 text-center">Powered by Orkest</div>
+              <div className="mt-4 text-xs text-gray-500 text-center">Powered by NextGen Assets</div>
             </div>
           </div>
 
@@ -515,12 +515,12 @@ function CheckoutDemo() {
 
         {/* O fluxo invisível pro lojista */}
         <div className="bg-white rounded-2xl p-8 shadow-lg">
-          <h3 className="text-2xl font-bold mb-2 text-center">Por trás, o Orkest orquestra tudo</h3>
+          <h3 className="text-2xl font-bold mb-2 text-center">Por trás, o NextGen Assets orquestra tudo</h3>
           <p className="text-center text-gray-500 mb-8">O lojista não vê nada disso. Só recebe notificação quando o Pix cai e o produto é despachado.</p>
           <div className="grid grid-cols-5 gap-4 text-center">
             {[
               { step: '1', icon: '🔗', title: 'Open Finance', desc: 'Cliente conecta banco' },
-              { step: '2', icon: '👁️', title: 'Monitor', desc: 'Orkest observa saldo' },
+              { step: '2', icon: '👁️', title: 'Monitor', desc: 'NextGen Assets observa saldo' },
               { step: '3', icon: '✅', title: 'Gatilho bate', desc: 'Salário caiu, saldo OK' },
               { step: '4', icon: '💸', title: 'Pix automático', desc: 'Via Efí ITP' },
               { step: '5', title: '📦', desc: 'Lojista recebe + despacha' }
@@ -734,8 +734,8 @@ function Footer() {
         <div className="grid md:grid-cols-4 gap-8 mb-8">
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-purple-500 flex items-center justify-center text-white font-bold">O</div>
-              <span className="font-bold text-lg">Orkest</span>
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-purple-500 flex items-center justify-center text-white font-bold">N</div>
+              <span className="font-bold text-lg">NextGen Assets</span>
             </div>
             <p className="text-sm text-gray-600">Motor de automação financeira B2B2C. Feito no Brasil.</p>
           </div>
@@ -768,7 +768,7 @@ function Footer() {
           </div>
         </div>
         <div className="pt-6 border-t border-gray-200 text-center text-sm text-gray-500">
-          © 2026 Orkest. Todos os direitos reservados.
+          © 2026 NextGen Assets. Todos os direitos reservados.
         </div>
       </div>
     </footer>
