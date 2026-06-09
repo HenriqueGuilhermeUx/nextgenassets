@@ -21,7 +21,7 @@ async function bootstrap() {
     origin: corsOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-NGA-Signature', 'Accept'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-NGA-Signature', 'X-API-Key', 'Accept'],
   });
 
   // Validation global
