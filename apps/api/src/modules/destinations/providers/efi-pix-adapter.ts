@@ -149,16 +149,7 @@ export class EfiPixAdapter implements DestinationAdapter {
       return {
         status: 'PENDING',
         externalId: txid,
-        estimatedCompletion: new Date(Date.now() + 3600 * 1000), // 1h expiração
-        details: {
-          txid,
-          valor: action.amountBrl,
-          qrCode,
-          copiaECola: cobData.pixCopiaECola,
-          pixStatus: cobData.status,
-          locationId: cobData.loc?.id,
-          calendario: cobData.calendario
-        }
+        estimatedCompletion: new Date(Date.now() + 3600 * 1000) // 1h expiração
       };
     } catch (err: any) {
       this.logger.error(`EFI createPixCharge error: ${err.message}`);
@@ -177,14 +168,22 @@ export class EfiPixAdapter implements DestinationAdapter {
   async checkExecution(externalId: string): Promise<ExecutionStatusResult> {
     try {
       const status = await this.getChargeStatus(externalId);
+      if (status.status === 'CONCLUIDA') {
+        return {
+          status: 'COMPLETED',
+          externalId,
+          details: status
+        };
+      }
       return {
-        status: status.status === 'CONCLUIDA' ? 'COMPLETED' : 'PENDING',
-        details: status
+        status: 'PENDING',
+        estimatedCompletion: new Date(Date.now() + 3600 * 1000)
       };
     } catch (err: any) {
       return {
         status: 'FAILED',
-        details: { error: err.message }
+        errorCode: 'EFI_PIX_CHECK_ERROR',
+        errorMessage: err.message
       };
     }
   }
