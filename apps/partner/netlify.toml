@@ -1,11 +1,19 @@
 [build]
   base    = "."
-  publish = ".next"
-  command = "cd apps/partner && npm run build"
+  publish = "apps/partner/.next"
+  command = "cd apps/partner && NEXT_TELEMETRY_DISABLED=1 npm run build"
 
 [build.environment]
   NODE_VERSION = "20"
   NPM_FLAGS = "--legacy-peer-deps"
+  NEXT_TELEMETRY_DISABLED = "1"
+
+[functions]
+  included_files = [
+    "node_modules/next/**/*",
+    "apps/partner/node_modules/next/**/*"
+  ]
+  node_bundler = "zisi"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
