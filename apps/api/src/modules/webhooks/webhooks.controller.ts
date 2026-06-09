@@ -14,7 +14,23 @@ export class WebhooksController {
 
   // Webhook de entrada — Efí/Woovi confirma Pix
   @Post('pix-received')
-  async pixReceived(@Body() body: { endToEndId: string; amount: number; payer: string; receiver: string }) {
+  async pixReceived(@Body() body: any) {
+    // Efí envia: { pix: [{ endToEndId, txid, valor, horario, ... }] }
+    if (body?.pix && Array.isArray(body.pix)) {
+      for (const pix of body.pix) {
+        this.logger.log(`Pix Efí recebido: txid=${pix.txid} valor=R$ ${pix.valor}`);
+        // Marca a execução como COMPLETED
+        await prisma.execution.updateMany({
+          where: { externalId: pix.txid },
+          data: {
+            status: 'COMPLETED',
+            result: { ...pix, paidAt: new Date() }
+          }
+        });
+      }
+      return { received: true, count: body.pix.length };
+    }
+    // Formato genérico (compat com testes)
     this.logger.log(`Pix received: ${body.endToEndId} R$ ${body.amount}`);
     return { received: true, endToEndId: body.endToEndId };
   }

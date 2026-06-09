@@ -18,6 +18,7 @@ import { NubankOpenFinanceAdapter } from './providers/nubank-openfinance-adapter
 import { VtexAdapter } from './providers/vtex-adapter';
 import { IFoodAdapter } from './providers/ifood-adapter';
 import { RappiAdapter } from './providers/rappi-adapter';
+import { EfiPixAdapter } from './providers/efi-pix-adapter';
 
 export interface PartnerDestinationConfig {
   partnerId: string;
@@ -49,7 +50,8 @@ export class DestinationRegistry implements OnModuleInit {
     private nubank: NubankOpenFinanceAdapter,
     private vtex: VtexAdapter,
     private ifood: IFoodAdapter,
-    private rappi: RappiAdapter
+    private rappi: RappiAdapter,
+    private efiPix: EfiPixAdapter
   ) {
     this.registerDefaultAdapters();
   }
@@ -76,6 +78,7 @@ export class DestinationRegistry implements OnModuleInit {
     this.adapters.set('VTEX', this.vtex);
     this.adapters.set('IFOOD', this.ifood);
     this.adapters.set('RAPPI', this.rappi);
+    this.adapters.set('EFI_PIX', this.efiPix);
     this.logger.log(`✅ Registered ${this.adapters.size} adapters total (mock + real)`);
   }
 

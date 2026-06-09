@@ -22,6 +22,7 @@ import { NubankOpenFinanceAdapter } from './modules/destinations/providers/nuban
 import { VtexAdapter } from './modules/destinations/providers/vtex-adapter';
 import { IFoodAdapter } from './modules/destinations/providers/ifood-adapter';
 import { RappiAdapter } from './modules/destinations/providers/rappi-adapter';
+import { EfiPixAdapter } from './modules/destinations/providers/efi-pix-adapter';
 
 // Services
 import { AiService } from './modules/ai/ai.service';
@@ -92,6 +93,7 @@ import { MarketWatcherWorker } from './workers/market-watcher.worker';
     VtexAdapter,
     IFoodAdapter,
     RappiAdapter,
+    EfiPixAdapter,
     // Services
     AiService,
     AiSuggestionsService,
