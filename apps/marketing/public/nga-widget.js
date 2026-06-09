@@ -459,13 +459,9 @@
   //  HELPERS
   // ============================================
   function getOrCreateUserId() {
-    const KEY = 'nga_user_id';
-    let id = localStorage.getItem(KEY);
-    if (!id) {
-      id = 'demo-user-' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
-      localStorage.setItem(KEY, id);
-    }
-    return id;
+    // FIXO: usa o demo-user-001 (criado no seed do Supabase)
+    // Em prod, deveria ser o ID do usuário logado no site parceiro
+    return 'demo-user-001';
   }
 
   function escapeHtml(s) {
