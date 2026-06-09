@@ -45,13 +45,13 @@ export class RoundUpAggregatorWorker implements OnModuleInit {
     // Roda IMEDIATO no start + depois a cada X min
     setImmediate(() => {
       this.logger.log('⚡ Primeira execução IMEDIATA (sem esperar 5 min)');
-      this.aggregate(isDemo).catch((err) => {
+      this.aggregate(!isProd).catch((err) => {
         this.logger.error(`❌ Erro na primeira execução: ${err.message}`);
       });
     });
 
     this.intervalHandle = setInterval(() => {
-      this.aggregate(isDemo);
+      this.aggregate(!isProd);
     }, intervalMs);
   }
 
