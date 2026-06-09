@@ -399,8 +399,8 @@
   function showSuccess(trigger) {
     const modal = shadowRoot.querySelector('.nga-modal');
     // Presets que precisam de Open Finance pra monitorar saldo/salario
-    const needsOpenFinance = ['PRICE_DROP', 'BALANCE_DATE', 'SALARY', 'SAVINGS', 'RESTOCK'].includes(trigger.code)
-      || (trigger.params && trigger.params.preset && ['PRICE_DROP', 'BALANCE_DATE', 'SALARY', 'SAVINGS', 'RESTOCK'].includes(trigger.params.preset));
+    const needsOpenFinance = ['PRICE_DROP', 'BALANCE_DATE', 'SALARY', 'SAVINGS', 'RESTOCK', 'ROUND_UP_PIX'].includes(trigger.code)
+      || (trigger.params && trigger.params.preset && ['PRICE_DROP', 'BALANCE_DATE', 'SALARY', 'SAVINGS', 'RESTOCK', 'ROUND_UP_PIX'].includes(trigger.params.preset));
 
     if (needsOpenFinance) {
       modal.innerHTML = `
