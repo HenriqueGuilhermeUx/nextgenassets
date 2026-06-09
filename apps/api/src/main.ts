@@ -11,10 +11,11 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
 
   // CORS — lê das env vars
-  const corsOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3000,http://localhost:3002,http://localhost:3003,http://localhost:3004')
-    .split(',')
-    .map(s => s.trim())
-    .filter(Boolean);
+  // Aceita lista separada por virgula OU '*' pra liberar todos
+  const corsOriginsRaw = process.env.CORS_ORIGINS || 'http://localhost:3000,http://localhost:3002,http://localhost:3003,http://localhost:3004';
+  const corsOrigins = corsOriginsRaw === '*'
+    ? true
+    : corsOriginsRaw.split(',').map(s => s.trim()).filter(Boolean);
 
   app.enableCors({
     origin: corsOrigins,
