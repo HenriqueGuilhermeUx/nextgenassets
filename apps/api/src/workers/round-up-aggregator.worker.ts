@@ -34,13 +34,18 @@ export class RoundUpAggregatorWorker implements OnModuleInit {
 
   start() {
     if (this.intervalHandle) return;
-    this.logger.log('🪙 Round-up aggregator started (roda a cada 1h, processa 23:55)');
+    this.logger.log('🪙 Round-up aggregator started (DEMO: a cada 5 min, PROD: 23:55)');
 
-    // Pra demo: roda a cada 1 min e checa se é 23:55
+    // DEMO MODE: roda a cada 5 minutos pra testar
     // Em prod: usar node-cron com "55 23 * * *"
+    const isDemo = process.env.NODE_ENV !== 'production' || process.env.DEMO_MODE === 'true';
+    const intervalMs = isDemo ? 5 * 60 * 1000 : 60 * 60 * 1000;
+
+    this.logger.log(`📅 Interval: ${isDemo ? '5min (DEMO)' : '1h (PROD, processa 23:55-00:00)'}`);
+
     this.intervalHandle = setInterval(() => {
-      this.aggregate();
-    }, 60 * 1000);
+      this.aggregate(isDemo);
+    }, intervalMs);
   }
 
   stop() {
@@ -50,17 +55,18 @@ export class RoundUpAggregatorWorker implements OnModuleInit {
     }
   }
 
-  async aggregate() {
+  async aggregate(isDemo = false) {
     const now = new Date();
     const hour = now.getHours();
     const minute = now.getMinutes();
 
-    // Roda entre 23:55 e 00:00 (janela de 5 min)
-    if (hour !== 23 || minute < 55) {
+    // PROD: roda entre 23:55 e 00:00 (janela de 5 min)
+    // DEMO: roda sempre
+    if (!isDemo && (hour !== 23 || minute < 55)) {
       return;
     }
 
-    this.logger.log('🪙 Consolidador de Round-up iniciando...');
+    this.logger.log(`🪙 Consolidador de Round-up iniciando (${isDemo ? 'DEMO' : 'PROD 23:55'})...`);
 
     try {
       // 1. Busca todos gatilhos ROUND_UP_* ativos
