@@ -398,45 +398,137 @@
 
   function showSuccess(trigger) {
     const modal = shadowRoot.querySelector('.nga-modal');
-    // Presets que precisam de Open Finance pra monitorar saldo/salario
-    const needsOpenFinance = ['PRICE_DROP', 'BALANCE_DATE', 'SALARY', 'SAVINGS', 'RESTOCK', 'ROUND_UP_PIX'].includes(trigger.code)
-      || (trigger.params && trigger.params.preset && ['PRICE_DROP', 'BALANCE_DATE', 'SALARY', 'SAVINGS', 'RESTOCK', 'ROUND_UP_PIX'].includes(trigger.params.preset));
+    // REGULATÓRIO: TODOS os 14 presets exigem Open Finance consent
+    // (qualquer gatilho financeiro precisa ler dados do usuário)
+    const scopes = getScopesForPreset(trigger.code);
 
-    if (needsOpenFinance) {
-      modal.innerHTML = `
-        <div class="nga-success">
-          <div class="success-icon">🏦</div>
-          <h2>Quase lá!</h2>
-          <p>Agora conecte seu banco pra gente monitorar suas condições.</p>
-          <div class="trigger-info">
-            <code>${escapeHtml(trigger.id)}</code>
-          </div>
-          <button class="btn-primary" data-action="consent">Conectar Banco</button>
-          <button class="btn-secondary" data-action="close" style="margin-top: 8px">Mais tarde</button>
+    // Tela de "Revisão de Consentimento" (LGPD/BACEN compliant)
+    modal.innerHTML = `
+      <div class="nga-success">
+        <div class="success-icon">🏦</div>
+        <h2>Conecte seu banco</h2>
+        <p>Para monitorar suas condições em tempo real, precisamos de acesso via <strong>Open Finance</strong> (regulamentado pelo Banco Central do Brasil).</p>
+
+        <div style="text-align:left;background:#f9fafb;padding:14px;border-radius:10px;margin:14px 0;font-size:13px;">
+          <div style="font-weight:600;margin-bottom:6px;">🔐 O que vamos acessar:</div>
+          <ul style="margin:0 0 0 18px;line-height:1.6;color:#374151;">
+            ${scopes.map(s => `<li>${s}</li>`).join('')}
+          </ul>
         </div>
-      `;
-      modal.querySelector('[data-action="consent"]').addEventListener('click', () => startOpenFinance(trigger));
-      modal.querySelector('[data-action="close"]').addEventListener('click', closeModal);
-    } else {
-      modal.innerHTML = `
-        <div class="nga-success">
-          <div class="success-icon">✅</div>
-          <h2>Gatilho criado!</h2>
-          <p>Vamos monitorar e te avisar quando executar.</p>
-          <div class="trigger-info">
-            <code>${escapeHtml(trigger.id)}</code>
-          </div>
-          <button class="btn-primary" data-action="close">Fechar</button>
+
+        <div style="text-align:left;background:#fef3c7;padding:12px;border-radius:10px;margin:0 0 14px;font-size:12px;color:#78350f;">
+          <div style="font-weight:600;margin-bottom:4px;">🛡️ Seus direitos (LGPD + BACEN):</div>
+          <ul style="margin:0 0 0 18px;line-height:1.5;">
+            <li>Limite por transação: <strong>R$ 1.000</strong></li>
+            <li>Limite por dia: <strong>R$ 3.000</strong></li>
+            <li>Limite por mês: <strong>R$ 15.000</strong></li>
+            <li>Expira em: <strong>12 meses</strong> (renovável)</li>
+            <li><strong>Revogável</strong> a qualquer momento</li>
+          </ul>
         </div>
-      `;
-      modal.querySelector('[data-action="close"]').addEventListener('click', closeModal);
-    }
+
+        <div class="trigger-info">
+          <code>Gatilho: ${escapeHtml(trigger.id)}</code>
+        </div>
+
+        <button class="btn-primary" data-action="consent" style="background:#16a34a;">
+          ✅ Autorizar Open Finance
+        </button>
+        <button class="btn-secondary" data-action="close" style="margin-top:8px;">
+          Mais tarde
+        </button>
+      </div>
+    `;
+    modal.querySelector('[data-action="consent"]').addEventListener('click', () => startOpenFinance(trigger, scopes));
+    modal.querySelector('[data-action="close"]').addEventListener('click', closeModal);
+  }
+
+  // ============================================
+  //  ESCOPOS DINAMICOS POR TIPO DE GATILHO
+  // ============================================
+  function getScopesForPreset(code) {
+    const scopeMap = {
+      'PRICE_DROP': [
+        '👁️ Consultar saldo da conta',
+        '💸 Enviar PIX (até R$ 1.000 / transação)',
+        '📊 Histórico de transações (90 dias)'
+      ],
+      'OPPORTUNITY_BUY': [
+        '👁️ Consultar saldo da conta',
+        '💸 Enviar PIX (até R$ 1.000 / transação)'
+      ],
+      'DETACHMENT_BUY': [
+        '👁️ Consultar saldo da conta',
+        '💸 Enviar PIX (até R$ 1.000 / transação)',
+        '📊 Histórico de transações (verificar venda)'
+      ],
+      'SCARCITY_BUY': [
+        '👁️ Consultar saldo da conta',
+        '💸 Enviar PIX (até R$ 1.000 / transação)'
+      ],
+      'BALANCE_DATE': [
+        '👁️ Consultar saldo da conta',
+        '💸 Enviar PIX (até R$ 1.000 / transação)'
+      ],
+      'SALARY': [
+        '👁️ Consultar saldo da conta',
+        '📊 Histórico de transações (detectar salário)',
+        '💸 Enviar PIX (até R$ 1.000 / transação)'
+      ],
+      'MATH_EDGE': [
+        '👁️ Consultar saldo da conta',
+        '💸 Enviar PIX (até R$ 1.000 / transação)'
+      ],
+      'SAVINGS': [
+        '👁️ Consultar saldo da conta',
+        '💸 Enviar PIX (até R$ 1.000 / transação)'
+      ],
+      'RESTOCK': [
+        '👁️ Consultar saldo da conta',
+        '💸 Enviar PIX (até R$ 1.000 / transação)'
+      ],
+      'ROUND_UP_PIX': [
+        '👁️ Consultar saldo da conta',
+        '📊 Histórico de transações do cartão (todos os gastos)',
+        '💸 Enviar PIX diário (consolidador 23:55)',
+        '🔁 Arredondar troco automaticamente'
+      ],
+      'IMPULSE_REWARD': [
+        '👁️ Consultar saldo da conta',
+        '📊 Histórico de transações (detectar delivery)',
+        '💸 Enviar PIX (até R$ 1.000 / transação)'
+      ],
+      'VOLATILITY_HEDGE': [
+        '👁️ Consultar saldo da conta',
+        '📈 Cotações em tempo real',
+        '💸 Enviar PIX (até R$ 1.000 / transação)'
+      ],
+      'ACCOUNT_SWEEP': [
+        '👁️ Consultar saldo da conta',
+        '💸 Enviar PIX (até R$ 1.000 / transação)'
+      ],
+      'CREDIT_SCORE_BOOST': [
+        '💳 Consultar fatura do cartão de crédito',
+        '💸 Enviar PIX (pagar fatura automaticamente)'
+      ],
+      'EMERGENCY_FUND': [
+        '👁️ Consultar saldo da conta',
+        '📊 Histórico de receitas (detectar receita extra)',
+        '💸 Enviar PIX (até R$ 1.000 / transação)'
+      ],
+      'CUSTOM_NL': [
+        '👁️ Consultar saldo da conta',
+        '📊 Histórico de transações (90 dias)',
+        '💸 Enviar PIX (até R$ 1.000 / transação)'
+      ]
+    };
+    return scopeMap[code] || scopeMap['PRICE_DROP'];
   }
 
   // ============================================
   //  OPEN FINANCE CONSENT FLOW
   // ============================================
-  async function startOpenFinance(trigger) {
+  async function startOpenFinance(trigger, scopes) {
     const modal = shadowRoot.querySelector('.nga-modal');
     modal.innerHTML = `
       <div class="nga-success">
@@ -449,6 +541,16 @@
 
     try {
       // Cria consent na nossa API
+      // Escopos técnicos baseados no que o usuário autorizou visualmente
+      const technicalScopes = ['accounts.read', 'transactions.read', 'pix.send'];
+      // Adiciona escopos específicos baseado nos escopos visuais selecionados
+      if (scopes && scopes.some(s => s.includes('fatura'))) {
+        technicalScopes.push('credit-cards.read');
+      }
+      if (scopes && scopes.some(s => s.includes('Cotações'))) {
+        technicalScopes.push('market-data.read');
+      }
+
       const response = await fetch(`${API_BASE}/v1/consents`, {
         method: 'POST',
         headers: {
@@ -459,7 +561,7 @@
           userId: config.userId,
           partnerId: config.partnerId,
           provider: 'efi',
-          scopes: ['accounts.read', 'transactions.read', 'pix.send']
+          scopes: technicalScopes,
         })
       });
 
