@@ -24,7 +24,12 @@ export default function ConsumerPortal() {
 
   useEffect(() => {
     if (userId) {
-      api.get(`/reports/consumer/${userId}`).then(setReport).catch(() => {});
+      // Timeout de 5s pra nao ficar carregando infinito
+      const timeout = setTimeout(() => setReport({}), 5000);
+      api.get(`/reports/consumer/${userId}`)
+        .then(setReport)
+        .catch(() => setReport({}))
+        .finally(() => clearTimeout(timeout));
     }
   }, [userId]);
 
@@ -77,6 +82,20 @@ export default function ConsumerPortal() {
           <EmptyState apiOnline={apiOnline} />
         ) : !report ? (
           <div className="text-center py-20 text-gray-500">Carregando relatório...</div>
+        ) : Object.keys(report).length === 0 ? (
+          <div className="text-center py-20">
+            <div className="text-5xl mb-4">📊</div>
+            <h2 className="text-xl font-bold mb-2">Sem dados ainda</h2>
+            <p className="text-gray-500 mb-6 max-w-md mx-auto">
+              Você ainda não tem gatilhos ativos. Comece criando um gatilho no Admin pra ver suas automações aqui.
+            </p>
+            <a
+              href="https://nga-admin.vercel.app"
+              className="inline-block px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600"
+            >
+              Ir pro Admin →
+            </a>
+          </div>
         ) : (
           <>
             <div className="bg-gradient-to-br from-brand-500 to-purple-600 rounded-2xl p-6 text-white mb-6">
