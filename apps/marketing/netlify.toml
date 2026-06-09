@@ -1,18 +1,11 @@
 [build]
   base    = "."
-  publish = ".next"
+  publish = "apps/marketing/out"
   command = "cd apps/marketing && NEXT_TELEMETRY_DISABLED=1 npm run build"
 
 [build.environment]
   NODE_VERSION = "20"
   NPM_FLAGS = "--legacy-peer-deps"
   NEXT_TELEMETRY_DISABLED = "1"
-  NPM_CONFIG_PRODUCTION = "false"
 
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
-
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
+# SEM @netlify/plugin-nextjs (usa static export, nao precisa!)

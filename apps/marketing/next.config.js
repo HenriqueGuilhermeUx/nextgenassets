@@ -1,12 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Desabilita telemetria que tava crashando o build
-  // (bug conhecido do Next 14.2.18)
-  productionBrowserSourceMaps: false,
-  experimental: {
-    // não enviar telemetria
-  }
+  // Static export (sem servidor, sem Functions, sem dor de cabeça)
+  // Marketing é landing page - não precisa de SSR
+  output: 'export',
+  images: {
+    unoptimized: true
+  },
+  // Trailing slash pra Netlify servir certinho
+  trailingSlash: true
 };
 
 module.exports = nextConfig;
