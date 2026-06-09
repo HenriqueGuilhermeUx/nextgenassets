@@ -133,13 +133,7 @@ function LogosStrip() {
   );
 }
 
-function ProblemSection() {
-  const problems = [
-    { icon: '😴', title: 'Apps financeiros são reativos', text: 'Esperam o usuário abrir, decidir e clicar. Resultado: baixo engajamento e capital parado.' },
-    { icon: '⏰', title: 'Humano não consegue olhar mercado 24/7', text: 'A melhor hora de comprar é às 3h da manhã, quando o cliente está dormindo.' },
-    { icon: '💸', title: 'Desenvolvimento de IA custa milhões', text: 'Cada fintech quer automação, mas nenhuma tem squad pra construir. A concorrência vai.' },
-    { icon: '📋', title: 'Open Finance/ITP demora 12-24 meses pra homologar', text: 'Capital de R$ 1M+, equipe jurídica, auditoria. Tempo que você não tem.' }
-  ];
+function RoundUpSection() {
   return (
     <section className="py-20 bg-gradient-to-br from-emerald-50 to-white">
       <div className="max-w-7xl mx-auto px-6">
