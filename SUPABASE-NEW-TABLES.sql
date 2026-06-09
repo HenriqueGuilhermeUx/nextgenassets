@@ -116,3 +116,68 @@ INSERT INTO "Offer" (
 -- Confirma
 SELECT 'Offer count: ' || count(*) FROM "Offer";
 SELECT 'Consent count: ' || count(*) FROM "Consent";
+
+-- ============================================
+-- NOVOS GATILHOS (v1.1) — Catálogo expandido
+-- ============================================
+
+-- E-COMMERCE INTELIGENTE
+INSERT INTO "TriggerCatalog" (id, code, name, description, category, "destinationType", "paramsSchema", "exampleParams", "exampleNaturalLanguage", "createdAt", "updatedAt") VALUES
+('cat-024', 'OPPORTUNITY_BUY', 'Vantagem Matemática (Preço + CDI)', 'Compra se preco alvo E o CDI compensar o desconto', 'INVESTMENT', 'RETAILER',
+'{"type":"object","properties":{"offerId":{"type":"string"},"targetPrice":{"type":"number"},"cdiAnnualPct":{"type":"number"},"opportunityMonths":{"type":"number"},"amountBrl":{"type":"number"}},"required":["targetPrice","opportunityMonths","amountBrl"]}'::jsonb,
+'{"offerId":"offer-demo-001","targetPrice":3500,"cdiAnnualPct":13.5,"opportunityMonths":3,"amountBrl":4000}'::jsonb,
+'Compra esse notebook de R$ 4.000 se cair pra R$ 3.500 E o CDI cobrir a diferença em menos de 3 meses',
+CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+
+('cat-025', 'DETACHMENT_BUY', 'Desapego Concretizado', 'Compra item novo só se vender item antigo (via Open Finance)', 'CONSUMPTION', 'RETAILER',
+'{"type":"object","properties":{"targetOfferId":{"type":"string"},"oldItemName":{"type":"string"},"oldItemMinValue":{"type":"number"},"amountBrl":{"type":"number"}},"required":["targetOfferId","oldItemName","amountBrl"]}'::jsonb,
+'{"targetOfferId":"offer-demo-001","oldItemName":"camera antiga","oldItemMinValue":800,"amountBrl":1899.99}'::jsonb,
+'Só compre a câmera nova se eu vender minha câmera antiga por pelo menos R$ 800',
+CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+
+('cat-026', 'SCARCITY_BUY', 'Escassez com Margem de Segurança', 'Compra se estoque baixo E saldo acima do limite', 'CONSUMPTION', 'RETAILER',
+'{"type":"object","properties":{"offerId":{"type":"string"},"minStockAlert":{"type":"number"},"safetyBalanceBrl":{"type":"number"},"amountBrl":{"type":"number"}},"required":["offerId","minStockAlert","safetyBalanceBrl","amountBrl"]}'::jsonb,
+'{"offerId":"offer-demo-001","minStockAlert":2,"safetyBalanceBrl":2000,"amountBrl":1899.99}'::jsonb,
+'Compra o fone Sony se restar menos de 2 em estoque E eu tiver mais de R$ 2.000 na conta',
+CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+
+-- INVESTIMENTOS SEM ESFORCO
+('cat-027', 'ROUND_UP_PIX', 'Arredondamento de PIX', 'Arredonda gastos pra R$5 ou R$10 e investe o troco', 'INVESTMENT', 'STOCK_BROKER',
+'{"type":"object","properties":{"roundUpTo":{"type":"number"},"destinationAsset":{"type":"string"},"minAccumulatedBrl":{"type":"number"}},"required":["roundUpTo","destinationAsset"]}'::jsonb,
+'{"roundUpTo":5,"destinationAsset":"HGLG11","minAccumulatedBrl":50}'::jsonb,
+'Arredonda cada gasto pra cima de R$ 5 e joga o troco em HGLG11 quando acumular R$ 50',
+CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+
+('cat-028', 'IMPULSE_REWARD', 'Recompensa de Impulso Retido', 'Não gastou em delivery = PIX automático pra ação pagadora', 'INVESTMENT', 'STOCK_BROKER',
+'{"type":"object","properties":{"avgImpulseSpendBrl":{"type":"number"},"avoidedCategory":{"type":"string"},"rewardAsset":{"type":"number"},"triggerDayOfWeek":{"type":"number"}},"required":["avgImpulseSpendBrl","rewardAsset"]}'::jsonb,
+'{"avgImpulseSpendBrl":80,"avoidedCategory":"delivery","rewardAsset":"BBSE3","triggerDayOfWeek":1}'::jsonb,
+'Se eu não gastar em delivery no fim de semana, segunda-feira joga R$ 80 em BBSE3',
+CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+
+('cat-029', 'VOLATILITY_HEDGE', 'Para-Raios de Volatilidade', 'Se Ibovespa/IFIX cair 3%+ E tiver caixa, compra', 'INVESTMENT', 'STOCK_BROKER',
+'{"type":"object","properties":{"indexName":{"type":"string"},"dropPct":{"type":"number"},"opportunityBalanceBrl":{"type":"number"},"favoriteAsset":{"type":"string"},"amountBrl":{"type":"number"}},"required":["indexName","dropPct","amountBrl"]}'::jsonb,
+'{"indexName":"IFIX","dropPct":3,"opportunityBalanceBrl":5000,"favoriteAsset":"HGLG11","amountBrl":1000}'::jsonb,
+'Se o IFIX cair mais de 3% no dia E eu tiver mais de R$ 5.000 de reserva, compra R$ 1.000 de HGLG11',
+CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+
+-- PESSOA FISICA / BANCOS
+('cat-030', 'ACCOUNT_SWEEP', 'Conta Corrente Limpa', 'Varre sobra mensal pra caixinha/CDB dia 28', 'BANKING', 'FUND_DISTRIBUTOR',
+'{"type":"object","properties":{"sweepDayOfMonth":{"type":"number"},"minAmountBrl":{"type":"number"},"destinationAsset":{"type":"string"},"keepMinimumBrl":{"type":"number"}},"required":["sweepDayOfMonth","minAmountBrl","destinationAsset"]}'::jsonb,
+'{"sweepDayOfMonth":28,"minAmountBrl":50,"destinationAsset":"CDB-LIQUIDEZ","keepMinimumBrl":200}'::jsonb,
+'Todo dia 28, varre qualquer valor acima de R$ 50 da conta corrente pra um CDB de liquidez, mantendo R$ 200 de reserva',
+CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+
+('cat-031', 'CREDIT_SCORE_BOOST', 'Score de Crédito Turbinado', 'Transfere dinheiro pra pagar fatura antes do vencimento', 'BANKING', 'BILL_PAYER',
+'{"type":"object","properties":{"creditCardStatementDay":{"type":"number"},"daysBeforeDue":{"type":"number"},"maxTransferBrl":{"type":"number"}},"required":["creditCardStatementDay","daysBeforeDue"]}'::jsonb,
+'{"creditCardStatementDay":5,"daysBeforeDue":5,"maxTransferBrl":3000}'::jsonb,
+'Antes da fatura fechar (5 dias antes), transfere até R$ 3.000 pra conta do cartão pra aumentar meu score',
+CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+
+('cat-032', 'EMERGENCY_FUND', 'Reserva de Emergência Inteligente', 'Morde 30% de receitas extras até 6 meses de custo de vida', 'BANKING', 'FUND_DISTRIBUTOR',
+'{"type":"object","properties":{"incomeKeywords":{"type":"array"},"reserveAsset":{"type":"string"},"targetMonths":{"type":"number"},"monthlyCostOfLifeBrl":{"type":"number"}},"required":["reserveAsset","targetMonths","monthlyCostOfLifeBrl"]}'::jsonb,
+'{"incomeKeywords":["bonus","13º","reembolso"],"reserveAsset":"CDB-DI-6M","targetMonths":6,"monthlyCostOfLifeBrl":5000}'::jsonb,
+'Toda vez que detectar receita extra (13º, bonus, reembolso), morde 30% e joga na reserva de emergência até atingir 6 meses de custo de vida (R$ 30.000)',
+CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+ON CONFLICT (id) DO NOTHING;
+
+SELECT 'Total gatilhos no catalogo: ' || count(*) FROM "TriggerCatalog";

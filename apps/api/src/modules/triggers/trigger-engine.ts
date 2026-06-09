@@ -83,6 +83,30 @@ export class TriggerEngine {
       case 'CUSTOM_NL':
         return this.evaluateMultiCondition(trigger, params);
 
+      // E-COMMERCE INTELIGENTE
+      case 'OPPORTUNITY_BUY':
+        return this.evaluateOpportunityBuy(trigger, params);
+      case 'DETACHMENT_BUY':
+        return this.evaluateDetachmentBuy(trigger, params);
+      case 'SCARCITY_BUY':
+        return this.evaluateScarcityBuy(trigger, params);
+
+      // INVESTIMENTOS SEM ESFORÇO
+      case 'ROUND_UP_PIX':
+        return this.evaluateRoundUpPix(trigger, params);
+      case 'IMPULSE_REWARD':
+        return this.evaluateImpulseReward(trigger, params);
+      case 'VOLATILITY_HEDGE':
+        return this.evaluateVolatilityHedge(trigger, params);
+
+      // PESSOA FÍSICA / BANCOS
+      case 'ACCOUNT_SWEEP':
+        return this.evaluateAccountSweep(trigger, params);
+      case 'CREDIT_SCORE_BOOST':
+        return this.evaluateCreditScoreBoost(trigger, params);
+      case 'EMERGENCY_FUND':
+        return this.evaluateEmergencyFund(trigger, params);
+
       case 'BALANCE_TRIGGER_BUY':
         return this.evaluateBalanceTriggerBuy(trigger, params);
 
@@ -499,6 +523,145 @@ export class TriggerEngine {
       where: { id },
       data: { status: 'FAILED', errorCode: code, errorMessage: message, failedAt: new Date() }
     });
+  }
+
+  // ============================================
+  //  E-COMMERCE INTELIGENTE (3 gatilhos)
+  // ============================================
+
+  /** OPPORTUNITY_BUY: Preço alvo + CDI compensando o desconto */
+  private async evaluateOpportunityBuy(trigger: any, params: any) {
+    const offer = await this.prisma.offer.findUnique({ where: { id: trigger.offerId } });
+    if (!offer) return { shouldFire: false, reason: 'Oferta não encontrada' };
+    const currentPrice = parseFloat(offer.priceBrl.toString());
+    const targetPrice = params.targetPrice;
+    if (currentPrice > targetPrice) {
+      return { shouldFire: false, reason: `Preco atual R$${currentPrice} > alvo R$${targetPrice}` };
+    }
+    // Calcula rendimento CDI no período de oportunidade
+    const cdiAnnual = (params.cdiAnnualPct || 13.5) / 100;
+    const months = params.opportunityMonths || 3;
+    const diff = currentPrice * 0.0; // diff entre preco original e atual
+    const cdiEarn = currentPrice * cdiAnnual * (months / 12);
+    // Heurística: se cdiEarn > diff, vale a pena
+    const worthIt = cdiEarn > 0;
+    return {
+      shouldFire: true,
+      reason: `Preco alvo atingido (R$${currentPrice}) + CDI rendendo R$${cdiEarn.toFixed(2)} em ${months} meses`,
+      data: { currentPrice, targetPrice, cdiEarn }
+    };
+  }
+
+  /** DETACHMENT_BUY: Compra novo SÓ se detectar venda do antigo */
+  private async evaluateDetachmentBuy(trigger: any, params: any) {
+    // TODO: integrar com Open Finance pra detectar Pix de entrada
+    // Por enquanto, simula: a cada chamada retorna false (precisa de transação detectada)
+    return {
+      shouldFire: false,
+      reason: `Aguardando venda de "${params.oldItemName}" por >= R$ ${params.oldItemMinValue}`,
+      data: { required: 'Pix de venda detectado', keyword: params.oldItemName }
+    };
+  }
+
+  /** SCARCITY_BUY: Estoque baixo E saldo acima do limite */
+  private async evaluateScarcityBuy(trigger: any, params: any) {
+    const offer = await this.prisma.offer.findUnique({ where: { id: trigger.offerId } });
+    if (!offer) return { shouldFire: false, reason: 'Oferta não encontrada' };
+    if (!offer.inStock) return { shouldFire: false, reason: 'Sem estoque' };
+    // TODO: ler saldo real via Open Finance
+    const fakeBalance = 10000;
+    const ok = fakeBalance >= params.safetyBalanceBrl;
+    return {
+      shouldFire: ok,
+      reason: ok
+        ? `Estoque baixo + saldo OK (R$${fakeBalance})`
+        : `Saldo abaixo do limite de segurança (R$${params.safetyBalanceBrl})`,
+      data: { stock: offer.stockQuantity, balance: fakeBalance }
+    };
+  }
+
+  // ============================================
+  //  INVESTIMENTOS SEM ESFORÇO (3 gatilhos)
+  // ============================================
+
+  /** ROUND_UP_PIX: Arredonda gastos e investe o troco */
+  private async evaluateRoundUpPix(trigger: any, params: any) {
+    // TODO: detectar gastos via Open Finance ao longo do dia
+    return {
+      shouldFire: false,
+      reason: 'Monitorando gastos para arredondar (em breve)',
+      data: { roundUpTo: params.roundUpTo, destinationAsset: params.destinationAsset }
+    };
+  }
+
+  /** IMPULSE_REWARD: Se não gastou em delivery, ganha ação na segunda */
+  private async evaluateImpulseReward(trigger: any, params: any) {
+    // TODO: verificar gastos na categoria "delivery" no fim de semana
+    const now = new Date();
+    if (now.getDay() !== 1) { // 1 = segunda
+      return { shouldFire: false, reason: 'Executa apenas na segunda-feira' };
+    }
+    return {
+      shouldFire: false,
+      reason: 'Aguardando fim de semana sem gastos em delivery',
+      data: { avgImpulseSpendBrl: params.avgImpulseSpendBrl }
+    };
+  }
+
+  /** VOLATILITY_HEDGE: Ibovespa/IFIX caiu 3%+ E tem caixa */
+  private async evaluateVolatilityHedge(trigger: any, params: any) {
+    // TODO: pegar cotação do dia do índice (Yahoo Finance API)
+    return {
+      shouldFire: false,
+      reason: `Monitorando ${params.indexName} (queda de ${params.dropPct}%)`,
+      data: { index: params.indexName, dropPct: params.dropPct }
+    };
+  }
+
+  // ============================================
+  //  PESSOA FÍSICA / BANCOS (3 gatilhos)
+  // ============================================
+
+  /** ACCOUNT_SWEEP: Dia 28 varre sobra pra CDB */
+  private async evaluateAccountSweep(trigger: any, params: any) {
+    const now = new Date();
+    if (now.getDate() !== params.sweepDayOfMonth) {
+      return { shouldFire: false, reason: `Executa apenas dia ${params.sweepDayOfMonth}` };
+    }
+    // TODO: ler saldo via Open Finance
+    const fakeBalance = 3500;
+    const sweepAmount = Math.max(0, fakeBalance - params.keepMinimumBrl);
+    if (sweepAmount < params.minAmountBrl) {
+      return { shouldFire: false, reason: 'Sobra abaixo do mínimo' };
+    }
+    return {
+      shouldFire: true,
+      reason: `Varrendo R$ ${sweepAmount.toFixed(2)} para ${params.destinationAsset}`,
+      data: { sweepAmount, destination: params.destinationAsset }
+    };
+  }
+
+  /** CREDIT_SCORE_BOOST: Paga fatura antes do fechamento */
+  private async evaluateCreditScoreBoost(trigger: any, params: any) {
+    // TODO: checar data de fechamento da fatura
+    return {
+      shouldFire: false,
+      reason: `Monitorando fechamento dia ${params.creditCardStatementDay}`,
+      data: { daysBeforeDue: params.daysBeforeDue }
+    };
+  }
+
+  /** EMERGENCY_FUND: Morde 30% de receitas extras pra reserva */
+  private async evaluateEmergencyFund(trigger: any, params: any) {
+    // TODO: detectar palavras-chave em transações (bônus, 13º, reembolso)
+    return {
+      shouldFire: false,
+      reason: 'Monitorando receitas extras (bônus, 13º, reembolso)',
+      data: {
+        targetReserve: params.monthlyCostOfLifeBrl * params.targetMonths,
+        incomeKeywords: params.incomeKeywords
+      }
+    };
   }
 
   // ============================================

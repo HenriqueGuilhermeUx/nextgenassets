@@ -161,6 +161,42 @@
               <strong>💼 Por salário</strong>
               <span>Se cair salário este mês</span>
             </button>
+            <button class="preset-btn" data-preset="OPPORTUNITY_BUY">
+              <strong>🎯 Vantagem matemática</strong>
+              <span>Preço alvo + CDI compensando</span>
+            </button>
+            <button class="preset-btn" data-preset="DETACHMENT_BUY">
+              <strong>♻️ Desapego concretizado</strong>
+              <span>Vende o antigo → compra o novo</span>
+            </button>
+            <button class="preset-btn" data-preset="SCARCITY_BUY">
+              <strong>🔥 Escassez + margem</strong>
+              <span>Estoque baixo E saldo OK</span>
+            </button>
+            <button class="preset-btn" data-preset="ROUND_UP_PIX">
+              <strong>🪙 Arredondamento PIX</strong>
+              <span>Troco do café vai pra ações</span>
+            </button>
+            <button class="preset-btn" data-preset="IMPULSE_REWARD">
+              <strong>🏆 Recompensa do impulso</strong>
+              <span>Não gastou em delivery? Ganha ação</span>
+            </button>
+            <button class="preset-btn" data-preset="VOLATILITY_HEDGE">
+              <strong>⛈️ Para-raios do mercado</strong>
+              <span>Ibovespa/IFIX caiu 3%+</span>
+            </button>
+            <button class="preset-btn" data-preset="ACCOUNT_SWEEP">
+              <strong>🧹 Conta corrente limpa</strong>
+              <span>Dia 28 varre sobra pra CDB</span>
+            </button>
+            <button class="preset-btn" data-preset="CREDIT_SCORE_BOOST">
+              <strong>📈 Score de crédito</strong>
+              <span>Paga fatura antes do fechamento</span>
+            </button>
+            <button class="preset-btn" data-preset="EMERGENCY_FUND">
+              <strong>🛟 Reserva emergência</strong>
+              <span>30% de receita extra vai pra reserva</span>
+            </button>
             <button class="preset-btn" data-preset="SAVINGS">
               <strong>🐖 Acumulando</strong>
               <span>Guarda R$ X por semana até juntar</span>

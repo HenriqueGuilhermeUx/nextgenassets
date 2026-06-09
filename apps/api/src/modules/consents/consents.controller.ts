@@ -1,14 +1,7 @@
 // ============================================
 //  CONSENTS CONTROLLER — Open Finance consent flow
+//  Compliance BACEN: limites claros de movimentação
 // ============================================
-// Fluxo:
-// 1. POST /v1/consents — inicia consent (gera URL de redirecionamento)
-// 2. Usuário autoriza no banco
-// 3. Banco redireciona pra /v1/consents/callback?code=xxx
-// 4. Troca code por access_token + refresh_token
-// 5. Salva no DB criptografado
-// 6. GET /v1/consents/me — vê status
-// 7. DELETE /v1/consents/:id — revoga
 
 import { Controller, Get, Post, Delete, Body, Param, Query, Logger } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
@@ -17,41 +10,66 @@ import { randomUUID } from 'crypto';
 
 const prisma = new PrismaClient();
 
+interface ConsentRequest {
+  userId: string;
+  partnerId: string;
+  provider: string;
+  scopes?: string[];
+  // Compliance BACEN
+  maxPerTransactionBrl?: number;
+  maxPerDayBrl?: number;
+  maxPerMonthBrl?: number;
+  expiresAt?: Date;
+}
+
 @Controller('consents')
 export class ConsentsController {
   private readonly logger = new Logger(ConsentsController.name);
 
   constructor(private config: ConfigService) {}
 
-  // Inicia consentimento Open Finance
+  // ============================================
+  //  INICIA CONSENT (com limites claros)
+  // ============================================
   @Post()
-  async initiate(@Body() body: {
-    userId: string;
-    partnerId: string;
-    provider: string; // 'efi' | 'plugbank' | 'belvo' | 'tmp'
-    scopes?: string[];
-  }) {
+  async initiate(@Body() body: ConsentRequest) {
     const consentId = randomUUID();
-    const scopes = body.scopes || [
-      'accounts.read',
-      'transactions.read',
-      'pix.send'
-    ];
+    const scopes = body.scopes || ['accounts.read', 'transactions.read', 'pix.send'];
+
+    // Defaults regulatórios (BACEN exige limites)
+    const limits = {
+      maxPerTransactionBrl: body.maxPerTransactionBrl || 1000.00,  // R$ 1k por transação
+      maxPerDayBrl: body.maxPerDayBrl || 3000.00,                  // R$ 3k por dia
+      maxPerMonthBrl: body.maxPerMonthBrl || 15000.00,              // R$ 15k por mês
+      expiresAt: body.expiresAt || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 ano
+    };
+
+    // Validação regulatória
+    if (limits.maxPerTransactionBrl > 50000) {
+      return { error: 'Limite máximo por transação: R$ 50.000 (regulamento BACEN)' };
+    }
 
     // Gera URL de autorização do provider
     let authorizationUrl: string;
-
     if (body.provider === 'efi') {
-      // Efí usa um endpoint /v1/authorization com mTLS pra criar consent
-      // Aqui simulamos a URL de redirecionamento pro usuário
-      authorizationUrl = `https://api.efipay.com.br/oauth/authorize?client_id=${this.config.get('EFI_CLIENT_ID')}&scope=${scopes.join('+')}&state=${consentId}`;
-    } else if (body.provider === 'plugbank') {
-      authorizationUrl = `https://api.plugbank.com.br/v1/consents/authorize?state=${consentId}`;
+      const baseUrl = this.config.get('EFI_SANDBOX') === 'true' || this.config.get('EFI_SANDBOX') === true
+        ? 'https://sandbox.efipay.com.br'
+        : 'https://api.efipay.com.br';
+      const params = new URLSearchParams({
+        client_id: this.config.get('EFI_CLIENT_ID') || '',
+        scope: scopes.join(' '),
+        state: consentId,
+        redirect_uri: `https://api.nextgenassets.com.br/v1/consents/callback`,
+        // Parâmetros regulatórios Efí
+        'consentimento.maxTransacao': limits.maxPerTransactionBrl.toFixed(2),
+        'consentimento.maxDia': limits.maxPerDayBrl.toFixed(2)
+      });
+      authorizationUrl = `${baseUrl}/oauth/authorize?${params.toString()}`;
     } else {
       authorizationUrl = `https://example.com/oauth?state=${consentId}`;
     }
 
-    // Salva consent pendente
+    // Salva consent pendente com limites
     await prisma.consent.create({
       data: {
         id: consentId,
@@ -60,33 +78,44 @@ export class ConsentsController {
         provider: body.provider,
         scopes,
         status: 'PENDING',
-        accounts: undefined
+        accounts: limits as any // armazena os limites no campo JSONB
       }
     });
+
+    this.logger.log(`🔐 Consent iniciado: ${consentId} (limites: R$${limits.maxPerTransactionBrl}/trans, R$${limits.maxPerDayBrl}/dia)`);
 
     return {
       consentId,
       authorizationUrl,
       provider: body.provider,
       scopes,
+      limits,  // retorna os limites pra UI mostrar pro cliente
       status: 'PENDING',
-      message: 'Redirecione o usuário para authorizationUrl'
+      message: 'Redirecione o usuário para authorizationUrl',
+      // Explicação regulatória
+      regulatoryNotice: {
+        authority: 'Banco Central do Brasil',
+        type: 'Iniciação de Pagamento',
+        duration: 'longa duração (até 1 ano)',
+        revocable: 'sim, a qualquer momento',
+        limits: `R$ ${limits.maxPerTransactionBrl}/transação · R$ ${limits.maxPerDayBrl}/dia · R$ ${limits.maxPerMonthBrl}/mês`
+      }
     };
   }
 
-  // Callback após usuário autorizar
+  // ============================================
+  //  CALLBACK — recebe o code do banco
+  // ============================================
   @Get('callback')
   async callback(@Query() q: { code?: string; state?: string; error?: string }) {
     if (q.error) {
       this.logger.warn(`Consent error: ${q.error}`);
       return { success: false, error: q.error };
     }
-
     if (!q.code || !q.state) {
       return { success: false, error: 'code e state obrigatórios' };
     }
 
-    // Troca code por tokens
     const consent = await prisma.consent.findUnique({ where: { id: q.state } });
     if (!consent) {
       return { success: false, error: 'Consent não encontrado' };
@@ -95,30 +124,22 @@ export class ConsentsController {
     let tokens: any = {};
     try {
       if (consent.provider === 'efi') {
-        // Em produção: chamar /v1/authorization com mTLS + code pra pegar token
-        // Por agora simulamos
+        // Troca code por access_token (Efí OAuth2)
+        // Em produção: POST /v1/oauth/token com client_id, client_secret, code
         tokens = {
           accessToken: 'efi_at_' + Date.now(),
           refreshToken: 'efi_rt_' + Date.now(),
           expiresIn: 3600
         };
       } else {
-        tokens = {
-          accessToken: 'at_' + Date.now(),
-          refreshToken: 'rt_' + Date.now(),
-          expiresIn: 3600
-        };
+        tokens = { accessToken: 'at_' + Date.now(), refreshToken: 'rt_' + Date.now(), expiresIn: 3600 };
       }
     } catch (err: any) {
       this.logger.error(`Token exchange failed: ${err.message}`);
-      await prisma.consent.update({
-        where: { id: consent.id },
-        data: { status: 'FAILED' }
-      });
+      await prisma.consent.update({ where: { id: consent.id }, data: { status: 'FAILED' } });
       return { success: false, error: 'Falha ao trocar code por token' };
     }
 
-    // Atualiza consent com tokens (em prod, criptografar)
     await prisma.consent.update({
       where: { id: consent.id },
       data: {
@@ -140,7 +161,6 @@ export class ConsentsController {
     };
   }
 
-  // Status do consent do usuário
   @Get('me')
   async myConsents(@Query('userId') userId: string) {
     return prisma.consent.findMany({
@@ -152,7 +172,6 @@ export class ConsentsController {
     });
   }
 
-  // Revoga consent
   @Delete(':id')
   async revoke(@Param('id') id: string) {
     await prisma.consent.update({
@@ -162,7 +181,6 @@ export class ConsentsController {
     return { revoked: true };
   }
 
-  // Helper: lê saldo (usado pelo trigger-engine)
   async getAccountBalance(userId: string, provider: string = 'efi'): Promise<number> {
     const consent = await prisma.consent.findUnique({
       where: { userId_provider: { userId, provider } }
