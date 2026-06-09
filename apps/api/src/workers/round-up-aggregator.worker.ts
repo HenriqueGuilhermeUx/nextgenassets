@@ -99,8 +99,8 @@ export class RoundUpAggregatorWorker implements OnModuleInit {
                 triggerId: trigger.id,
                 status: 'INITIATING_PIX',
                 amountBrl: evalResult.data?.total || 0,
-                result: evalResult.data as any
-              }
+                result: evalResult.data
+              } as any
             });
 
             // 4. Dispara PIX via Efí (1 unico por dia)
@@ -137,8 +137,8 @@ export class RoundUpAggregatorWorker implements OnModuleInit {
               data: {
                 status: pixResult.status === 'FAILED' ? 'FAILED' : 'PENDING',
                 externalId: externalId,
-                result: pixResult as any
-              }
+                result: pixResult
+              } as any
             });
 
             totalProcessed++;
