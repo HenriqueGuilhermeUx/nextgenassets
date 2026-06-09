@@ -1,6 +1,6 @@
 [build]
   base    = "."
-  publish = "apps/consumer/.next"
+  publish = "apps/consumer/out"
   command = "cd apps/consumer && NEXT_TELEMETRY_DISABLED=1 npm run build"
 
 [build.environment]
@@ -8,17 +8,4 @@
   NPM_FLAGS = "--legacy-peer-deps"
   NEXT_TELEMETRY_DISABLED = "1"
 
-[functions]
-  included_files = [
-    "node_modules/next/**/*",
-    "apps/consumer/node_modules/next/**/*"
-  ]
-  node_bundler = "zisi"
-
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
-
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
+# SEM @netlify/plugin-nextjs (usa static export, nao precisa!)
