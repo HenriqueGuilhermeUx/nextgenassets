@@ -31,11 +31,17 @@
   function init(userConfig) {
     config = Object.assign({
       apiKey: '',
+      partnerId: 'demo-partner-001',
+      userId: null, // gera automaticamente se nao fornecido
       mode: 'auto', // 'auto' | 'manual'
       theme: { primary: '#5B6CFF', radius: 8 },
       position: 'inline', // 'inline' | 'floating'
       language: 'pt-BR'
     }, userConfig || {});
+
+    if (!config.userId) {
+      config.userId = getOrCreateUserId();
+    }
 
     if (!config.apiKey) {
       console.warn('[NGA Widget] apiKey não fornecido. Use: NGAWidget.init({ apiKey: "pk_xxx" })');
@@ -293,6 +299,8 @@
           'X-API-Key': config.apiKey
         },
         body: JSON.stringify({
+          partnerId: config.partnerId || 'demo-partner-001',
+          userId: config.userId || this.getOrCreateUserId(),
           offerId: offer.offerId,
           offerTitle: offer.title,
           offerPriceBrl: offer.price,
@@ -450,6 +458,16 @@
   // ============================================
   //  HELPERS
   // ============================================
+  function getOrCreateUserId() {
+    const KEY = 'nga_user_id';
+    let id = localStorage.getItem(KEY);
+    if (!id) {
+      id = 'demo-user-' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+      localStorage.setItem(KEY, id);
+    }
+    return id;
+  }
+
   function escapeHtml(s) {
     if (!s) return '';
     return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
