@@ -60,8 +60,8 @@ function Hero() {
           Em produção com 3 parceiros piloto
         </div>
         <h1 className="text-5xl md:text-7xl font-extrabold leading-tight tracking-tight mb-6">
-          Transforme seu app em um <br/>
-          <span className="gradient-text">agente financeiro autônomo</span>
+          NextGen Assets: a infraestrutura de <br/>
+          <span className="gradient-text">IA Agêntica + Open Finance</span>
         </h1>
         <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-10 leading-relaxed">
           Seus clientes ditam regras em português ("compra ITUB4 se cair 2%"). A IA estrutura.
