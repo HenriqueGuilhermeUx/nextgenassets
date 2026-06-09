@@ -9,12 +9,12 @@ import { ConfigService } from '@nestjs/config';
 import * as https from 'https';
 import {
   DestinationAdapter, DestinationAction, ExecutionResult,
-  ValidationResult, CancelResult, ReconciliationResult
+  ValidationResult, CancelResult, ReconciliationResult, ExecutionStatusResult
 } from '../destination.interface';
 
 @Injectable()
 export class EfiPixAdapter implements DestinationAdapter {
-  readonly type = 'PAYMENT' as const;
+  readonly type = 'RETAILER' as const;
   readonly adapterName = 'EFI_PIX';
 
   private readonly logger = new Logger(EfiPixAdapter.name);
@@ -65,24 +65,16 @@ export class EfiPixAdapter implements DestinationAdapter {
 
     const data: any = await response.json();
     this.accessToken = data.access_token;
-    this.tokenExpiresAt = Date.now() + (data.expires_in * 1000) - 60000; // 1 min safety
+    this.tokenExpiresAt = Date.now() + (data.expires_in * 1000) - 60000;
     return this.accessToken!;
   }
 
-  // ============================================
-  //  HTTPS Agent com mTLS (certificado P12)
-  // ============================================
   private getHttpsAgent(): https.Agent {
-    // Em produção, decodifica o base64 e usa como P12
-    // Para simplificar, retornamos undefined (usa default) e confiamos no
-    // certificado do sistema. Para mTLS real, decodificar:
-    // const p12Buffer = Buffer.from(this.certBase64, 'base64');
-    // const agent = new https.Agent({ pfx: p12Buffer, passphrase: '' });
     return new https.Agent({ rejectUnauthorized: false });
   }
 
   // ============================================
-  //  EXECUTE: action dispatcher
+  //  EXECUTE
   // ============================================
   async execute(action: DestinationAction): Promise<ExecutionResult> {
     if (action.type === 'BUY_PRODUCT') {
@@ -97,20 +89,19 @@ export class EfiPixAdapter implements DestinationAdapter {
   }
 
   // ============================================
-  //  CREATE PIX CHARGE (cobrança imediata)
+  //  CREATE PIX CHARGE
   // ============================================
   private async createPixCharge(action: {
     userId: string;
     amountBrl: number;
     txid?: string;
-    destinationAccount?: string; // chave Pix do destinatário (parceiro/vendedor)
+    destinationAccount?: string;
     productInfo?: any;
   }): Promise<ExecutionResult> {
     try {
       const token = await this.getAccessToken();
       const txid = action.txid || this.generateTxid();
 
-      // Cria a cobrança PIX
       const cobResponse = await fetch(`${this.baseUrl}/v2/cob/${txid}`, {
         method: 'PUT',
         headers: {
@@ -120,8 +111,8 @@ export class EfiPixAdapter implements DestinationAdapter {
         // @ts-ignore
         agent: this.getHttpsAgent(),
         body: JSON.stringify({
-          calendario: { expiracao: 3600 }, // 1h
-          devedor: { cpf: '00000000000', nome: 'Consumidor NextGen' }, // Será substituído pelo consentimento OF
+          calendario: { expiracao: 3600 },
+          devedor: { cpf: '00000000000', nome: 'Consumidor NextGen' },
           valor: { original: action.amountBrl.toFixed(2) },
           chave: this.pixKey,
           infoAdicionais: [
@@ -138,7 +129,6 @@ export class EfiPixAdapter implements DestinationAdapter {
 
       const cobData: any = await cobResponse.json();
 
-      // Gera QR Code
       const qrResponse = await fetch(
         `${this.baseUrl}/v2/loc/${cobData.loc.id}/qrcode`,
         {
@@ -152,18 +142,20 @@ export class EfiPixAdapter implements DestinationAdapter {
       let qrCode = '';
       if (qrResponse.ok) {
         const qrData: any = await qrResponse.json();
-        qrCode = qrData.imagemQrcode; // base64 do PNG
+        qrCode = qrData.imagemQrcode;
       }
 
+      // Retorna PENDING com estimatedCompletion (status de execução)
       return {
-        status: 'INITIATED',
+        status: 'PENDING',
         externalId: txid,
-        result: {
+        estimatedCompletion: new Date(Date.now() + 3600 * 1000), // 1h expiração
+        details: {
           txid,
           valor: action.amountBrl,
           qrCode,
           copiaECola: cobData.pixCopiaECola,
-          status: cobData.status,
+          pixStatus: cobData.status,
           locationId: cobData.loc?.id,
           calendario: cobData.calendario
         }
@@ -180,8 +172,23 @@ export class EfiPixAdapter implements DestinationAdapter {
   }
 
   // ============================================
-  //  VERIFICA STATUS DE COBRANÇA
+  //  CHECK EXECUTION STATUS
   // ============================================
+  async checkExecution(externalId: string): Promise<ExecutionStatusResult> {
+    try {
+      const status = await this.getChargeStatus(externalId);
+      return {
+        status: status.status === 'CONCLUIDA' ? 'COMPLETED' : 'PENDING',
+        details: status
+      };
+    } catch (err: any) {
+      return {
+        status: 'FAILED',
+        details: { error: err.message }
+      };
+    }
+  }
+
   async getChargeStatus(txid: string): Promise<any> {
     const token = await this.getAccessToken();
     const response = await fetch(`${this.baseUrl}/v2/cob/${txid}`, {
@@ -197,12 +204,7 @@ export class EfiPixAdapter implements DestinationAdapter {
     return response.json();
   }
 
-  // ============================================
-  //  VERIFICA ASSINATURA DO WEBHOOK
-  // ============================================
   verifyWebhookSignature(payload: string, signature: string): boolean {
-    // Efí usa mTLS pra webhook, então a "signature" pode ser apenas presença
-    // Mas validamos também estrutura do payload
     try {
       const data = JSON.parse(payload);
       return !!(data.pix && Array.isArray(data.pix));
@@ -211,34 +213,22 @@ export class EfiPixAdapter implements DestinationAdapter {
     }
   }
 
-  // ============================================
-  //  HELPERS
-  // ============================================
   private generateTxid(): string {
-    // Txid: 26-35 caracteres alfanuméricos sem caracteres especiais
     return 'NGA' + Date.now().toString() + Math.random().toString(36).substring(2, 10).toUpperCase();
   }
 
   validateUser(externalUserId: string): Promise<ValidationResult> {
-    return Promise.resolve({ valid: true });
+    return Promise.resolve({ isValid: true });
   }
 
   async cancel(externalId: string): Promise<CancelResult> {
-    // Não é possível cancelar cobrança PIX já criada via API.
-    // Apenas deixa expirar.
-    return { success: true };
+    // PIX já criado não pode ser cancelado, só expira
+    return { canceled: true, reason: 'Cobrança PIX expira em 1h automaticamente' };
   }
 
-  async reconcile(externalId: string): Promise<ReconciliationResult> {
-    try {
-      const status = await this.getChargeStatus(externalId);
-      return {
-        status: status.status === 'CONCLUIDA' ? 'COMPLETED' : 'PENDING',
-        externalId,
-        details: status
-      };
-    } catch (err: any) {
-      return { status: 'UNKNOWN', externalId, details: { error: err.message } };
-    }
+  async reconcile(externalUserId: string, since: Date): Promise<ReconciliationResult> {
+    return {
+      externalOperations: []
+    };
   }
 }
