@@ -36,12 +36,11 @@ export class RoundUpAggregatorWorker implements OnModuleInit {
     if (this.intervalHandle) return;
     this.logger.log('🪙 Round-up aggregator started (DEMO: a cada 5 min, PROD: 23:55)');
 
-    // DEMO MODE: roda a cada 5 minutos pra testar
-    // Em prod: usar node-cron com "55 23 * * *"
-    const isDemo = process.env.NODE_ENV !== 'production' || process.env.DEMO_MODE === 'true';
-    const intervalMs = isDemo ? 5 * 60 * 1000 : 60 * 60 * 1000;
+    // DEMO é o default. Em prod setar ROUND_UP_PROD=true
+    const isProd = process.env.ROUND_UP_PROD === 'true';
+    const intervalMs = isProd ? 60 * 60 * 1000 : 5 * 60 * 1000;
 
-    this.logger.log(`📅 Interval: ${isDemo ? '5min (DEMO)' : '1h (PROD, processa 23:55-00:00)'}`);
+    this.logger.log(`📅 Interval: ${isProd ? '1h (PROD, processa 23:55-00:00)' : '5min (DEMO)'}`);
 
     // Roda IMEDIATO no start + depois a cada X min
     setImmediate(() => {
