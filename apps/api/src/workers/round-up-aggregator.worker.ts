@@ -93,7 +93,7 @@ export class RoundUpAggregatorWorker implements OnModuleInit {
                 triggerId: trigger.id,
                 status: 'INITIATING_PIX',
                 amountBrl: evalResult.data?.total || 0,
-                metadata: evalResult.data
+                result: evalResult.data as any
               }
             });
 
@@ -125,12 +125,13 @@ export class RoundUpAggregatorWorker implements OnModuleInit {
             });
 
             // 6. Atualiza execution com resultado
+            const externalId = pixResult.status === 'COMPLETED' ? (pixResult as any).externalId : null;
             await prisma.execution.update({
               where: { id: execution.id },
               data: {
                 status: pixResult.status === 'FAILED' ? 'FAILED' : 'PENDING',
-                externalId: pixResult.externalId,
-                result: pixResult
+                externalId: externalId,
+                result: pixResult as any
               }
             });
 
