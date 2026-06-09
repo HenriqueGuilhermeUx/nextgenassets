@@ -487,11 +487,3 @@ model Consent {
   @@unique([userId, provider])
   @@index([partnerId])
 }
-
-enum ConsentStatus {
-  PENDING
-  ACTIVE
-  EXPIRED
-  REVOKED
-  FAILED
-}
