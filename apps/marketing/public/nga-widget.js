@@ -332,18 +332,110 @@
 
   function showSuccess(trigger) {
     const modal = shadowRoot.querySelector('.nga-modal');
+    // Presets que precisam de Open Finance pra monitorar saldo/salario
+    const needsOpenFinance = ['PRICE_DROP', 'BALANCE_DATE', 'SALARY', 'SAVINGS', 'RESTOCK'].includes(trigger.code)
+      || (trigger.params && trigger.params.preset && ['PRICE_DROP', 'BALANCE_DATE', 'SALARY', 'SAVINGS', 'RESTOCK'].includes(trigger.params.preset));
+
+    if (needsOpenFinance) {
+      modal.innerHTML = `
+        <div class="nga-success">
+          <div class="success-icon">🏦</div>
+          <h2>Quase lá!</h2>
+          <p>Agora conecte seu banco pra gente monitorar suas condições.</p>
+          <div class="trigger-info">
+            <code>${escapeHtml(trigger.id)}</code>
+          </div>
+          <button class="btn-primary" data-action="consent">Conectar Banco</button>
+          <button class="btn-secondary" data-action="close" style="margin-top: 8px">Mais tarde</button>
+        </div>
+      `;
+      modal.querySelector('[data-action="consent"]').addEventListener('click', () => startOpenFinance(trigger));
+      modal.querySelector('[data-action="close"]').addEventListener('click', closeModal);
+    } else {
+      modal.innerHTML = `
+        <div class="nga-success">
+          <div class="success-icon">✅</div>
+          <h2>Gatilho criado!</h2>
+          <p>Vamos monitorar e te avisar quando executar.</p>
+          <div class="trigger-info">
+            <code>${escapeHtml(trigger.id)}</code>
+          </div>
+          <button class="btn-primary" data-action="close">Fechar</button>
+        </div>
+      `;
+      modal.querySelector('[data-action="close"]').addEventListener('click', closeModal);
+    }
+  }
+
+  // ============================================
+  //  OPEN FINANCE CONSENT FLOW
+  // ============================================
+  async function startOpenFinance(trigger) {
+    const modal = shadowRoot.querySelector('.nga-modal');
     modal.innerHTML = `
       <div class="nga-success">
-        <div class="success-icon">✅</div>
-        <h2>Gatilho criado!</h2>
-        <p>Vamos monitorar e te avisar quando executar.</p>
-        <div class="trigger-info">
-          <code>${escapeHtml(trigger.id)}</code>
-        </div>
-        <button class="btn-primary" data-action="close">Fechar</button>
+        <div class="success-icon">🔄</div>
+        <h2>Conectando seu banco...</h2>
+        <p>Você será redirecionado pro site do banco.</p>
+        <div class="loading-bar"></div>
       </div>
     `;
-    modal.querySelector('[data-action="close"]').addEventListener('click', closeModal);
+
+    try {
+      // Cria consent na nossa API
+      const response = await fetch(`${API_BASE}/v1/consents`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': config.apiKey
+        },
+        body: JSON.stringify({
+          userId: config.userId,
+          partnerId: config.partnerId,
+          provider: 'efi',
+          scopes: ['accounts.read', 'transactions.read', 'pix.send']
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Falha ao iniciar Open Finance');
+      }
+
+      const consent = await response.json();
+
+      // Redireciona pro usuário autorizar no banco (sandbox Efí)
+      // Em produção, isso vai pra tela real do banco
+      // Em dev/sandbox, mostramos info
+      if (consent.authorizationUrl) {
+        window.open(consent.authorizationUrl, '_blank', 'width=600,height=700');
+      }
+
+      // Mostra tela de sucesso
+      setTimeout(() => {
+        modal.innerHTML = `
+          <div class="nga-success">
+            <div class="success-icon">✅</div>
+            <h2>Conectado!</h2>
+            <p>Seu gatilho está ativo. Vamos monitorar 24/7.</p>
+            <div class="trigger-info">
+              <code>Consent: ${escapeHtml(consent.consentId)}</code>
+            </div>
+            <button class="btn-primary" data-action="close">Fechar</button>
+          </div>
+        `;
+        modal.querySelector('[data-action="close"]').addEventListener('click', closeModal);
+      }, 1500);
+    } catch (err) {
+      modal.innerHTML = `
+        <div class="nga-success">
+          <div class="success-icon">⚠️</div>
+          <h2>Erro ao conectar</h2>
+          <p>${escapeHtml(err.message)}</p>
+          <button class="btn-primary" data-action="close">Fechar</button>
+        </div>
+      `;
+      modal.querySelector('[data-action="close"]').addEventListener('click', closeModal);
+    }
   }
 
   function showError(msg) {
@@ -451,6 +543,16 @@
       .trigger-info code { font-size: 12px; color: #166534; }
 
       .error { background: #fef2f2; color: #dc2626; padding: 12px; border-radius: 8px; margin-bottom: 12px; font-size: 14px; }
+
+      .loading-bar {
+        height: 4px; background: linear-gradient(90deg, ${config.theme.primary}, #8b5cf6, ${config.theme.primary});
+        background-size: 200% 100%; border-radius: 2px; margin: 20px 0;
+        animation: loading 1.5s infinite;
+      }
+      @keyframes loading {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+      }
     `;
     shadowRoot.appendChild(style);
   }

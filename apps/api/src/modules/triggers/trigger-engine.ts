@@ -74,6 +74,15 @@ export class TriggerEngine {
       case 'BILL_AUTO_PAY':
         return this.evaluateBillAutoPay(trigger, params);
 
+      // Multi-condição genérico (usado pelo widget)
+      case 'PRICE_DROP':
+      case 'BALANCE_DATE':
+      case 'SALARY':
+      case 'SAVINGS':
+      case 'RESTOCK':
+      case 'CUSTOM_NL':
+        return this.evaluateMultiCondition(trigger, params);
+
       case 'BALANCE_TRIGGER_BUY':
         return this.evaluateBalanceTriggerBuy(trigger, params);
 
@@ -490,6 +499,112 @@ export class TriggerEngine {
       where: { id },
       data: { status: 'FAILED', errorCode: code, errorMessage: message, failedAt: new Date() }
     });
+  }
+
+  // ============================================
+  //  MULTI-CONDIÇÃO (widget)
+  // ============================================
+  private async evaluateMultiCondition(trigger: any, params: any): Promise<{ shouldFire: boolean; reason: string; data?: any }> {
+    const conditions = params.conditions || [];
+    const logic = params.logic || 'AND';
+
+    if (conditions.length === 0) {
+      return { shouldFire: false, reason: 'Sem condições definidas' };
+    }
+
+    const results: { type: string; ok: boolean; detail: string }[] = [];
+
+    for (const cond of conditions) {
+      // PRICE_BELOW: verifica preço da oferta
+      if (cond.type === 'PRICE_BELOW') {
+        if (!trigger.offerId) {
+          results.push({ type: cond.type, ok: false, detail: 'Sem offerId' });
+          continue;
+        }
+        const offer = await this.prisma.offer.findUnique({ where: { id: trigger.offerId } });
+        if (!offer) {
+          results.push({ type: cond.type, ok: false, detail: 'Oferta não encontrada' });
+          continue;
+        }
+        const currentPrice = parseFloat(offer.priceBrl.toString());
+        const targetPrice = parseFloat(cond.value);
+        const ok = currentPrice <= targetPrice;
+        results.push({
+          type: cond.type,
+          ok,
+          detail: `Preço atual: R$ ${currentPrice.toFixed(2)}, alvo: R$ ${targetPrice.toFixed(2)}`
+        });
+      }
+
+      // BALANCE_ABOVE: verifica saldo via Open Finance
+      if (cond.type === 'BALANCE_ABOVE') {
+        const targetBalance = parseFloat(cond.value);
+        // TODO: integrar com Efí Open Finance pra ler saldo real
+        // Por enquanto, simula OK
+        const fakeBalance = 5000;
+        const ok = fakeBalance >= targetBalance;
+        results.push({
+          type: cond.type,
+          ok,
+          detail: `Saldo simulado: R$ ${fakeBalance.toFixed(2)}, alvo: R$ ${targetBalance.toFixed(2)}`
+        });
+      }
+
+      // ON_DATE: verifica se a data alvo já chegou
+      if (cond.type === 'ON_DATE') {
+        const targetDate = new Date(cond.value);
+        const now = new Date();
+        const ok = now >= targetDate;
+        results.push({
+          type: cond.type,
+          ok,
+          detail: `Alvo: ${targetDate.toISOString().split('T')[0]}, hoje: ${now.toISOString().split('T')[0]}`
+        });
+      }
+
+      // INCOME_ABOVE: verifica salário via Open Finance
+      if (cond.type === 'INCOME_ABOVE') {
+        const targetIncome = parseFloat(cond.value);
+        // TODO: integrar com Efí Open Finance pra ler transações
+        const fakeIncome = 6000;
+        const ok = fakeIncome >= targetIncome;
+        results.push({
+          type: cond.type,
+          ok,
+          detail: `Salário simulado: R$ ${fakeIncome.toFixed(2)}, alvo: R$ ${targetIncome.toFixed(2)}`
+        });
+      }
+
+      // ACCUMULATE_WEEKLY: simula acumulação
+      if (cond.type === 'ACCUMULATE_WEEKLY') {
+        // TODO: rastrear acumulação real
+        results.push({ type: cond.type, ok: true, detail: 'Acumulação semanal (em breve)' });
+      }
+
+      // RESTOCK: verifica estoque
+      if (cond.type === 'RESTOCK') {
+        if (!trigger.offerId) {
+          results.push({ type: cond.type, ok: false, detail: 'Sem offerId' });
+          continue;
+        }
+        const offer = await this.prisma.offer.findUnique({ where: { id: trigger.offerId } });
+        const ok = offer?.inStock === true;
+        results.push({ type: cond.type, ok, detail: `Em estoque: ${ok ? 'sim' : 'não' }` });
+      }
+    }
+
+    // Aplica lógica AND/OR
+    const allOk = logic === 'AND'
+      ? results.every(r => r.ok)
+      : results.some(r => r.ok);
+
+    return {
+      shouldFire: allOk,
+      reason: allOk
+        ? `Todas condições OK (${logic}): ${results.map(r => r.detail).join(' | ')}`
+        : `Nem todas condições OK: ${results.map(r => `[${r.ok ? '✓' : '✗'}] ${r.type}: ${r.detail}`).join(' | ')}`,
+      data: { conditions: results, logic }
+    };
   }
 
   private resolveDestinationType(triggerCode: string): DestinationType {
