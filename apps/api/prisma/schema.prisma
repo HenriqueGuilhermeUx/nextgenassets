@@ -203,6 +203,7 @@ model Trigger {
   user              ConsumerUser @relation(fields: [userId], references: [id], onDelete: Cascade)
   offer             Offer?  @relation(fields: [offerId], references: [id])
   executions        Execution[]
+  transactions      Transaction[]
   
   @@index([partnerId])
   @@index([userId])
@@ -506,6 +507,7 @@ model Transaction {
 
   category        String?
   endToEndId      String?
+  offerId         String?
 
   roundUpAmount   Decimal?
   roundUpTier     Int?
@@ -523,6 +525,7 @@ model Transaction {
 
   user            ConsumerUser @relation(fields: [userId], references: [id], onDelete: Cascade)
   partner         Partner      @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  offer           Offer?       @relation(fields: [offerId], references: [id], onDelete: SetNull)
   trigger         Trigger?     @relation(fields: [triggerId], references: [id], onDelete: SetNull)
 
   @@index([userId, isProcessed])
