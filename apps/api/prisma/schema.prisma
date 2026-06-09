@@ -48,6 +48,8 @@ model Partner {
   // Relations
   users           ConsumerUser[]
   triggers        Trigger[]
+  offers          Offer[]
+  consents        Consent[]
   executions      Execution[]
   apiKeys         ApiKey[]
   
@@ -133,6 +135,7 @@ model ConsumerUser {
   partner           Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
   triggers          Trigger[]
   executions        Execution[]
+  consents          Consent[]
   
   @@unique([partnerId, externalUserId])
   @@index([email])
@@ -162,6 +165,7 @@ model Trigger {
   id                String   @id @default(cuid())
   partnerId         String
   userId            String
+  offerId           String?  // Opcional: se for gatilho de uma oferta específica
   
   // Identificação
   code              String   // 'BUY_DIP_STOCK', 'DCA_FUND', 'RECURRING_BUY', etc.
@@ -174,6 +178,7 @@ model Trigger {
   pauseReason       String?
   
   // Configuração da regra (JSON flexível por tipo de gatilho)
+  // Suporta multi-condição: { conditions: [...], logic: 'AND'|'OR' }
   params            Json     // { ticker, dipPct, amountBrl, minBalance, ... }
   
   // Estado interno
@@ -194,6 +199,7 @@ model Trigger {
   
   partner           Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
   user              ConsumerUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  offer             Offer?  @relation(fields: [offerId], references: [id])
   executions        Execution[]
   
   @@index([partnerId])
@@ -378,5 +384,114 @@ enum NotificationStatus {
   SENT
   DELIVERED
   READ
+  FAILED
+}
+
+// ============================================
+// OFERTAS / PRODUTOS (qualquer coisa comprável)
+// ============================================
+// Extensível: produto físico, serviço, assinatura, digital, viagem, conta...
+// O partner cadastra, o widget consome, o gatilho monitora
+model Offer {
+  id              String   @id @default(cuid())
+  partnerId       String
+  
+  // Identificação externa
+  externalId      String   // ID do produto no sistema do parceiro (ex: MLB123)
+  externalUrl     String?  // URL do produto
+  sku             String?
+  
+  // Tipo e categoria
+  type            OfferType
+  category        String   // 'eletronicos', 'mercado', 'streaming', 'voos'...
+  
+  // Display
+  title           String
+  description     String?
+  imageUrl        String?
+  brand           String?
+  
+  // Preço (atualizado pelo adapter do partner)
+  priceBrl        Decimal
+  priceCurrency   String   @default("BRL")
+  lastPriceUpdate DateTime @default(now())
+  
+  // Disponibilidade
+  inStock         Boolean  @default(true)
+  stockQuantity   Int?
+  
+  // Metadata flexível (cor, tamanho, plano, etc)
+  metadata        Json?
+  
+  // Audit
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  partner         Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  triggers        Trigger[]
+  
+  @@unique([partnerId, externalId])
+  @@index([partnerId, type])
+  @@index([category])
+  @@index([priceBrl])
+}
+
+enum OfferType {
+  PHYSICAL_PRODUCT    // Produto físico (eletrônico, roupa, etc)
+  DIGITAL_PRODUCT     // Curso, ebook, software
+  SERVICE             // Uber, iFood, consulta
+  SUBSCRIPTION        // Netflix, Spotify, SaaS
+  BILL                // Conta de luz, água, internet
+  INSURANCE           // Seguro auto, vida, residencial
+  INVESTMENT          // Ação, fundo, cripto
+  TRAVEL              // Voo, hotel, pacote
+  EVENT               // Ingresso show, cinema
+  RECURRING_CHARGE    // Mensalidade, anuidade
+  CUSTOM              // Definido pelo partner
+}
+
+// ============================================
+// OPEN FINANCE CONSENT (Efí / PlugBank)
+// ============================================
+model Consent {
+  id            String   @id @default(cuid())
+  userId        String
+  partnerId     String
+  
+  // Provider de Open Finance
+  provider      String   // 'efi' | 'plugbank' | 'belvo' | 'tmp'
+  providerUserId String? // ID do usuário no provider
+  
+  // Tokens (criptografados no Vault em prod)
+  accessToken   String?
+  refreshToken  String?
+  expiresAt     DateTime?
+  
+  // Permissões consentidas
+  scopes        String[] // ['accounts.read', 'transactions.read', 'pix.send']
+  
+  // Status
+  status        ConsentStatus @default(PENDING)
+  revokedAt     DateTime?
+  
+  // Dados coletados no consent
+  accounts      Json?    // [{ accountId, type, balance, ... }]
+  
+  // Audit
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  user          ConsumerUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  partner       Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, provider])
+  @@index([partnerId])
+}
+
+enum ConsentStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+  REVOKED
   FAILED
 }
