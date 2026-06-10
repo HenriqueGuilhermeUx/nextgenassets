@@ -162,16 +162,14 @@ export class EfiWebhookRegistrar {
       // v1 está DEPRECATED, v2 é o atual
       const url = `${apiBaseUrl}/v2/webhook/${opts.pixKey}`;
 
-      // GAMBI MESTRE DO RUBENS (fórum Efí):
-      // A Efí concatena automaticamente /pix no final da URL que você cadastra.
-      // Adicionando ?ignorar= no final, o /pix vira uma query string inofensiva:
-      //   cadastrado:    .../v1/webhooks/pix-received?ignorar=
-      //   Efí chama:    .../v1/webhooks/pix-received?ignorar=/pix
-      //   NestJS resolve na rota /v1/webhooks/pix-received (a query string é descartada)
-      // TAMBÉM adiciona ?x_skip_mtls=1 (algumas APIs da Efí checam esse param pra skip)
-      const finalWebhookUrl = opts.webhookUrl.includes('?')
-        ? `${opts.webhookUrl}&ignorar=&x_skip_mtls=1`
-        : `${opts.webhookUrl}?ignorar=&x_skip_mtls=1`;
+      // HMAC + IGNORAR (plano B pra autenticação sem mTLS reverso):
+      // - ?hmac=MEU_SECRET    : validação que a Efí repassa na notificação
+      //   (Rubenskuhl: "você escolhe o secret, faz busca Google por random")
+      // - ?ignorar=           : gambi do Rubenskuhl contra /pix automático da Efí
+      // - &x_skip_mtls=1      : algumas APIs da Efí checam esse param pra skip
+      const hmac = process.env.EFI_WEBHOOK_HMAC || this.generateHmac();
+      const sep = opts.webhookUrl.includes('?') ? '&' : '?';
+      const finalWebhookUrl = `${opts.webhookUrl}${sep}hmac=${hmac}&ignorar=&x_skip_mtls=1`;
 
       this.logger.log(`📡 Registrando webhook: ${url} → ${finalWebhookUrl}`);
 
@@ -191,6 +189,17 @@ export class EfiWebhookRegistrar {
       this.logger.error(`❌ Erro ao registrar webhook: ${err.message}`);
       return { success: false, status: 0, body: { error: err.message } };
     }
+  }
+
+  /**
+   * Gera um HMAC aleatório de 64 chars hex (256 bits) - seguro o suficiente
+   * pra ser usado como webhook secret. Conforme Rubenskuhl (Discord Efí):
+   * "É algo que você precisa escolher... faz busca Google por random"
+   */
+  private generateHmac(): string {
+    return [...Array(64)]
+      .map(() => Math.floor(Math.random() * 16).toString(16))
+      .join('');
   }
 
   /**
