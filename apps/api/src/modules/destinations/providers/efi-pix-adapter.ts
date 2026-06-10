@@ -33,7 +33,7 @@ export class EfiPixAdapter implements DestinationAdapter {
 
   constructor(private config: ConfigService) {
     this.sandbox = EFI_CONFIG.sandbox;
-    this.baseUrl = EFI_CONFIG.baseUrl;
+    this.baseUrl = EFI_CONFIG.apiBaseUrl;
     this.clientId = this.config.get('EFI_CLIENT_ID');
     this.clientSecret = this.config.get('EFI_CLIENT_SECRET');
     this.pixKey = this.config.get('EFI_PIX_KEY');
