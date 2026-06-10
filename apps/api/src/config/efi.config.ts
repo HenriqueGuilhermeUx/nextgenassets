@@ -3,9 +3,11 @@
 //  Todas URLs e flags da Efí em um lugar só
 // ============================================
 //
-// AMBIENTES:
-//   - Sandbox:  https://api-pix-h.efipay.com.br
-//   - Produção: https://api-pix.efipay.com.br
+// AMBIENTES (URLs oficiais confirmadas):
+//   - Sandbox/Homologação: https://api-pix-h.gerencianet.com.br
+//   - Produção:            https://api-pix.gerencianet.com.br
+//   (A Efí mantém o domínio legado gerencianet.com.br
+//    para Pix mesmo após rebranding pra efipay)
 //
 // AUTENTICAÇÃO:
 //   POST /v1/authorization  (Basic Auth com Client ID:Secret)
@@ -40,14 +42,16 @@ export interface EfiConfig {
 }
 
 // Defaults de produção (caso nada seja passado)
+// IMPORTANTE: a Efí mantém api-pix.gerencianet.com.br como URL oficial
+// de produção pra Pix, mesmo após rebranding pra Efí Bank.
 const DEFAULT_PRODUCTION = {
-  baseUrl: 'https://api-pix.efipay.com.br',
+  baseUrl: 'https://api-pix.gerencianet.com.br',
   webhookBaseUrl: 'https://api.nextgenassets.com.br'
 };
 
 const DEFAULT_SANDBOX = {
-  baseUrl: 'https://api-pix-h.efipay.com.br',
-  webhookBaseUrl: 'https://api.nextgenassets.com.br'  // ainda produção
+  baseUrl: 'https://api-pix-h.gerencianet.com.br',
+  webhookBaseUrl: 'https://api.nextgenassets.com.br'  // ainda produção (nossa API)
 };
 
 /**
