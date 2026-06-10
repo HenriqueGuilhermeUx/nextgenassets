@@ -96,8 +96,11 @@ export class RoundUpAggregatorWorker implements OnModuleInit {
 
       for (const trigger of roundUpTriggers) {
         try {
+          this.logger.log(`🔍 Avaliando gatilho ${trigger.id} (user=${trigger.userId}, tier=${trigger.params?.tier}, min=${trigger.params?.minAccumulatedBrl})`);
+
           // 2. Avalia (código reutilizado do trigger engine)
           const evalResult = await this.triggerEngine.evaluateTrigger(trigger.id);
+          this.logger.log(`📊 Resultado: shouldFire=${evalResult.shouldFire}, reason=${evalResult.reason}`);
 
           if (evalResult.shouldFire) {
             totalTriggered++;
@@ -156,6 +159,7 @@ export class RoundUpAggregatorWorker implements OnModuleInit {
           }
         } catch (err: any) {
           this.logger.error(`❌ Erro no gatilho ${trigger.id}: ${err.message}`);
+          this.logger.error(`Stack: ${err.stack}`);
         }
       }
 

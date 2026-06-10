@@ -40,3 +40,8 @@ CREATE TYPE "public"."TransactionType" AS ENUM (
 
 -- Verifica
 -- SELECT enum_range(NULL::"public"."TransactionType");
+
+-- 2026-06-10: Converte coluna type de TEXT pra enum
+ALTER TABLE "Transaction" 
+  ALTER COLUMN "type" TYPE "public"."TransactionType" 
+  USING "type"::"public"."TransactionType";
