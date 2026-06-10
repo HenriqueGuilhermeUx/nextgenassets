@@ -129,3 +129,36 @@ Pra cadastrar webhook de verdade, tu precisa:
 ## 💡 Resumo executivo pra investidor
 
 > NextGen Assets é uma plataforma B2B2C que permite qualquer fintech (corretora, banco digital, e-commerce)嵌入tar gatilhos financeiros inteligentes via widget. O cliente conecta o banco via Open Finance, define uma condição ("comprar ITSA4 se cair 5%"), e a plataforma monitora 24/7 e executa automaticamente via PIX quando a condição for atingida. Comissão de 3% por transação processada. Compliance LGPD/BACEN desde o design.
+
+---
+
+## 🧠 AI Orchestrator (commit cdf5426)
+
+**Multi-agent system rodando em produção:**
+
+| Agente | Função | Modelo | Custo/request |
+|--------|--------|--------|---------------|
+| 🎯 Router | Classifica intenção do usuário | gpt-4o-mini | ~R$ 0,0001 |
+| 📝 Translator | NL → trigger estruturado | gpt-4o-mini JSON mode | ~R$ 0,0003 |
+| 🛡️ Risk | Valida BACEN + safety limits | Determinístico (offline) | R$ 0 |
+| 💡 Insight | Análise de mercado | gpt-4o-mini | ~R$ 0,0009 |
+| 👨‍💼 Staff | Educação financeira | gpt-4o-mini | ~R$ 0,0007 |
+| 🎯 Sniper | Monitorar produto com alvo | gpt-4o-mini JSON mode | ~R$ 0,0003 |
+
+**Features:**
+- ✅ Streaming (SSE) em `/v1/ai/stream`
+- ✅ Cost tracking (BRL por request)
+- ✅ Audit log estruturado
+- ✅ Fallback gracioso (nunca 500)
+- ✅ Resiliente a quota excedida
+
+**Endpoints:**
+- `POST /v1/ai/orchestrate` — processa input completo
+- `POST /v1/ai/stream` — SSE streaming
+- `GET /v1/ai/health` — status
+
+**Próximos passos:**
+- [ ] Vector DB (Supabase pgvector) pra RAG
+- [ ] Mais agents (Fraud, Tax, Onboarding)
+- [ ] A/B testing de prompts
+- [ ] Langfuse/Helicone pra observabilidade
