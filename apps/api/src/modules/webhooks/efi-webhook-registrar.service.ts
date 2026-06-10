@@ -111,8 +111,8 @@ export class EfiWebhookRegistrar {
 
   /**
    * PUT request com mTLS via https nativo
-   * Inclui x-skip-mtls: true pra desabilitar handshake mTLS no envio
-   * (dica do Rubenskuhl no fórum da Efí - skipMtls: true para desabilitar)
+   * Header OBRIGATÓRIO: x-skip-mtls-checking: true
+   * (confirmado pelo guilherme_efi no Discord oficial da Efí em 20/01/2021)
    */
   private async putWithMtls(url: string, body: any, token: string): Promise<{ status: number; body: string }> {
     const bodyStr = JSON.stringify(body);
@@ -121,7 +121,7 @@ export class EfiWebhookRegistrar {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${token}`,
-        'x-skip-mtls': 'true',  // GAMBETA do Rubenskuhl: desabilita mTLS no envio
+        'x-skip-mtls-checking': 'true',  // NOME CORRETO (oficial Efí - guilherme_efi)
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(bodyStr).toString()
       },
