@@ -114,7 +114,10 @@ export class RoundUpAggregatorWorker implements OnModuleInit {
                 triggerId: trigger.id,
                 status: 'INITIATING_PIX',
                 amountBrl: evalResult.data?.total || 0,
-                result: evalResult.data
+                result: evalResult.data,
+                state: {} as any,  // historico de transicoes (vazio no inicio)
+                intent: { type: 'ROUND_UP_PIX', tier: evalResult.data?.tier } as any,
+                destination: evalResult.data?.destination || 'EFI_PIX'
               } as any
             });
 
