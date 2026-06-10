@@ -83,14 +83,18 @@ export class EfiWebhookRegistrar {
     //   https://pix.api.efipay.com.br/oauth/token (produção)
     //   https://pix-h.api.efipay.com.br/oauth/token (homologação)
     // OAuth fica em DOMÍNIO DIFERENTE da API Pix.
+    //
+    // Efí usa OAuth2 Client Credentials: precisa grant_type=client_credentials no body
+    const body = 'grant_type=client_credentials';
     const result = await this.httpsRequest({
       url: `${oauthBaseUrl}/oauth/token`,
       method: 'POST',
       headers: {
         'Authorization': `Basic ${credentials}`,
-        'Content-Type': 'application/json',
-        'Content-Length': '0'
-      }
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Length': Buffer.byteLength(body).toString()
+      },
+      body
     });
 
     if (result.status >= 200 && result.status < 300) {
