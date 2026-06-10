@@ -92,6 +92,7 @@ export class EfiPixAdapter implements DestinationAdapter {
       // (util quando nao ha saldo na conta EFI ou em ambiente de teste)
       // DEMO_MODE ativo por padrao (mais seguro, nao consome saldo)
       // So chama API real se EFI_DEMO_MODE === 'false' explicitamente
+      this.logger.log(`🔧 Efí execute() chamado - DEMO_MODE check: EFI_DEMO_MODE=${process.env.EFI_DEMO_MODE}, sandbox=${this.sandbox}, action=${action.type}, amount=${action.amountBrl}`);
       if (process.env.EFI_DEMO_MODE !== 'false') {
         const txid = this.generateTxid();
         this.logger.warn(`⚠️  DEMO_MODE ativo - PIX SIMULADO (txid=${txid}, R$ ${action.amountBrl})`);
