@@ -113,16 +113,19 @@ export class EfiWebhookRegistrar {
 
       if (response.ok) {
         this.logger.log(`✅ Webhook registrado: ${opts.webhookUrl}`);
-        // Salva no DB pra referência
-        await prisma.auditLog.create({
-          data: {
-            partnerId: 'system',
-            action: 'EFI_WEBHOOK_REGISTERED',
-            targetType: 'webhook',
-            targetId: opts.webhookUrl,
-            details: { pixKey: opts.pixKey, status: response.status, body: parsed }
-          }
-        }).catch(() => {}); // Audit log é best-effort
+        // Salva no DB pra referência (best-effort)
+        try {
+          await prisma.auditLog.create({
+            data: {
+              partnerId: 'system',
+              action: 'EFI_WEBHOOK_REGISTERED',
+              targetId: opts.webhookUrl,
+              details: { pixKey: opts.pixKey, status: response.status, body: parsed }
+            } as any
+          });
+        } catch (e) {
+          // Audit log é best-effort, nao quebra o flow
+        }
       } else {
         this.logger.error(`❌ Falha ao registrar webhook: ${response.status} - ${body}`);
       }
