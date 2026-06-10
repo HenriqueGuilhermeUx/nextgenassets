@@ -70,17 +70,50 @@ export class ConsentsController {
     }
 
     // Salva consent pendente com limites
-    await prisma.consent.create({
-      data: {
-        id: consentId,
-        userId: body.userId,
-        partnerId: body.partnerId,
-        provider: body.provider,
-        scopes,
-        status: 'PENDING',
-        accounts: limits as any // armazena os limites no campo JSONB
+    try {
+      await prisma.consent.create({
+        data: {
+          id: consentId,
+          userId: body.userId,
+          partnerId: body.partnerId,
+          provider: body.provider,
+          scopes,
+          status: 'PENDING',
+          // Guarda os limites regulatórios dentro do JSON 'accounts'
+          // (campo real só será preenchido quando vier do banco)
+          accounts: {
+            regulatoryLimits: limits
+          } as any
+        }
+      });
+    } catch (err: any) {
+      // Se ja existe consent (unique constraint), retorna o existente
+      if (err.code === 'P2002') {
+        const existing = await prisma.consent.findFirst({
+          where: { userId: body.userId, provider: body.provider }
+        });
+        if (existing) {
+          this.logger.log(`🔐 Consent reusado: ${existing.id}`);
+          return {
+            consentId: existing.id,
+            authorizationUrl: authorizationUrl.replace(`state=${consentId}`, `state=${existing.id}`),
+            provider: body.provider,
+            scopes: existing.scopes,
+            limits,
+            status: existing.status,
+            message: 'Consent já existe, redirecionando',
+            regulatoryNotice: {
+              authority: 'Banco Central do Brasil',
+              type: 'Iniciação de Pagamento',
+              duration: 'longa duração (até 1 ano)',
+              revocable: 'sim, a qualquer momento',
+              limits: `R$ ${limits.maxPerTransactionBrl}/transação · R$ ${limits.maxPerDayBrl}/dia · R$ ${limits.maxPerMonthBrl}/mês`
+            }
+          };
+        }
       }
-    });
+      throw err;
+    }
 
     this.logger.log(`🔐 Consent iniciado: ${consentId} (limites: R$${limits.maxPerTransactionBrl}/trans, R$${limits.maxPerDayBrl}/dia)`);
 
