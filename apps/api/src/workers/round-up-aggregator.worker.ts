@@ -96,7 +96,8 @@ export class RoundUpAggregatorWorker implements OnModuleInit {
 
       for (const trigger of roundUpTriggers) {
         try {
-          this.logger.log(`🔍 Avaliando gatilho ${trigger.id} (user=${trigger.userId}, tier=${trigger.params?.tier}, min=${trigger.params?.minAccumulatedBrl})`);
+          const params = (trigger.params as any) || {};
+          this.logger.log(`🔍 Avaliando gatilho ${trigger.id} (user=${trigger.userId}, tier=${params.tier}, min=${params.minAccumulatedBrl})`);
 
           // 2. Avalia (código reutilizado do trigger engine)
           const evalResult = await this.triggerEngine.evaluateTrigger(trigger.id);
