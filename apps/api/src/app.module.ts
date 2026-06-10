@@ -46,6 +46,7 @@ import { WebhooksOutService } from './modules/webhooks/webhooks-out.worker';
 import { RetailerController } from './modules/retailer/retailer.controller';
 import { OffersController } from './modules/offers/offers.controller';
 import { ConsentsController } from './modules/consents/consents.controller';
+import { AggregatorAdminController } from './modules/consents/consents-trigger.controller';
 import { NotificationsService } from './modules/notifications/notifications.service';
 import { WhatsAppService } from './modules/notifications/whatsapp.service';
 
@@ -80,6 +81,7 @@ import { MarketWatcherWorker } from './workers/market-watcher.worker';
     RetailerController,
     OffersController,
     ConsentsController,
+    AggregatorAdminController,
     AiSuggestionsController
   ],
   providers: [
