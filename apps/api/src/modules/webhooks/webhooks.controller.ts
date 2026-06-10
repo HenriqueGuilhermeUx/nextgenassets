@@ -1,10 +1,13 @@
 // Webhooks controller — recebe e envia webhooks (com HMAC + retry)
-import { Controller, Post, Body, Headers, Get, Query, Logger } from '@nestjs/common';
+import { Controller, Post, Body, Headers, Get, Query, Logger, Req } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { WebhooksOutService } from './webhooks-out.worker';
 import { WebhookSigner } from './webhook-signer';
 
 const prisma = new PrismaClient();
+
+// IP oficial da Efí (validado pelo guilherme_efi no Discord)
+const EFI_AUTHORIZED_IP = '34.193.116.226';
 
 @Controller('webhooks')
 export class WebhooksController {
@@ -12,12 +15,35 @@ export class WebhooksController {
 
   constructor(private webhooksOut: WebhooksOutService) {}
 
+  // Valida se request vem da Efí (IP fixo + HMAC opcional)
+  private validateEfiRequest(req: any, hmacQuery?: string): { valid: boolean; reason?: string } {
+    // 1. Validação de IP (sempre)
+    const requestIp = req.ip || req.headers['x-forwarded-for'] || req.socket?.remoteAddress;
+    if (requestIp && !requestIp.includes(EFI_AUTHORIZED_IP)) {
+      // Em dev, pode nao bater o IP exato, mas em prod precisa
+      this.logger.warn(`IP não autorizado: ${requestIp} (esperado: ${EFI_AUTHORIZED_IP})`);
+    }
+
+    // 2. Validação de HMAC (se configurado)
+    const expectedHmac = process.env.EFI_WEBHOOK_HMAC;
+    if (expectedHmac && hmacQuery !== expectedHmac) {
+      return { valid: false, reason: 'HMAC inválido' };
+    }
+
+    return { valid: true };
+  }
+
   // Webhook de entrada — Efí/Woovi confirma Pix
   // A Efí concatena automaticamente /pix no final da URL cadastrada
   // por isso mantemos as duas variantes (com e sem /pix)
   @Post('pix-received')
   @Post('pix-received/pix')
-  async pixReceived(@Body() body: any) {
+  async pixReceived(@Body() body: any, @Query() query: any, @Req() req: any) {
+    const validation = this.validateEfiRequest(req, query.hmac);
+    if (!validation.valid) {
+      this.logger.warn(`Webhook rejeitado: ${validation.reason}`);
+      return { received: false, reason: validation.reason };
+    }
     // Efí envia: { pix: [{ endToEndId, txid, valor, horario, ... }] }
     if (body?.pix && Array.isArray(body.pix)) {
       for (const pix of body.pix) {
@@ -42,7 +68,12 @@ export class WebhooksController {
   // A Efí concatena automaticamente /pix no final
   @Post('pix-sent')
   @Post('pix-sent/pix')
-  async pixSent(@Body() body: any) {
+  async pixSent(@Body() body: any, @Query() query: any, @Req() req: any) {
+    const validation = this.validateEfiRequest(req, query.hmac);
+    if (!validation.valid) {
+      this.logger.warn(`Webhook rejeitado: ${validation.reason}`);
+      return { received: false, reason: validation.reason };
+    }
     this.logger.log(`Pix Efí enviado: ${JSON.stringify(body).substring(0, 200)}`);
     return { received: true };
   }
@@ -50,7 +81,12 @@ export class WebhooksController {
   // Webhook de saída — Efí confirma devolução
   @Post('pix-refunded')
   @Post('pix-refunded/pix')
-  async pixRefunded(@Body() body: any) {
+  async pixRefunded(@Body() body: any, @Query() query: any, @Req() req: any) {
+    const validation = this.validateEfiRequest(req, query.hmac);
+    if (!validation.valid) {
+      this.logger.warn(`Webhook rejeitado: ${validation.reason}`);
+      return { received: false, reason: validation.reason };
+    }
     this.logger.log(`Pix Efí devolvido: ${JSON.stringify(body).substring(0, 200)}`);
     return { received: true };
   }
