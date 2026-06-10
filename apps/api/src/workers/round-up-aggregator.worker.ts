@@ -155,9 +155,17 @@ export class RoundUpAggregatorWorker implements OnModuleInit {
               data: {
                 status: pixResult.status === 'FAILED' ? 'FAILED' : 'PENDING',
                 externalId: externalId,
-                result: pixResult
+                result: pixResult,
+                // Salva errorCode/errorMessage pra debug facil
+                errorCode: (pixResult as any).errorCode || null,
+                errorMessage: (pixResult as any).errorMessage || null,
+                failedAt: pixResult.status === 'FAILED' ? new Date() : null
               } as any
             });
+
+            if (pixResult.status === 'FAILED') {
+              this.logger.error(`❌ PIX falhou: ${(pixResult as any).errorCode} - ${(pixResult as any).errorMessage}`);
+            }
 
             totalProcessed++;
           }
