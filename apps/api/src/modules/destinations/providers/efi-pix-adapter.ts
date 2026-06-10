@@ -96,7 +96,7 @@ export class EfiPixAdapter implements DestinationAdapter {
         return {
           status: 'COMPLETED',
           externalId: `DEMO-${txid}`,
-          estimatedCompletion: new Date()
+          details: { simulated: true, txid, amountBrl: action.amountBrl, completedAt: new Date() }
         };
       }
       return this.createPixCharge(action as any);
