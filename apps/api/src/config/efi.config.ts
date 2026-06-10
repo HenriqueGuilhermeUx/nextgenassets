@@ -59,7 +59,7 @@ const DEFAULT_SANDBOX = {
  * Use isso em TODOS os serviços que falam com a Efí.
  */
 export function buildEfiConfig(env: NodeJS.ProcessEnv): EfiConfig {
-  const sandbox = env.EFI_SANDBOX === 'true' || env.EFI_SANDBOX === true;
+  const sandbox = env.EFI_SANDBOX === 'true' || env.EFI_SANDBOX === 'true';
   const demoMode = env.EFI_DEMO_MODE !== 'false';
 
   const defaults = sandbox ? DEFAULT_SANDBOX : DEFAULT_PRODUCTION;
