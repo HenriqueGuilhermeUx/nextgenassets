@@ -53,19 +53,19 @@ export interface OrchestratorResponse {
 // ============================================
 //  Pricing (OpenAI GPT-4o-mini: ~$0.15/1M tokens input, $0.60/1M output)
 // ============================================
-const PRICING = {
-  'gpt-4o-mini': { input: 0.00015, output: 0.0006 },  // USD per 1K tokens
-  BRL_USD: 5.0  // 1 USD = 5 BRL
+const PRICING: Record<string, { input: number; output: number }> = {
+  'gpt-4o-mini': { input: 0.00015, output: 0.0006 }  // USD per 1K tokens
 };
+const BRL_USD = 5.0;  // 1 USD = 5 BRL
 
 function calculateCost(model: string, inputTokens: number, outputTokens: number): { tokens: number; estimatedBrl: number } {
-  const pricing = PRICING[model as keyof typeof PRICING] || PRICING['gpt-4o-mini'];
+  const pricing = PRICING[model] || PRICING['gpt-4o-mini'];
   const inputCost = (inputTokens / 1000) * pricing.input;
   const outputCost = (outputTokens / 1000) * pricing.output;
   const usdTotal = inputCost + outputCost;
   return {
     tokens: inputTokens + outputTokens,
-    estimatedBrl: Number((usdTotal * PRICING.BRL_USD).toFixed(6))
+    estimatedBrl: Number((usdTotal * BRL_USD).toFixed(6))
   };
 }
 
