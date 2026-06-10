@@ -110,10 +110,12 @@ export class EfiWebhookRegistrar {
     webhookUrl: string;
   }): Promise<{ success: boolean; status: number; body: any }> {
     const sandbox = this.config.get('EFI_SANDBOX') === 'true' || this.config.get('EFI_SANDBOX') === true;
-    // URL PIX oficial da Efí (sandbox ou produção)
+    // URL unificada Efí por ambiente:
+    // - Sandbox: https://sandbox.efipay.com.br (toda API)
+    // - Produção: https://api.efipay.com.br (toda API)
     const baseUrl = sandbox
-      ? 'https://pix-h.api.efipay.com.br'
-      : 'https://pix.api.efipay.com.br';
+      ? 'https://sandbox.efipay.com.br'
+      : 'https://api.efipay.com.br';
 
     // Em modo DEMO, não chama API real
     if (process.env.EFI_DEMO_MODE !== 'false') {
