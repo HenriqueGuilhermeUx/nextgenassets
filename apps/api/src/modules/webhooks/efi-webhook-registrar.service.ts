@@ -25,40 +25,79 @@ export class EfiWebhookRegistrar {
 
   /**
    * Faz mTLS + OAuth pra obter o access_token
+   * Usa https.request direto pq Node fetch nao aceita 'agent'
    */
   private async getAccessToken(baseUrl: string): Promise<string> {
     const credentials = Buffer.from(
       `${this.config.get('EFI_CLIENT_ID')}:${this.config.get('EFI_CLIENT_SECRET')}`
     ).toString('base64');
 
-    const response = await fetch(`${baseUrl}/v1/authorization`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Basic ${credentials}`,
-        'Content-Type': 'application/json'
-      },
-      // @ts-ignore - mTLS via https.Agent
-      agent: new https.Agent({
+    const url = new URL(`${baseUrl}/v1/authorization`);
+    return new Promise((resolve, reject) => {
+      const req = https.request({
+        hostname: url.hostname,
+        port: 443,
+        path: url.pathname,
+        method: 'POST',
         pfx: this.certBuffer || undefined,
         passphrase: '',
-        rejectUnauthorized: false
-      })
+        rejectUnauthorized: false,
+        headers: {
+          'Authorization': `Basic ${credentials}`,
+          'Content-Type': 'application/json',
+          'Content-Length': '0'
+        }
+      }, (res) => {
+        let body = '';
+        res.on('data', (chunk) => body += chunk);
+        res.on('end', () => {
+          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+            try {
+              const data = JSON.parse(body);
+              resolve(data.access_token);
+            } catch (e) {
+              reject(new Error(`EFI auth: invalid JSON response: ${body.substring(0, 200)}`));
+            }
+          } else {
+            reject(new Error(`EFI auth failed: ${res.statusCode} - ${body.substring(0, 200)}`));
+          }
+        });
+      });
+      req.on('error', (err) => reject(err));
+      req.end();
     });
-
-    if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`EFI auth failed: ${response.status} - ${err}`);
-    }
-
-    const data: any = await response.json();
-    return data.access_token;
   }
 
-  private getHttpsAgent(): https.Agent {
-    return new https.Agent({
-      pfx: this.certBuffer || undefined,
-      passphrase: '',
-      rejectUnauthorized: false
+  /**
+   * PUT request com mTLS via https nativo
+   */
+  private async putWithMtls(url: string, body: any, token: string): Promise<{ status: number; body: string }> {
+    const parsedUrl = new URL(url);
+    const bodyStr = JSON.stringify(body);
+    return new Promise((resolve, reject) => {
+      const req = https.request({
+        hostname: parsedUrl.hostname,
+        port: 443,
+        path: parsedUrl.pathname,
+        method: 'PUT',
+        pfx: this.certBuffer || undefined,
+        passphrase: '',
+        rejectUnauthorized: false,
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(bodyStr).toString()
+        }
+      }, (res) => {
+        let data = '';
+        res.on('data', (chunk) => data += chunk);
+        res.on('end', () => {
+          resolve({ status: res.statusCode || 0, body: data });
+        });
+      });
+      req.on('error', (err) => reject(err));
+      req.write(bodyStr);
+      req.end();
     });
   }
 
@@ -94,43 +133,18 @@ export class EfiWebhookRegistrar {
 
       this.logger.log(`📡 Registrando webhook: ${url} → ${opts.webhookUrl}`);
 
-      const response = await fetch(url, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          webhookUrl: opts.webhookUrl
-        }),
-        // @ts-ignore
-        agent: this.getHttpsAgent()
-      });
+      const result = await this.putWithMtls(url, { webhookUrl: opts.webhookUrl }, token);
 
-      const body = await response.text();
-      let parsed: any = body;
-      try { parsed = JSON.parse(body); } catch {}
+      let parsed: any = result.body;
+      try { parsed = JSON.parse(result.body); } catch {}
 
-      if (response.ok) {
-        this.logger.log(`✅ Webhook registrado: ${opts.webhookUrl}`);
-        // Salva no DB pra referência (best-effort)
-        try {
-          await prisma.auditLog.create({
-            data: {
-              partnerId: 'system',
-              action: 'EFI_WEBHOOK_REGISTERED',
-              targetId: opts.webhookUrl,
-              details: { pixKey: opts.pixKey, status: response.status, body: parsed }
-            } as any
-          });
-        } catch (e) {
-          // Audit log é best-effort, nao quebra o flow
-        }
+      if (result.status >= 200 && result.status < 300) {
+        this.logger.log(`✅ Webhook registrado: ${opts.webhookUrl} (status ${result.status})`);
       } else {
-        this.logger.error(`❌ Falha ao registrar webhook: ${response.status} - ${body}`);
+        this.logger.error(`❌ Falha ao registrar webhook: ${result.status} - ${result.body.substring(0, 200)}`);
       }
 
-      return { success: response.ok, status: response.status, body: parsed };
+      return { success: result.status >= 200 && result.status < 300, status: result.status, body: parsed };
     } catch (err: any) {
       this.logger.error(`❌ Erro ao registrar webhook: ${err.message}`);
       return { success: false, status: 0, body: { error: err.message } };
