@@ -30,7 +30,7 @@ export class EfiPixAdapter implements DestinationAdapter {
   constructor(private config: ConfigService) {
     this.sandbox = this.config.get('EFI_SANDBOX') === 'true' || this.config.get('EFI_SANDBOX') === true;
     this.baseUrl = this.sandbox
-      ? 'https://api-hml.efipay.com.br'
+      ? 'https://dev.efipay.com.br'
       : 'https://api.efipay.com.br';
     this.clientId = this.config.get('EFI_CLIENT_ID');
     this.clientSecret = this.config.get('EFI_CLIENT_SECRET');
