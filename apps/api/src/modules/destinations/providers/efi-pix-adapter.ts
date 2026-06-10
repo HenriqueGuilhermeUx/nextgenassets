@@ -90,7 +90,9 @@ export class EfiPixAdapter implements DestinationAdapter {
     if (action.type === 'BUY_PRODUCT') {
       // DEMO_MODE: simula PIX sem chamar API real
       // (util quando nao ha saldo na conta EFI ou em ambiente de teste)
-      if (process.env.EFI_DEMO_MODE === 'true' || process.env.NODE_ENV !== 'production') {
+      // DEMO_MODE ativo por padrao (mais seguro, nao consome saldo)
+      // So chama API real se EFI_DEMO_MODE === 'false' explicitamente
+      if (process.env.EFI_DEMO_MODE !== 'false') {
         const txid = this.generateTxid();
         this.logger.warn(`⚠️  DEMO_MODE ativo - PIX SIMULADO (txid=${txid}, R$ ${action.amountBrl})`);
         return {
