@@ -24,6 +24,7 @@ export class EfiPixAdapter implements DestinationAdapter {
   private pixKey: string;
   private sandbox: boolean;
   private certBase64: string;
+  private certBuffer: Buffer | null = null;
   private accessToken: string | null = null;
   private tokenExpiresAt: number = 0;
 
@@ -36,6 +37,7 @@ export class EfiPixAdapter implements DestinationAdapter {
     this.clientSecret = this.config.get('EFI_CLIENT_SECRET');
     this.pixKey = this.config.get('EFI_PIX_KEY');
     this.certBase64 = this.config.get('EFI_CERTIFICATE_BASE64');
+    this.certBuffer = this.certBase64 ? Buffer.from(this.certBase64, 'base64') : null;
   }
 
   // ============================================
@@ -70,7 +72,15 @@ export class EfiPixAdapter implements DestinationAdapter {
   }
 
   private getHttpsAgent(): https.Agent {
-    return new https.Agent({ rejectUnauthorized: false });
+    if (!this.certBuffer) {
+      this.logger.warn('⚠️  EFI_CERTIFICATE_BASE64 não configurado, mTLS não vai funcionar');
+      return new https.Agent({ rejectUnauthorized: false });
+    }
+    return new https.Agent({
+      pfx: this.certBuffer,
+      passphrase: '',  // senha do P12 (vazia no nosso cert)
+      rejectUnauthorized: false  // produção da EFI pode ter chain custom
+    });
   }
 
   // ============================================
