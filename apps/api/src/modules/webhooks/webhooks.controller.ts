@@ -13,7 +13,10 @@ export class WebhooksController {
   constructor(private webhooksOut: WebhooksOutService) {}
 
   // Webhook de entrada — Efí/Woovi confirma Pix
+  // A Efí concatena automaticamente /pix no final da URL cadastrada
+  // por isso mantemos as duas variantes (com e sem /pix)
   @Post('pix-received')
+  @Post('pix-received/pix')
   async pixReceived(@Body() body: any) {
     // Efí envia: { pix: [{ endToEndId, txid, valor, horario, ... }] }
     if (body?.pix && Array.isArray(body.pix)) {
@@ -33,6 +36,23 @@ export class WebhooksController {
     // Formato genérico (compat com testes)
     this.logger.log(`Pix received: ${body.endToEndId} R$ ${body.amount}`);
     return { received: true, endToEndId: body.endToEndId };
+  }
+
+  // Webhook de saída — Efí confirma Pix enviado
+  // A Efí concatena automaticamente /pix no final
+  @Post('pix-sent')
+  @Post('pix-sent/pix')
+  async pixSent(@Body() body: any) {
+    this.logger.log(`Pix Efí enviado: ${JSON.stringify(body).substring(0, 200)}`);
+    return { received: true };
+  }
+
+  // Webhook de saída — Efí confirma devolução
+  @Post('pix-refunded')
+  @Post('pix-refunded/pix')
+  async pixRefunded(@Body() body: any) {
+    this.logger.log(`Pix Efí devolvido: ${JSON.stringify(body).substring(0, 200)}`);
+    return { received: true };
   }
 
   // Webhook de entrada — Destino final confirma execução

@@ -74,13 +74,17 @@ export class EfiWebhookRegistrar {
     });
   }
 
-  private async getAccessToken(baseUrl: string): Promise<string> {
+  private async getAccessToken(oauthBaseUrl: string): Promise<string> {
     const credentials = Buffer.from(
       `${this.config.get('EFI_CLIENT_ID')}:${this.config.get('EFI_CLIENT_SECRET')}`
     ).toString('base64');
 
+    // URL OFICIAL confirmada em dev.efipay.com.br/docs/api-pix/credenciais:
+    //   https://pix.api.efipay.com.br/oauth/token (produção)
+    //   https://pix-h.api.efipay.com.br/oauth/token (homologação)
+    // OAuth fica em DOMÍNIO DIFERENTE da API Pix.
     const result = await this.httpsRequest({
-      url: `${baseUrl}/v1/authorization`,
+      url: `${oauthBaseUrl}/oauth/token`,
       method: 'POST',
       headers: {
         'Authorization': `Basic ${credentials}`,
@@ -129,7 +133,8 @@ export class EfiWebhookRegistrar {
     pixKey: string;
     webhookUrl: string;
   }): Promise<{ success: boolean; status: number; body: any }> {
-    const baseUrl = EFI_CONFIG.baseUrl;
+    const apiBaseUrl = EFI_CONFIG.apiBaseUrl;
+    const oauthBaseUrl = EFI_CONFIG.oauthBaseUrl;
 
     // Em modo DEMO, não chama API real
     if (process.env.EFI_DEMO_MODE !== 'false') {
@@ -142,10 +147,12 @@ export class EfiWebhookRegistrar {
     }
 
     try {
-      const token = await this.getAccessToken(baseUrl);
+      const token = await this.getAccessToken(oauthBaseUrl);
 
-      // URL com a chave Pix (substituir {chave})
-      const url = `${baseUrl}/v1/wh/${opts.pixKey}`;
+      // URL OFICIAL do PUT (confirmada em dev.efipay.com.br/docs/api-pix/webhooks):
+      //   https://api-pix.gerencianet.com.br/v2/webhook/{chave}
+      // v1 está DEPRECATED, v2 é o atual
+      const url = `${apiBaseUrl}/v2/webhook/${opts.pixKey}`;
 
       // GAMBI MESTRE DO RUBENS (fórum Efí):
       // A Efí concatena automaticamente /pix no final da URL que você cadastra.

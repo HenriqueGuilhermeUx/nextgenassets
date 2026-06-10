@@ -3,55 +3,57 @@
 //  Todas URLs e flags da Efí em um lugar só
 // ============================================
 //
-// AMBIENTES (URLs oficiais confirmadas):
-//   - Sandbox/Homologação: https://api-pix-h.gerencianet.com.br
-//   - Produção:            https://api-pix.gerencianet.com.br
-//   (A Efí mantém o domínio legado gerencianet.com.br
-//    para Pix mesmo após rebranding pra efipay)
+// URLS OFICIAIS CONFIRMADAS NA DOC (dev.efipay.com.br):
 //
-// AUTENTICAÇÃO:
-//   POST /v1/authorization  (Basic Auth com Client ID:Secret)
-//   Retorna access_token
+//   OAuth (access_token):
+//     - Produção:     https://pix.api.efipay.com.br/oauth/token
+//     - Homologação:  https://pix-h.api.efipay.com.br/oauth/token
+//   (Domínio DIFERENTE da API Pix - pega token aqui)
 //
-// PIX OPERATIONS:
-//   PUT  /v2/cob/:txid     (criar cobranca)
-//   GET  /v2/loc/:id/qrcode (gerar QR)
-//   POST /v2/pix           (enviar PIX)
+//   API Pix (cob, pix, webhook):
+//     - Produção:     https://api-pix.gerencianet.com.br
+//     - Homologação:  https://api-pix-h.gerencianet.com.br
+//   (Domínio legado gerencianet.com.br mantido pela Efí)
 //
-// WEBHOOKS:
-//   PUT  /v1/wh/:chave     (cadastrar URL webhook)
+//   Endpoints v2 (versão atual - v1 está deprecated):
+//     - POST /oauth/token               (OAuth - em pix.api.efipay.com.br)
+//     - PUT  /v2/webhook/:chave         (registrar webhook)
+//     - PUT  /v2/cob/:txid              (criar cobrança)
+//     - GET  /v2/loc/:id/qrcode         (gerar QR)
+//     - POST /v2/pix                    (enviar PIX)
 //
 // FLAGS:
-//   EFI_SANDBOX=true  → usa sandbox
+//   EFI_SANDBOX=true  → usa homologação
 //   EFI_DEMO_MODE !== 'false' → simula (nao chama API real)
 // ============================================
 
 export interface EfiConfig {
   // Ambiente
   sandbox: boolean;
-  baseUrl: string;        // URL da API Efí (sandbox ou prod)
+
+  // URLs da Efí (separadas porque OAuth fica em domínio DIFERENTE)
+  apiBaseUrl: string;      // API Pix (cob, pix, webhook)
+  oauthBaseUrl: string;    // OAuth (access_token)
+  webhookBaseUrl: string;  // URL da NOSSA API (que Efí vai chamar)
 
   // PIX key
   pixKey: string;
 
   // Modo de operacao
-  demoMode: boolean;       // true = simula tudo (sem chamar API)
-
-  // URLs que a gente EXPÕE (que a Efí vai chamar)
-  webhookBaseUrl: string;  // onde a nossa API ta rodando
+  demoMode: boolean;
 }
 
-// Defaults de produção (caso nada seja passado)
-// IMPORTANTE: a Efí mantém api-pix.gerencianet.com.br como URL oficial
-// de produção pra Pix, mesmo após rebranding pra Efí Bank.
+// URLs OFICIAIS (confirmadas em dev.efipay.com.br/docs/api-pix/credenciais)
 const DEFAULT_PRODUCTION = {
-  baseUrl: 'https://api-pix.gerencianet.com.br',
+  apiBaseUrl: 'https://api-pix.gerencianet.com.br',
+  oauthBaseUrl: 'https://pix.api.efipay.com.br',
   webhookBaseUrl: 'https://api.nextgenassets.com.br'
 };
 
 const DEFAULT_SANDBOX = {
-  baseUrl: 'https://api-pix-h.gerencianet.com.br',
-  webhookBaseUrl: 'https://api.nextgenassets.com.br'  // ainda produção (nossa API)
+  apiBaseUrl: 'https://api-pix-h.gerencianet.com.br',
+  oauthBaseUrl: 'https://pix-h.api.efipay.com.br',
+  webhookBaseUrl: 'https://api.nextgenassets.com.br'
 };
 
 /**
@@ -66,9 +68,13 @@ export function buildEfiConfig(env: NodeJS.ProcessEnv): EfiConfig {
 
   return {
     sandbox,
-    baseUrl: env.EFI_BASE_URL || defaults.baseUrl,
+    apiBaseUrl: env.EFI_BASE_URL || defaults.apiBaseUrl,
+    oauthBaseUrl: env.EFI_OAUTH_URL || defaults.oauthBaseUrl,
     pixKey: env.EFI_PIX_KEY || '',
     demoMode,
     webhookBaseUrl: env.NEXTGEN_BASE_URL || defaults.webhookBaseUrl
   };
 }
+
+// Manter compatibilidade com código antigo (deprecated alias)
+export const EFI_CONFIG_LEGACY: any = null;
