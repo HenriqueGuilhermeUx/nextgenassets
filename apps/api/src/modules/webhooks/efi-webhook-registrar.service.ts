@@ -25,79 +25,94 @@ export class EfiWebhookRegistrar {
 
   /**
    * Faz mTLS + OAuth pra obter o access_token
-   * Usa https.request direto pq Node fetch nao aceita 'agent'
+   * Usa https.request direto pq Node fetch nao aceita 'agent' nativo.
+   * Segue redirects manualmente (Node 20 nao segue 301 sozinho).
    */
+  private async httpsRequest(opts: {
+    url: string;
+    method: string;
+    headers: Record<string, string>;
+    body?: string;
+  }): Promise<{ status: number; body: string }> {
+    return new Promise((resolve, reject) => {
+      const parsedUrl = new URL(opts.url);
+      const req = https.request({
+        hostname: parsedUrl.hostname,
+        port: 443,
+        path: parsedUrl.pathname + (parsedUrl.search || ''),
+        method: opts.method,
+        pfx: this.certBuffer || undefined,
+        passphrase: '',
+        rejectUnauthorized: false,
+        headers: opts.headers
+      }, (res) => {
+        // Segue redirect 301/302/303/307/308
+        if (res.statusCode && [301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
+          const newUrl = res.headers.location.startsWith('http')
+            ? res.headers.location
+            : `${parsedUrl.protocol}//${parsedUrl.hostname}${res.headers.location}`;
+          this.logger.warn(`↪️ Redirect ${res.statusCode} → ${newUrl}`);
+          // Recursivo, mas com novo método se for 303
+          const newMethod = res.statusCode === 303 ? 'GET' : opts.method;
+          this.httpsRequest({ ...opts, url: newUrl, method: newMethod })
+            .then(resolve)
+            .catch(reject);
+          return;
+        }
+
+        let body = '';
+        res.on('data', (chunk) => body += chunk);
+        res.on('end', () => {
+          resolve({ status: res.statusCode || 0, body });
+        });
+      });
+      req.on('error', (err) => reject(err));
+      if (opts.body) req.write(opts.body);
+      req.end();
+    });
+  }
+
   private async getAccessToken(baseUrl: string): Promise<string> {
     const credentials = Buffer.from(
       `${this.config.get('EFI_CLIENT_ID')}:${this.config.get('EFI_CLIENT_SECRET')}`
     ).toString('base64');
 
-    const url = new URL(`${baseUrl}/v1/authorization`);
-    return new Promise((resolve, reject) => {
-      const req = https.request({
-        hostname: url.hostname,
-        port: 443,
-        path: url.pathname,
-        method: 'POST',
-        pfx: this.certBuffer || undefined,
-        passphrase: '',
-        rejectUnauthorized: false,
-        headers: {
-          'Authorization': `Basic ${credentials}`,
-          'Content-Type': 'application/json',
-          'Content-Length': '0'
-        }
-      }, (res) => {
-        let body = '';
-        res.on('data', (chunk) => body += chunk);
-        res.on('end', () => {
-          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-            try {
-              const data = JSON.parse(body);
-              resolve(data.access_token);
-            } catch (e) {
-              reject(new Error(`EFI auth: invalid JSON response: ${body.substring(0, 200)}`));
-            }
-          } else {
-            reject(new Error(`EFI auth failed: ${res.statusCode} - ${body.substring(0, 200)}`));
-          }
-        });
-      });
-      req.on('error', (err) => reject(err));
-      req.end();
+    const result = await this.httpsRequest({
+      url: `${baseUrl}/v1/authorization`,
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${credentials}`,
+        'Content-Type': 'application/json',
+        'Content-Length': '0'
+      }
     });
+
+    if (result.status >= 200 && result.status < 300) {
+      try {
+        const data = JSON.parse(result.body);
+        return data.access_token;
+      } catch (e) {
+        throw new Error(`EFI auth: invalid JSON: ${result.body.substring(0, 200)}`);
+      }
+    } else {
+      throw new Error(`EFI auth failed: ${result.status} - ${result.body.substring(0, 200)}`);
+    }
   }
 
   /**
    * PUT request com mTLS via https nativo
    */
   private async putWithMtls(url: string, body: any, token: string): Promise<{ status: number; body: string }> {
-    const parsedUrl = new URL(url);
     const bodyStr = JSON.stringify(body);
-    return new Promise((resolve, reject) => {
-      const req = https.request({
-        hostname: parsedUrl.hostname,
-        port: 443,
-        path: parsedUrl.pathname,
-        method: 'PUT',
-        pfx: this.certBuffer || undefined,
-        passphrase: '',
-        rejectUnauthorized: false,
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(bodyStr).toString()
-        }
-      }, (res) => {
-        let data = '';
-        res.on('data', (chunk) => data += chunk);
-        res.on('end', () => {
-          resolve({ status: res.statusCode || 0, body: data });
-        });
-      });
-      req.on('error', (err) => reject(err));
-      req.write(bodyStr);
-      req.end();
+    return this.httpsRequest({
+      url,
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(bodyStr).toString()
+      },
+      body: bodyStr
     });
   }
 
