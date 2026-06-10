@@ -285,7 +285,8 @@
         <div class="form-row">
           <label>Até juntar o valor do produto (R$ ${formatPrice(offer.price)})</label>
         </div>`;
-      conditions.push({ type: 'ACCUMULATE_WEEKLY', value: null, refField: 'weekly' }); else if (preset === 'RESTOCK') {
+      conditions.push({ type: 'ACCUMULATE_WEEKLY', value: null, refField: 'weekly' });
+    } else if (preset === 'RESTOCK') {
       html = `
         <div class="form-row">
           <label>Comprar quando voltar ao estoque (até R$ ${formatPrice(offer.price * 1.1)})</label>
