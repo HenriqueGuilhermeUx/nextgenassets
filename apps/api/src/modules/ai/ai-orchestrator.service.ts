@@ -277,85 +277,99 @@ export class AiOrchestrator {
   }
 
   /**
-   * Entry point principal: roteia, executa, valida, lembra
+   * Entry point principal: roteia, executa, valida, lembra.
+   * Resiliente: se qualquer sub-agent der erro (ex: 429 quota), retorna fallback ao invés de 500.
    */
   async process(request: OrchestratorRequest): Promise<OrchestratorResponse> {
     if (!this.openai) {
       return this.fallbackResponse(request, 'OpenAI not configured');
     }
 
-    // 1. Router
-    const route = request.agentHint
-      ? { agent: request.agentHint, reasoning: 'user hint' }
-      : await routeAgent(this.openai, request.input);
+    try {
+      // 1. Router
+      const route = request.agentHint
+        ? { agent: request.agentHint, reasoning: 'user hint' }
+        : await routeAgent(this.openai, request.input);
 
-    this.logger.log(`🎯 Route → ${route.agent} (${route.reasoning})`);
+      this.logger.log(`🎯 Route → ${route.agent} (${route.reasoning})`);
 
-    let result: any;
-    let confidence = 1.0;
-    let warnings: string[] = [];
-    let sources: string[] = [];
+      let result: any;
+      let confidence = 1.0;
+      let warnings: string[] = [];
+      let sources: string[] = [];
 
-    // 2. Executa sub-agent apropriado
-    switch (route.agent) {
-      case 'translator': {
-        const translated = await translatorAgent(this.openai, request.input, request.context);
-        // 3. Risk agent valida
-        const risk = await riskAgent(translated, request.context);
-        warnings = risk.warnings;
-        result = {
-          ...translated,
-          safetyLimits: risk.requiredLimits,
-          approvedByRisk: risk.approved,
-          riskReasoning: risk.reasoning
-        };
-        confidence = translated.confidence || 0.5;
-        break;
-      }
-      case 'insight': {
-        const insight = await insightAgent(this.openai, request.input, request.context);
-        result = { type: 'text', content: insight };
-        break;
-      }
-      case 'sniper': {
-        // Sniper é basicamente um translator focado em produtos
-        const translated = await translatorAgent(
-          this.openai,
-          `Tipo SNIPER: ${request.input}`,
-          request.context
+      // 2. Executa sub-agent apropriado (try/catch individual)
+      try {
+        switch (route.agent) {
+          case 'translator': {
+            const translated = await translatorAgent(this.openai, request.input, request.context);
+            const risk = await riskAgent(translated, request.context);
+            warnings = risk.warnings;
+            result = {
+              ...translated,
+              safetyLimits: risk.requiredLimits,
+              approvedByRisk: risk.approved,
+              riskReasoning: risk.reasoning
+            };
+            confidence = translated.confidence || 0.5;
+            break;
+          }
+          case 'insight': {
+            const insight = await insightAgent(this.openai, request.input, request.context);
+            result = { type: 'text', content: insight };
+            break;
+          }
+          case 'sniper': {
+            const translated = await translatorAgent(
+              this.openai,
+              `Tipo SNIPER: ${request.input}`,
+              request.context
+            );
+            result = translated;
+            warnings.push('Sniper ainda em modo DEMO. Em produção, monitoraria marketplaces 24/7.');
+            break;
+          }
+          case 'staff':
+          default: {
+            const staff = await staffAgent(this.openai, request.input);
+            result = { type: 'text', content: staff };
+            break;
+          }
+        }
+      } catch (subErr: any) {
+        // Sub-agent (OpenAI call) falhou — fallback educado
+        this.logger.error(`Sub-agent ${route.agent} falhou: ${subErr.message}`);
+        return this.fallbackResponse(
+          request,
+          `agent ${route.agent} error: ${subErr.message?.substring(0, 100) || 'unknown'}`
         );
-        result = translated;
-        warnings.push('Sniper ainda em modo DEMO. Em produção, monitoraria marketplaces 24/7.');
-        break;
       }
-      case 'staff':
-      default: {
-        const staff = await staffAgent(this.openai, request.input);
-        result = { type: 'text', content: staff };
-        break;
-      }
+
+      // 4. Cost tracking
+      const cost = calculateCost('gpt-4o-mini',
+        Math.ceil(request.input.length / 4),
+        Math.ceil(JSON.stringify(result).length / 4)
+      );
+
+      const response: OrchestratorResponse = {
+        agent: route.agent,
+        result,
+        reasoning: route.reasoning,
+        cost,
+        confidence,
+        warnings,
+        sources
+      };
+
+      // 5. Salva no histórico
+      await remember(request.userId, request, response);
+
+      return response;
+    } catch (err: any) {
+      // Catch-all: nunca 500, sempre fallback
+      this.logger.error(`Orchestrator error: ${err.message}`);
+      return this.fallbackResponse(request, err.message?.substring(0, 100) || 'unknown');
     }
-
-    // 4. Cost tracking (estimado)
-    const cost = calculateCost('gpt-4o-mini',
-      Math.ceil(request.input.length / 4),    // ~4 chars per token
-      Math.ceil(JSON.stringify(result).length / 4)
-    );
-
-    const response: OrchestratorResponse = {
-      agent: route.agent,
-      result,
-      reasoning: route.reasoning,
-      cost,
-      confidence,
-      warnings,
-      sources
-    };
-
-    // 5. Salva no histórico
-    await remember(request.userId, request, response);
-
-    return response;
   }
 
   /**
