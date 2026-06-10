@@ -88,6 +88,17 @@ export class EfiPixAdapter implements DestinationAdapter {
   // ============================================
   async execute(action: DestinationAction): Promise<ExecutionResult> {
     if (action.type === 'BUY_PRODUCT') {
+      // DEMO_MODE: simula PIX sem chamar API real
+      // (util quando nao ha saldo na conta EFI ou em ambiente de teste)
+      if (process.env.EFI_DEMO_MODE === 'true' || process.env.NODE_ENV !== 'production') {
+        const txid = this.generateTxid();
+        this.logger.warn(`⚠️  DEMO_MODE ativo - PIX SIMULADO (txid=${txid}, R$ ${action.amountBrl})`);
+        return {
+          status: 'COMPLETED',
+          externalId: `DEMO-${txid}`,
+          estimatedCompletion: new Date()
+        };
+      }
       return this.createPixCharge(action as any);
     }
     return {
