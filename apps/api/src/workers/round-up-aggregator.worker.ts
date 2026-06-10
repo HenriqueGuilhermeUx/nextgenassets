@@ -62,7 +62,7 @@ export class RoundUpAggregatorWorker implements OnModuleInit {
     }
   }
 
-  async aggregate(isDemo = false) {
+  public async aggregate(isDemo = false) {
     const now = new Date();
     const hour = now.getHours();
     const minute = now.getMinutes();
