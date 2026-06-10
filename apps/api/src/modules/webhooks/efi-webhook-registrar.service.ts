@@ -164,9 +164,10 @@ export class EfiWebhookRegistrar {
       //   cadastrado:    .../v1/webhooks/pix-received?ignorar=
       //   Efí chama:    .../v1/webhooks/pix-received?ignorar=/pix
       //   NestJS resolve na rota /v1/webhooks/pix-received (a query string é descartada)
+      // TAMBÉM adiciona ?x_skip_mtls=1 (algumas APIs da Efí checam esse param pra skip)
       const finalWebhookUrl = opts.webhookUrl.includes('?')
-        ? `${opts.webhookUrl}&ignorar=`
-        : `${opts.webhookUrl}?ignorar=`;
+        ? `${opts.webhookUrl}&ignorar=&x_skip_mtls=1`
+        : `${opts.webhookUrl}?ignorar=&x_skip_mtls=1`;
 
       this.logger.log(`📡 Registrando webhook: ${url} → ${finalWebhookUrl}`);
 
