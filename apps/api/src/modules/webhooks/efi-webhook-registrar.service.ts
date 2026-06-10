@@ -8,8 +8,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as https from 'https';
 import { PrismaClient } from '@prisma/client';
+import { buildEfiConfig } from '../../config/efi.config';
 
 const prisma = new PrismaClient();
+const EFI_CONFIG = buildEfiConfig(process.env);
 
 @Injectable()
 export class EfiWebhookRegistrar {
@@ -124,13 +126,7 @@ export class EfiWebhookRegistrar {
     pixKey: string;
     webhookUrl: string;
   }): Promise<{ success: boolean; status: number; body: any }> {
-    const sandbox = this.config.get('EFI_SANDBOX') === 'true' || this.config.get('EFI_SANDBOX') === true;
-    // URL correta Efí (api-pix tem auth + pix operations)
-    // - Sandbox: https://api-pix-h.efipay.com.br
-    // - Produção: https://api-pix.efipay.com.br
-    const baseUrl = sandbox
-      ? 'https://api-pix-h.efipay.com.br'
-      : 'https://api-pix.efipay.com.br';
+    const baseUrl = EFI_CONFIG.baseUrl;
 
     // Em modo DEMO, não chama API real
     if (process.env.EFI_DEMO_MODE !== 'false') {

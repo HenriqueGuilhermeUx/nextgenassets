@@ -11,6 +11,9 @@ import {
   DestinationAdapter, DestinationAction, ExecutionResult,
   ValidationResult, CancelResult, ReconciliationResult, ExecutionStatusResult
 } from '../destination.interface';
+import { buildEfiConfig } from '../../../config/efi.config';
+
+const EFI_CONFIG = buildEfiConfig(process.env);
 
 @Injectable()
 export class EfiPixAdapter implements DestinationAdapter {
@@ -29,10 +32,8 @@ export class EfiPixAdapter implements DestinationAdapter {
   private tokenExpiresAt: number = 0;
 
   constructor(private config: ConfigService) {
-    this.sandbox = this.config.get('EFI_SANDBOX') === 'true' || this.config.get('EFI_SANDBOX') === true;
-    this.baseUrl = this.sandbox
-      ? 'https://pix-h.api.efipay.com.br'
-      : 'https://pix.api.efipay.com.br';
+    this.sandbox = EFI_CONFIG.sandbox;
+    this.baseUrl = EFI_CONFIG.baseUrl;
     this.clientId = this.config.get('EFI_CLIENT_ID');
     this.clientSecret = this.config.get('EFI_CLIENT_SECRET');
     this.pixKey = this.config.get('EFI_PIX_KEY');
