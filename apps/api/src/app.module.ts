@@ -42,6 +42,8 @@ import { ExecutionsController } from './modules/executions/executions.controller
 import { ReportsController } from './modules/reports/reports.controller';
 import { CatalogController } from './modules/triggers/catalog.controller';
 import { WebhooksController } from './modules/webhooks/webhooks.controller';
+import { EfiWebhookRegistrar } from './modules/webhooks/efi-webhook-registrar.service';
+import { WebhooksAdminController } from './modules/webhooks/webhooks-admin.controller';
 import { WebhooksOutService } from './modules/webhooks/webhooks-out.worker';
 import { RetailerController } from './modules/retailer/retailer.controller';
 import { OffersController } from './modules/offers/offers.controller';
@@ -78,6 +80,7 @@ import { MarketWatcherWorker } from './workers/market-watcher.worker';
     ReportsController,
     CatalogController,
     WebhooksController,
+    WebhooksAdminController,
     RetailerController,
     OffersController,
     ConsentsController,
@@ -104,6 +107,7 @@ import { MarketWatcherWorker } from './workers/market-watcher.worker';
     EfiPixAdapter,
     // Services
     AiService,
+    EfiWebhookRegistrar,
     AiSuggestionsService,
     MarketDataService,
     BankTransferService,
