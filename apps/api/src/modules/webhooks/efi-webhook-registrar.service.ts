@@ -103,6 +103,8 @@ export class EfiWebhookRegistrar {
 
   /**
    * PUT request com mTLS via https nativo
+   * Inclui x-skip-mtls: true pra desabilitar handshake mTLS no envio
+   * (dica do Rubenskuhl no fórum da Efí - skipMtls: true para desabilitar)
    */
   private async putWithMtls(url: string, body: any, token: string): Promise<{ status: number; body: string }> {
     const bodyStr = JSON.stringify(body);
@@ -111,6 +113,7 @@ export class EfiWebhookRegistrar {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${token}`,
+        'x-skip-mtls': 'true',  // GAMBETA do Rubenskuhl: desabilita mTLS no envio
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(bodyStr).toString()
       },
@@ -144,9 +147,19 @@ export class EfiWebhookRegistrar {
       // URL com a chave Pix (substituir {chave})
       const url = `${baseUrl}/v1/wh/${opts.pixKey}`;
 
-      this.logger.log(`📡 Registrando webhook: ${url} → ${opts.webhookUrl}`);
+      // GAMBI MESTRE DO RUBENS (fórum Efí):
+      // A Efí concatena automaticamente /pix no final da URL que você cadastra.
+      // Adicionando ?ignorar= no final, o /pix vira uma query string inofensiva:
+      //   cadastrado:    .../v1/webhooks/pix-received?ignorar=
+      //   Efí chama:    .../v1/webhooks/pix-received?ignorar=/pix
+      //   NestJS resolve na rota /v1/webhooks/pix-received (a query string é descartada)
+      const finalWebhookUrl = opts.webhookUrl.includes('?')
+        ? `${opts.webhookUrl}&ignorar=`
+        : `${opts.webhookUrl}?ignorar=`;
 
-      const result = await this.putWithMtls(url, { webhookUrl: opts.webhookUrl }, token);
+      this.logger.log(`📡 Registrando webhook: ${url} → ${finalWebhookUrl}`);
+
+      const result = await this.putWithMtls(url, { webhookUrl: finalWebhookUrl }, token);
 
       let parsed: any = result.body;
       try { parsed = JSON.parse(result.body); } catch {}
