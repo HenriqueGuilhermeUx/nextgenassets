@@ -271,12 +271,46 @@ export class WebhooksAdminController {
           amountBrl: Number(execution.amountBrl),
           status: execution.status,
           createdAt: execution.createdAt,
+          result: execution.result,
           partner: execution.partner?.name,
           partnerPixKey: execution.partner?.pixKey,
           partnerCommissionRate: execution.partner?.commissionRate?.toString()
         },
         splitAuditLogs: auditLogs.map((l: any) => ({
           action: l.action,
+          actor: l.actor,
+          metadata: l.metadata,
+          createdAt: l.createdAt
+        }))
+      };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    } finally {
+      await prisma.$disconnect();
+    }
+  }
+
+  /**
+   * GET /v1/admin/webhooks/efi/recent-splits
+   * Lista os ultimos audit logs relacionados a split (pra debug)
+   */
+  @Get('efi/recent-splits')
+  async getRecentSplits() {
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+    try {
+      const logs = await prisma.auditLog.findMany({
+        where: { action: { contains: 'COMMISSION' } },
+        orderBy: { createdAt: 'desc' },
+        take: 20
+      });
+      return {
+        success: true,
+        count: logs.length,
+        logs: logs.map((l: any) => ({
+          id: l.id,
+          action: l.action,
+          resourceId: l.resourceId,
           metadata: l.metadata,
           createdAt: l.createdAt
         }))

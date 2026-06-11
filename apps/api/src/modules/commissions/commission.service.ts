@@ -97,6 +97,7 @@ export class CommissionService {
     // 3. Criar PIX OUT pro parceiro
     let pixOutTxid: string | undefined;
     try {
+      this.logger.log(`🔥 CALLING_SEND_PIX: amount=${partnerPayoutBrl} pixKey=${partner.pixKey} demoMode=${process.env.EFI_DEMO_MODE}`);
       pixOutTxid = await this.sendPixToPartner({
         amountBrl: partnerPayoutBrl,
         pixKey: partner.pixKey,
