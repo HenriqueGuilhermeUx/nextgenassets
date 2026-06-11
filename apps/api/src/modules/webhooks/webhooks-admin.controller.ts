@@ -153,9 +153,7 @@ export class WebhooksAdminController {
         create: {
           id: 'demo-user-001',
           email: 'demo@nextgenassets.com.br',
-          fullName: 'Demo User',
-          cpf: '11111111111',
-          status: 'ACTIVE',
+          name: 'Demo User',
           partnerId: partner?.id || 'demo-partner',
           externalUserId: 'demo-user-001'
         } as any
