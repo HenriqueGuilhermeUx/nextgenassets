@@ -54,6 +54,34 @@ export class WebhooksAdminController {
   }
 
   /**
+   * POST /v1/admin/migrate
+   * Aplica migrations pendentes no Supabase (uso único, depois desabilitar)
+   * Body: { sql: string }
+   */
+  @Post('migrate')
+  async runMigration(@Body() body: { sql: string }) {
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+    try {
+      // Executa SQL bruto
+      const result = await prisma.$executeRawUnsafe(body.sql);
+      return {
+        success: true,
+        rowsAffected: result,
+        message: 'Migration executada'
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err.message,
+        code: err.code
+      };
+    } finally {
+      await prisma.$disconnect();
+    }
+  }
+
+  /**
    * POST /v1/admin/partners/setup-demo
    * Cria/atualiza Partner demo com pixKey pra testar split
    * Body: { pixKey: string, pixKeyType?: 'CPF'|'CNPJ'|'EMAIL'|'PHONE'|'EVP', commissionRate?: number }
