@@ -78,3 +78,5 @@ bootstrap().catch((err) => {
   console.error('❌ Falha ao iniciar API:', err);
   process.exit(1);
 });
+
+// Build: b59c903
