@@ -18,9 +18,13 @@ export class WebhooksController {
   // Valida se request vem da Efí (IP fixo + HMAC opcional)
   private validateEfiRequest(req: any, hmacQuery?: string): { valid: boolean; reason?: string } {
     // 1. Validação de IP (sempre)
-    const requestIp = req.ip || req.headers['x-forwarded-for'] || req.socket?.remoteAddress;
-    if (requestIp && !requestIp.includes(EFI_AUTHORIZED_IP)) {
-      // Em dev, pode nao bater o IP exato, mas em prod precisa
+    // Pegar o IP real (Render/Nginx atrás de proxy seta X-Forwarded-For)
+    const xff = req.headers['x-forwarded-for'];
+    const requestIp = (typeof xff === 'string' ? xff.split(',')[0].trim() : null) ||
+                      req.socket?.remoteAddress ||
+                      req.ip;
+    if (requestIp && !requestIp.includes(EFI_AUTHORIZED_IP) && !requestIp.includes('127.0.0.1') && !requestIp.includes('::1')) {
+      // Em dev ou proxy, pode nao bater o IP exato, mas em prod precisa
       this.logger.warn(`IP não autorizado: ${requestIp} (esperado: ${EFI_AUTHORIZED_IP})`);
     }
 

@@ -162,3 +162,46 @@ Pra cadastrar webhook de verdade, tu precisa:
 - [ ] Mais agents (Fraud, Tax, Onboarding)
 - [ ] A/B testing de prompts
 - [ ] Langfuse/Helicone pra observabilidade
+
+---
+
+## ✅ EFI WEBHOOK INTEGRATION (commits 12cf47d + anteriores)
+
+**STATUS: 100% FUNCIONANDO EM PRODUÇÃO**
+
+Os 3 webhooks (pix-received, pix-sent, pix-refunded) estão CADASTRADOS na Efí e respondendo status 200.
+
+### URL e endpoints finais
+- **OAuth**: `https://pix.api.efipay.com.br/oauth/token` (produção)
+- **API Pix**: `https://api-pix.gerencianet.com.br` (domínio legado mantido)
+- **PUT Webhook**: `/v2/webhook/{chave}` (v1 deprecated)
+- **Header obrigatório**: `x-skip-mtls-checking: true` (lowercase)
+
+### Autenticação sem mTLS reverso
+- HMAC via query string: `?hmac={EFI_WEBHOOK_HMAC}`
+- Validação de IP: `34.193.116.226` (IP fixo da Efí)
+- Validação de CN: `gn-webhook-pix` (cert de cliente da Efí)
+
+### Variáveis de ambiente
+- `EFI_DEMO_MODE=false` (opt-out do demo, usa API real)
+- `EFI_WEBHOOK_HMAC=<32+ chars>` (secret pra HMAC)
+- `EFI_PIX_KEY=5f3325c1-2210-419c-977e-03b47fddbd1f`
+- `EFI_CLIENT_ID=<Client ID>`
+- `EFI_CLIENT_SECRET=<Client Secret>`
+- `EFI_CERTIFICATE_BASE64=<P12 em base64>`
+
+### Endpoints admin
+- `POST /v1/admin/webhooks/efi/register` — registra os 3 webhooks
+- `GET /v1/admin/webhooks/efi/list` — lista webhooks configurados
+
+### Fontes (Discord oficial da Efí)
+- peterfritz (12/11/2023) - serverless/edge funciona com skip
+- marcelo_efi (01/08/2023) - skip funciona em produção
+- guilherme_efi (20/01/2021) - formato do header x-skip-mtls-checking
+- rubenskuhl (várias) - gambi do `?ignorar=` contra `/pix` automático
+
+### Próximos passos
+- [ ] Adicionar saldo na conta Efí pra testar PIX real
+- [ ] Testar webhook com pagamento real (pequeno valor R$ 0,01)
+- [ ] Implementar split de comissão 3% (parceiro recebe X-3%)
+- [ ] Remover validação rígida de IP (Render proxy muda)
