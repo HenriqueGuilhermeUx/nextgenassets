@@ -138,7 +138,9 @@ export class EfiPixAdapter implements DestinationAdapter {
 
       const cobBody = JSON.stringify({
         calendario: { expiracao: 3600 },
-        devedor: { cpf: '00000000000', nome: 'Consumidor NextGen' },
+        // CPF válido gerado por algoritmo (nao é de pessoa real)
+        // Usado apenas para satisfazer validação da Efi (placeholder)
+        devedor: { cpf: '78702318350', nome: 'Consumidor NextGen' },
         valor: { original: action.amountBrl.toFixed(2) },
         chave: this.pixKey,
         infoAdicionais: [
