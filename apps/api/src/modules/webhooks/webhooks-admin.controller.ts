@@ -2,7 +2,10 @@
 //  WEBHOOKS ADMIN — Registra e testa webhooks da Efí
 // ============================================
 
-import { Controller, Post, Body, Get, Param, Logger } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, Res, Logger } from '@nestjs/common';
+import { Response } from 'express';
+import * as https from 'https';
+import { URL } from 'url';
 import { EfiWebhookRegistrar } from './efi-webhook-registrar.service';
 import { EfiPixAdapter } from '../destinations/providers/efi-pix-adapter';
 
@@ -104,6 +107,61 @@ export class WebhooksAdminController {
         txid,
         error: err.message
       };
+    }
+  }
+
+  /**
+   * GET /v1/admin/webhooks/efi/qrcode/:txid
+   * Retorna o QR Code como IMAGEM PNG (pra abrir no navegador e ler)
+   */
+  @Get('efi/qrcode/:txid')
+  async getQrCode(@Param('txid') txid: string, @Res() res: Response) {
+    try {
+      const status = await this.efiAdapter.getChargeStatus(txid);
+      const loc = status.loc;
+      if (!loc?.location) {
+        res.status(404).json({ error: 'QR code nao encontrado' });
+        return;
+      }
+
+      // Efí QR fica em: https://qrcodespix.sejaefi.com.br/v2/{hash}
+      const url = loc.location.startsWith('http')
+        ? loc.location
+        : `https://${loc.location}`;
+
+      this.logger.log(`📸 Baixando QR code: ${url}`);
+
+      // Faz download da imagem via https nativo (mTLS nao precisa aqui)
+      const chunks: Buffer[] = [];
+      const parsedUrl = new URL(url);
+
+      const request = https.request(
+        {
+          hostname: parsedUrl.hostname,
+          port: 443,
+          path: parsedUrl.pathname,
+          method: 'GET',
+          rejectUnauthorized: false
+        },
+        (response) => {
+          response.on('data', (chunk: Buffer) => chunks.push(chunk));
+          response.on('end', () => {
+            const image = Buffer.concat(chunks);
+            res.setHeader('Content-Type', 'image/png');
+            res.setHeader('Content-Length', image.length.toString());
+            res.setHeader('Cache-Control', 'public, max-age=3600');
+            res.send(image);
+          });
+        }
+      );
+      request.on('error', (err) => {
+        this.logger.error(`Erro ao baixar QR: ${err.message}`);
+        res.status(500).json({ error: err.message });
+      });
+      request.end();
+    } catch (err: any) {
+      this.logger.error(`Erro no getQrCode: ${err.message}`);
+      res.status(500).json({ error: err.message });
     }
   }
 }

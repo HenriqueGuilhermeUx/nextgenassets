@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Pagar PIX R$ 1,00 - NextGen Assets Teste</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .card {
+    background: white;
+    border-radius: 24px;
+    padding: 32px;
+    max-width: 500px;
+    width: 100%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  }
+  h1 {
+    margin: 0 0 8px;
+    font-size: 24px;
+    color: #1a1a1a;
+  }
+  .subtitle {
+    color: #666;
+    margin: 0 0 24px;
+    font-size: 14px;
+  }
+  .qr-box {
+    background: #f8f9fa;
+    border-radius: 16px;
+    padding: 20px;
+    text-align: center;
+    margin-bottom: 24px;
+  }
+  .qr-box img {
+    max-width: 280px;
+    width: 100%;
+    height: auto;
+  }
+  .amount {
+    font-size: 36px;
+    font-weight: 700;
+    color: #667eea;
+    margin: 16px 0 0;
+  }
+  .copy-area {
+    background: #f8f9fa;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .copy-label {
+    font-size: 12px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+  .copy-text {
+    font-family: monospace;
+    font-size: 11px;
+    color: #1a1a1a;
+    word-break: break-all;
+    line-height: 1.4;
+    padding: 8px;
+    background: white;
+    border-radius: 6px;
+    border: 1px solid #e0e0e0;
+    max-height: 80px;
+    overflow-y: auto;
+  }
+  button {
+    width: 100%;
+    background: #667eea;
+    color: white;
+    border: none;
+    border-radius: 12px;
+    padding: 14px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.1s;
+  }
+  button:hover { background: #5568d3; }
+  button:active { transform: scale(0.98); }
+  .copied { background: #10b981 !important; }
+  .txid {
+    background: #fef3c7;
+    border-left: 4px solid #f59e0b;
+    padding: 12px;
+    border-radius: 6px;
+    margin-top: 16px;
+    font-size: 13px;
+  }
+  .txid strong { color: #92400e; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>🧪 Teste PIX Real</h1>
+    <p class="subtitle">Pague R$ 1,00 pra testar o webhook da Efí</p>
+
+    <div class="qr-box">
+      <img id="qrcode" src="" alt="QR Code PIX">
+      <p class="amount">R$ 1,00</p>
+    </div>
+
+    <div class="copy-area">
+      <div class="copy-label">PIX Copia e Cola</div>
+      <div class="copy-text" id="pixcode">Carregando...</div>
+    </div>
+
+    <button id="copybtn" onclick="copyPix()">📋 Copiar código PIX</button>
+
+    <div class="txid">
+      <strong>Txid:</strong> <span id="txid">NGA1781178156329zeax815esdb</span><br>
+      <strong>Chave Efí:</strong> 5f3325c1-2210-419c-977e-03b47fddbd1f
+    </div>
+  </div>
+
+<script>
+  // QR Code em base64 PNG (gerado pela Efí)
+  // Vou buscar dinamicamente da API
+  async function loadPix() {
+    try {
+      const res = await fetch('https://api.nextgenassets.com.br/v1/admin/webhooks/efi/charge/NGA1781178156329zeax815esdb');
+      const data = await res.json();
+      if (data.success) {
+        const status = data.status;
+        // Pega o QR code via location (Efí gera dinâmico)
+        const locUrl = 'https://' + status.loc.location;
+        // Ou usa o pixCopiaECola
+        document.getElementById('pixcode').textContent = status.pixCopiaECola;
+        // Tenta carregar o QR via API
+        document.getElementById('qrcode').src = locUrl;
+      }
+    } catch (e) {
+      document.getElementById('pixcode').textContent = 'Erro ao carregar. Tenta o copia-cola manual abaixo:\n\n00020101021226830014BR.GOV.BCB.PIX2561qrcodespix.sejaefi.com.br/v2/a5c64d7c12554cfd97bd7bd055b7c9c45204000053039865802BR5905EFISA6008SAOPAULO62070503***6304F3A0';
+    }
+  }
+
+  async function copyPix() {
+    const text = document.getElementById('pixcode').textContent;
+    try {
+      await navigator.clipboard.writeText(text);
+      const btn = document.getElementById('copybtn');
+      btn.classList.add('copied');
+      btn.textContent = '✅ Copiado! Cola no app do banco';
+      setTimeout(() => {
+        btn.classList.remove('copied');
+        btn.textContent = '📋 Copiar código PIX';
+      }, 3000);
+    } catch (e) {
+      alert('Copia manualmente:\n\n' + text);
+    }
+  }
+
+  loadPix();
+</script>
+</body>
+</html>
