@@ -243,6 +243,52 @@ export class WebhooksAdminController {
   }
 
   /**
+   * GET /v1/admin/webhooks/efi/split-status/:txid
+   * Retorna o status do split/comissao pra uma Execution
+   */
+  @Get('efi/split-status/:txid')
+  async getSplitStatus(@Param('txid') txid: string) {
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+    try {
+      const execution = await prisma.execution.findFirst({
+        where: { externalId: txid },
+        include: { partner: true, user: true, trigger: { include: { partner: true } } }
+      });
+      if (!execution) {
+        return { success: false, error: `Execution nao encontrada pro txid ${txid}` };
+      }
+      const auditLogs = await prisma.auditLog.findMany({
+        where: { targetId: execution.id, action: { in: ['COMMISSION_DISTRIBUTED', 'COMMISSION_FAILED', 'PIX_OUT_SENT'] } },
+        orderBy: { createdAt: 'desc' },
+        take: 5
+      });
+      return {
+        success: true,
+        execution: {
+          id: execution.id,
+          externalId: execution.externalId,
+          amountBrl: Number(execution.amountBrl),
+          status: execution.status,
+          createdAt: execution.createdAt,
+          partner: execution.partner?.name,
+          partnerPixKey: execution.partner?.pixKey,
+          partnerCommissionRate: execution.partner?.commissionRate?.toString()
+        },
+        splitAuditLogs: auditLogs.map((l: any) => ({
+          action: l.action,
+          metadata: l.metadata,
+          createdAt: l.createdAt
+        }))
+      };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    } finally {
+      await prisma.$disconnect();
+    }
+  }
+
+  /**
    * GET /v1/admin/webhooks/efi/qrcode/:txid
    * Gera QR Code localmente a partir do BR Code (pixCopiaECola)
    * Retorna como IMAGEM PNG (pra abrir no navegador e ler com app)
