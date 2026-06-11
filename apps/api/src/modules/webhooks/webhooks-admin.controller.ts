@@ -131,11 +131,11 @@ export class WebhooksAdminController {
   @Post('efi/test-charge')
   async testCharge(@Body() body: { amountBrl?: number; txid?: string }) {
     const amount = body.amountBrl ?? 0.01;
-    const txid = body.txid || (
-      'NGA' +
-      Date.now().toString().padStart(13, '0') +
-      Math.random().toString(36).substring(2, 16).replace(/[^a-zA-Z0-9]/g, 'X')
-    ).slice(0, 35);
+    // txid precisa ter 26-35 chars alfanumericos (Efi exige)
+    const randomPart = Array.from({ length: 10 }, () =>
+      'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'[Math.floor(Math.random() * 62)]
+    ).join('');
+    const txid = body.txid || ('NGA' + Date.now().toString() + randomPart).slice(0, 35);
 
     this.logger.log(`🧪 Criando cobrança REAL de R$ ${amount} com txid=${txid} (${txid.length} chars)`);
 
