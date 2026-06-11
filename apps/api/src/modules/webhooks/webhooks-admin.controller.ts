@@ -38,17 +38,18 @@ export class WebhooksAdminController {
 
   /**
    * GET /v1/admin/webhooks/efi/list
-   * Lista os webhooks atualmente configurados (debug)
+   * Lista os webhooks atualmente configurados NA EFÍ (consulta a API real)
    */
   @Get('efi/list')
   async listEfiWebhooks() {
+    const result = await this.registrar.listWebhooks({});
     return {
-      webhooks: [
-        { name: 'pix-received', url: 'https://api.nextgenassets.com.br/v1/webhooks/pix-received' },
-        { name: 'pix-sent', url: 'https://api.nextgenassets.com.br/v1/webhooks/pix-sent' },
-        { name: 'pix-refunded', url: 'https://api.nextgenassets.com.br/v1/webhooks/pix-refunded' }
-      ],
-      note: 'Use POST /v1/admin/webhooks/efi/register pra registrar via API da Efí'
+      success: result.success,
+      status: result.status,
+      efiResponse: result.body,
+      note: result.success
+        ? '✅ Webhooks cadastrados na Efí'
+        : '❌ Erro ao consultar Efí - veja efiResponse'
     };
   }
 

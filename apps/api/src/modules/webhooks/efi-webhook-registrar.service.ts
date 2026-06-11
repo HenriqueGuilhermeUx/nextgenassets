@@ -200,6 +200,49 @@ export class EfiWebhookRegistrar {
   }
 
   /**
+   * GET para LISTAR os webhooks cadastrados na Efí
+   * Endpoint: GET /v2/webhook/{chave}
+   */
+  async listWebhooks(opts: { pixKey?: string }): Promise<{ success: boolean; status: number; body: any }> {
+    const apiBaseUrl = EFI_CONFIG.apiBaseUrl;
+    const oauthBaseUrl = EFI_CONFIG.oauthBaseUrl;
+    const pixKey = opts.pixKey || this.config.get('EFI_PIX_KEY');
+
+    if (!pixKey) {
+      throw new Error('EFI_PIX_KEY não configurada');
+    }
+
+    if (process.env.EFI_DEMO_MODE !== 'false') {
+      return {
+        success: true,
+        status: 200,
+        body: { simulated: true, message: 'DEMO_MODE ativo - Efí não consultado' }
+      };
+    }
+
+    try {
+      const token = await this.getAccessToken(oauthBaseUrl);
+      const url = `${apiBaseUrl}/v2/webhook/${pixKey}`;
+
+      const result = await this.httpsRequest({
+        url,
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'x-skip-mtls-checking': 'true'
+        }
+      });
+
+      let parsed: any = result.body;
+      try { parsed = JSON.parse(result.body); } catch {}
+
+      return { success: result.status >= 200 && result.status < 300, status: result.status, body: parsed };
+    } catch (err: any) {
+      return { success: false, status: 0, body: { error: err.message } };
+    }
+  }
+
+  /**
    * Registra TODOS os webhooks necessários pra NextGen Assets
    */
   async registerAllWebhooks(baseUrl: string = 'https://api.nextgenassets.com.br', pixKey?: string): Promise<{
