@@ -80,4 +80,7 @@ bootstrap().catch((err) => {
 });
 
 
-// Build: 8fb4553
+
+// Build: 8ad80e6 - 
+// Schema ConsumerUser: name, partnerId, externalUserId (no cpf, no status)
+// Schema Execution: user + partner required
