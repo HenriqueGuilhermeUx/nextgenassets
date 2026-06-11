@@ -145,32 +145,34 @@ export class WebhooksAdminController {
     let execution;
     try {
       const partner = await prisma.partner.findUnique({ where: { slug: 'demo-marketplace' } });
-      if (partner) {
-        execution = await prisma.execution.create({
-          data: {
-            externalId: txid,
-            amountBrl: amount,
-            status: 'PENDING',
-            destination: 'efi-pix',
-            intent: 'TEST_CHARGE',
-            state: 'BRAZIL',
-            partner: { connect: { id: partner.id } }
-          } as any
-        });
-        this.logger.log(`✅ Execution criada: ${execution.id} | partner=${partner.name}`);
-      } else {
-        execution = await prisma.execution.create({
-          data: {
-            externalId: txid,
-            amountBrl: amount,
-            status: 'PENDING',
-            destination: 'efi-pix',
-            intent: 'TEST_CHARGE',
-            state: 'BRAZIL'
-          } as any
-        });
-        this.logger.log(`⚠️  Execution sem Partner (criar partner demo primeiro)`);
-      }
+
+      // Cria ou pega um ConsumerUser demo
+      const demoUser = await prisma.consumerUser.upsert({
+        where: { id: 'demo-user-001' },
+        update: {},
+        create: {
+          id: 'demo-user-001',
+          email: 'demo@nextgenassets.com.br',
+          fullName: 'Demo User',
+          cpf: '11111111111',
+          status: 'ACTIVE',
+          partnerId: partner?.id
+        } as any
+      });
+
+      execution = await prisma.execution.create({
+        data: {
+          externalId: txid,
+          amountBrl: amount,
+          status: 'PENDING',
+          destination: 'efi-pix',
+          intent: 'TEST_CHARGE',
+          state: 'BRAZIL',
+          user: { connect: { id: demoUser.id } },
+          ...(partner && { partner: { connect: { id: partner.id } } })
+        } as any
+      });
+      this.logger.log(`✅ Execution criada: ${execution.id} | user=${demoUser.id} | partner=${partner?.name || 'none'}`);
     } catch (err: any) {
       this.logger.error(`Erro ao criar Execution: ${err.message}`);
     } finally {
