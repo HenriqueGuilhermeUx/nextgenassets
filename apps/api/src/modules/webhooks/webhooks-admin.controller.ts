@@ -259,7 +259,7 @@ export class WebhooksAdminController {
         return { success: false, error: `Execution nao encontrada pro txid ${txid}` };
       }
       const auditLogs = await prisma.auditLog.findMany({
-        where: { targetId: execution.id, action: { in: ['COMMISSION_DISTRIBUTED', 'COMMISSION_FAILED', 'PIX_OUT_SENT'] } },
+        where: { resourceId: execution.id, action: { in: ['COMMISSION_DISTRIBUTED', 'COMMISSION_FAILED', 'PIX_OUT_SENT'] } },
         orderBy: { createdAt: 'desc' },
         take: 5
       });
