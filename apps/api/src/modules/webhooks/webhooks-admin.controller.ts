@@ -75,7 +75,7 @@ export class WebhooksAdminController {
       amount,
       message: result.status === 'PENDING'
         ? `Cobrança criada! Paga o QR code gerado pra testar o webhook. Txid: ${txid}`
-        : `Falha: ${result.errorMessage || 'desconhecido'}`
+        : `Falha: ${(result as any).errorMessage || 'desconhecido'}`
     };
   }
 }

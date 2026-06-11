@@ -116,7 +116,7 @@ export class EfiPixAdapter implements DestinationAdapter {
   // ============================================
   //  CREATE PIX CHARGE
   // ============================================
-  private async createPixCharge(action: {
+  async createPixCharge(action: {
     userId: string;
     amountBrl: number;
     txid?: string;
