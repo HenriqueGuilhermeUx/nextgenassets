@@ -113,11 +113,14 @@ export class EfiWebhookRegistrar {
    * PUT request com mTLS via https nativo
    * Header OBRIGATÓRIO: X-Skip-Mtls: true
    * (user vitormarcelo0329 no Discord da Efi disse que esse formato funciona)
+   * v3: Também envia skip-mtls-checking como query string (algumas APIs Efí aceitam)
    */
   private async putWithMtls(url: string, body: any, token: string): Promise<{ status: number; body: string }> {
     const bodyStr = JSON.stringify(body);
+    // Adiciona ?x-skip-mtls-checking=true&x-skip-mtls=true na URL do PUT
+    const urlWithSkip = url + (url.includes('?') ? '&' : '?') + 'x-skip-mtls-checking=true&x-skip-mtls=true';
     return this.httpsRequest({
-      url,
+      url: urlWithSkip,
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${token}`,
