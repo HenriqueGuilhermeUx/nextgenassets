@@ -28,7 +28,7 @@ model Partner {
   // Chave PIX do parceiro pra receber o split (97% do pagamento)
   // Aceita qualquer chave: CPF, CNPJ, email, telefone ou EVP
   pixKey          String?
-  pixKeyType      PixKeyType?  // tipo da chave pra validação
+  pixKeyType      String?  // 'CPF' | 'CNPJ' | 'EMAIL' | 'PHONE' | 'EVP' (stored as string)
 
   // Comissão do NextGen (0.03 = 3% por padrão)
   // Configurável por parceiro (parceiros premium podem ter 2%, basic 5%)
