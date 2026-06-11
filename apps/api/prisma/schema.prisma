@@ -24,11 +24,23 @@ model Partner {
   
   // Config do parceiro
   config          Json     // adapters ativos, fee split, take-rate
-  
+
+  // Chave PIX do parceiro pra receber o split (97% do pagamento)
+  // Aceita qualquer chave: CPF, CNPJ, email, telefone ou EVP
+  pixKey          String?
+  pixKeyType      PixKeyType?  // tipo da chave pra validação
+
+  // Comissão do NextGen (0.03 = 3% por padrão)
+  // Configurável por parceiro (parceiros premium podem ter 2%, basic 5%)
+  commissionRate  Decimal  @default(0.03) @db.Decimal(5, 4)
+
+  // Saldo acumulado de comissões ganhas (R$)
+  totalCommissionEarnedBrl  Decimal  @default(0) @db.Decimal(18, 2)
+
   // Credenciais Efí (criptografadas no Vault)
   efiClientId     String?
   efiClientSecret String?  // armazenado no Vault
-  
+
   // Webhook URL para receber notificações
   webhookUrl      String?
   webhookSecret   String?
@@ -67,6 +79,16 @@ enum PartnerType {
   FINTECH         // Fintech generalista
   UTILITY         // Concessionária / Telecom
   INSURER         // Seguradora
+}
+
+// Tipos de chave PIX aceitas no cadastro de parceiros
+// (pra split de comissão - qualquer banco serve)
+enum PixKeyType {
+  CPF
+  CNPJ
+  EMAIL
+  PHONE
+  EVP            // Chave aleatória (UUID)
 }
 
 enum PartnerStatus {

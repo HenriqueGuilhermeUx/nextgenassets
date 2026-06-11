@@ -3,6 +3,7 @@ import { Controller, Post, Body, Headers, Get, Query, Logger, Req } from '@nestj
 import { PrismaClient } from '@prisma/client';
 import { WebhooksOutService } from './webhooks-out.worker';
 import { WebhookSigner } from './webhook-signer';
+import { CommissionService } from '../commissions/commission.service';
 
 const prisma = new PrismaClient();
 
@@ -13,7 +14,10 @@ const EFI_AUTHORIZED_IP = '34.193.116.226';
 export class WebhooksController {
   private readonly logger = new Logger(WebhooksController.name);
 
-  constructor(private webhooksOut: WebhooksOutService) {}
+  constructor(
+    private webhooksOut: WebhooksOutService,
+    private commissionService: CommissionService
+  ) {}
 
   // Valida se request vem da Efí (IP fixo + HMAC opcional)
   private validateEfiRequest(req: any, hmacQuery?: string): { valid: boolean; reason?: string } {
@@ -65,13 +69,47 @@ export class WebhooksController {
     if (eventType === 'pix-received' && body.pix) {
       for (const pix of body.pix) {
         this.logger.log(`💰 PIX RECEBIDO: txid=${pix.txid} valor=R$ ${pix.valor}`);
-        await prisma.execution.updateMany({
+
+        // 1. Atualiza Execution pra COMPLETED
+        const updated = await prisma.execution.updateMany({
           where: { externalId: pix.txid },
           data: {
             status: 'COMPLETED',
             result: { ...pix, paidAt: new Date(), receivedAt: new Date() }
           }
         });
+
+        // 2. Se atualizou, dispara split de comissão
+        if (updated.count > 0) {
+          const execution = await prisma.execution.findFirst({
+            where: { externalId: pix.txid }
+          });
+
+          if (execution) {
+            const amountBrl = parseFloat(pix.valor);
+            this.logger.log(
+              `💸 Disparando split: execution=${execution.id} amount=R$ ${amountBrl}`
+            );
+
+            // Async, não bloqueia o webhook
+            this.commissionService.distribute({
+              executionId: execution.id,
+              amountBrl,
+              txid: pix.txid,
+              pix
+            }).then((result) => {
+              if (result.success) {
+                this.logger.log(
+                  `✅ Split OK: NextGen=R$ ${result.nextgenCommissionBrl} | Partner=R$ ${result.partnerPayoutBrl} | PIX_OUT=${result.pixOutTxid}`
+                );
+              } else {
+                this.logger.error(`❌ Split falhou: ${result.errorMessage}`);
+              }
+            }).catch((err) => {
+              this.logger.error(`❌ Erro no split: ${err.message}`);
+            });
+          }
+        }
       }
     } else if (eventType === 'pix-sent') {
       this.logger.log(`💸 PIX ENVIADO: ${JSON.stringify(body).substring(0, 200)}`);

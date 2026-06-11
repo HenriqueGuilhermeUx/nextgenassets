@@ -28,6 +28,7 @@ import { EfiPixAdapter } from './modules/destinations/providers/efi-pix-adapter'
 import { AiService } from './modules/ai/ai.service';
 import { AiOrchestrator } from './modules/ai/ai-orchestrator.service';
 import { AiOrchestratorController } from './modules/ai/ai-orchestrator.controller';
+import { CommissionService } from './modules/commissions/commission.service';
 import { AiSuggestionsService } from './modules/ai/ai-suggestions.service';
 import { AiSuggestionsController } from './modules/ai/ai-suggestions.controller';
 import { MarketDataService } from './modules/market-data/market-data.service';
@@ -111,6 +112,7 @@ import { MarketWatcherWorker } from './workers/market-watcher.worker';
     // Services
     AiService,
     AiOrchestrator,
+    CommissionService,
     EfiWebhookRegistrar,
     AiSuggestionsService,
     MarketDataService,
