@@ -2,7 +2,7 @@
 //  WEBHOOKS ADMIN — Registra e testa webhooks da Efí
 // ============================================
 
-import { Controller, Post, Body, Get, Logger } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, Logger } from '@nestjs/common';
 import { EfiWebhookRegistrar } from './efi-webhook-registrar.service';
 import { EfiPixAdapter } from '../destinations/providers/efi-pix-adapter';
 
@@ -83,5 +83,27 @@ export class WebhooksAdminController {
         ? `Cobrança criada! Paga o QR code gerado pra testar o webhook. Txid: ${txid}`
         : `Falha: ${(result as any).errorMessage || 'desconhecido'}`
     };
+  }
+
+  /**
+   * GET /v1/admin/webhooks/efi/charge/:txid
+   * Pega status + QR code de uma cobrança específica
+   */
+  @Get('efi/charge/:txid')
+  async getCharge(@Param('txid') txid: string) {
+    try {
+      const status = await this.efiAdapter.getChargeStatus(txid);
+      return {
+        success: true,
+        txid,
+        status
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        txid,
+        error: err.message
+      };
+    }
   }
 }
