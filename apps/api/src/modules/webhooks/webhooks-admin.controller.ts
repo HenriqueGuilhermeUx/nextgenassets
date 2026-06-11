@@ -148,7 +148,7 @@ export class WebhooksAdminController {
 
       // Cria ou pega um ConsumerUser demo
       const demoUser = await prisma.consumerUser.upsert({
-        where: { id: 'demo-user-001' },
+        where: { partnerId_externalUserId: { partnerId: partner?.id || 'demo-partner', externalUserId: 'demo-user-001' } },
         update: {},
         create: {
           id: 'demo-user-001',
@@ -156,7 +156,8 @@ export class WebhooksAdminController {
           fullName: 'Demo User',
           cpf: '11111111111',
           status: 'ACTIVE',
-          partnerId: partner?.id
+          partnerId: partner?.id || 'demo-partner',
+          externalUserId: 'demo-user-001'
         } as any
       });
 
