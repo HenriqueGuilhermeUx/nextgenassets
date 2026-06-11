@@ -37,6 +37,51 @@ export class WebhooksController {
     return { valid: true };
   }
 
+  // Webhook unificado da Efí (PIX RECEBIDO, ENVIADO, DEVOLVIDO)
+  // IMPORTANTE: a Efí só aceita 1 URL por chave, entao a gente
+  // usa UMA URL e classifica o tipo pelo payload internamente.
+  @Post('efi/pix-webhook')
+  @Post('efi/pix-webhook/pix')
+  async efiPixWebhook(@Body() body: any, @Query() query: any, @Req() req: any) {
+    const validation = this.validateEfiRequest(req, query.hmac);
+    if (!validation.valid) {
+      this.logger.warn(`Webhook Efi rejeitado: ${validation.reason}`);
+      return { received: false, reason: validation.reason };
+    }
+
+    let eventType = 'UNKNOWN';
+    if (body?.pix && Array.isArray(body.pix) && body.pix.length > 0) {
+      if (body.pix[0]?.devolucoes && body.pix[0].devolucoes.length > 0) {
+        eventType = 'pix-refunded';
+      } else {
+        eventType = 'pix-received';
+      }
+    } else if (body?.tipo === 'envio' || body?.gnExtras?.tipo === 'envio') {
+      eventType = 'pix-sent';
+    }
+
+    this.logger.log(`📨 Webhook Efi (${eventType}): ${JSON.stringify(body).substring(0, 200)}`);
+
+    if (eventType === 'pix-received' && body.pix) {
+      for (const pix of body.pix) {
+        this.logger.log(`💰 PIX RECEBIDO: txid=${pix.txid} valor=R$ ${pix.valor}`);
+        await prisma.execution.updateMany({
+          where: { externalId: pix.txid },
+          data: {
+            status: 'COMPLETED',
+            result: { ...pix, paidAt: new Date(), receivedAt: new Date() }
+          }
+        });
+      }
+    } else if (eventType === 'pix-sent') {
+      this.logger.log(`💸 PIX ENVIADO: ${JSON.stringify(body).substring(0, 200)}`);
+    } else if (eventType === 'pix-refunded') {
+      this.logger.log(`↩️  PIX DEVOLVIDO: ${JSON.stringify(body).substring(0, 200)}`);
+    }
+
+    return { received: true, type: eventType, count: body.pix?.length || 0 };
+  }
+
   // Webhook de entrada — Efí/Woovi confirma Pix
   // A Efí concatena automaticamente /pix no final da URL cadastrada
   // por isso mantemos as duas variantes (com e sem /pix)

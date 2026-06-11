@@ -253,22 +253,16 @@ export class EfiWebhookRegistrar {
       throw new Error('EFI_PIX_KEY não configurada');
     }
 
+    // UMA URL unificada - classifica pix-received/sent/refunded internamente
     const webhooks = [
       {
-        name: 'pix-received',
-        url: `${baseUrl}/v1/webhooks/pix-received`
-      },
-      {
-        name: 'pix-sent',
-        url: `${baseUrl}/v1/webhooks/pix-sent`
-      },
-      {
-        name: 'pix-refunded',
-        url: `${baseUrl}/v1/webhooks/pix-refunded`
+        name: 'efi-pix-unified',
+        url: `${baseUrl}/v1/webhooks/efi/pix-webhook`
       }
     ];
 
-    this.logger.log(`🚀 Registrando ${webhooks.length} webhooks na Efí pra chave ${key}`);
+    this.logger.log(`🚀 Registrando ${webhooks.length} webhook UNIFICADO na Efí pra chave ${key}`);
+    this.logger.warn(`⚠️  A Efí aceita apenas 1 URL por chave. Eventos classificados internamente.`);
 
     const results = [];
     for (const wh of webhooks) {
