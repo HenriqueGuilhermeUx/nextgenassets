@@ -57,9 +57,15 @@ export class WebhooksAdminController {
   @Post('efi/test-charge')
   async testCharge(@Body() body: { amountBrl?: number; txid?: string }) {
     const amount = body.amountBrl ?? 0.01;
-    const txid = body.txid || `TEST${Date.now()}`.slice(0, 35);
+    // txid Efi: padrao ^[a-zA-Z0-9]{26,35}$
+    // Gera um txid valido de 32 chars: NGA + timestamp (13) + random
+    const txid = body.txid || (
+      'NGA' +
+      Date.now().toString().padStart(13, '0') +
+      Math.random().toString(36).substring(2, 16).replace(/[^a-zA-Z0-9]/g, 'X')
+    ).slice(0, 35);
 
-    this.logger.log(`🧪 Criando cobrança REAL de R$ ${amount} com txid=${txid}`);
+    this.logger.log(`🧪 Criando cobrança REAL de R$ ${amount} com txid=${txid} (${txid.length} chars)`);
 
     const result = await this.efiAdapter.createPixCharge({
       userId: 'test-user',
