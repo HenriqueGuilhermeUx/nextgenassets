@@ -131,8 +131,6 @@ export class WebhooksAdminController {
   @Post('efi/test-charge')
   async testCharge(@Body() body: { amountBrl?: number; txid?: string }) {
     const amount = body.amountBrl ?? 0.01;
-    // txid Efi: padrao ^[a-zA-Z0-9]{26,35}$
-    // Gera um txid valido de 32 chars: NGA + timestamp (13) + random
     const txid = body.txid || (
       'NGA' +
       Date.now().toString().padStart(13, '0') +
@@ -141,6 +139,45 @@ export class WebhooksAdminController {
 
     this.logger.log(`🧪 Criando cobrança REAL de R$ ${amount} com txid=${txid} (${txid.length} chars)`);
 
+    // 1. Cria Execution no Prisma (vinculada ao Partner demo)
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+    let execution;
+    try {
+      const partner = await prisma.partner.findUnique({ where: { slug: 'demo-marketplace' } });
+      if (partner) {
+        execution = await prisma.execution.create({
+          data: {
+            externalId: txid,
+            amountBrl: amount,
+            status: 'PENDING',
+            destination: 'efi-pix',
+            intent: 'TEST_CHARGE',
+            state: 'BRAZIL',
+            partner: { connect: { id: partner.id } }
+          } as any
+        });
+        this.logger.log(`✅ Execution criada: ${execution.id} | partner=${partner.name}`);
+      } else {
+        execution = await prisma.execution.create({
+          data: {
+            externalId: txid,
+            amountBrl: amount,
+            status: 'PENDING',
+            destination: 'efi-pix',
+            intent: 'TEST_CHARGE',
+            state: 'BRAZIL'
+          } as any
+        });
+        this.logger.log(`⚠️  Execution sem Partner (criar partner demo primeiro)`);
+      }
+    } catch (err: any) {
+      this.logger.error(`Erro ao criar Execution: ${err.message}`);
+    } finally {
+      await prisma.$disconnect();
+    }
+
+    // 2. Cria cobranca na Efi
     const result = await this.efiAdapter.createPixCharge({
       userId: 'test-user',
       amountBrl: amount,
@@ -151,6 +188,7 @@ export class WebhooksAdminController {
     return {
       success: result.status !== 'FAILED',
       result,
+      executionId: execution?.id,
       txid,
       amount,
       message: result.status === 'PENDING'
