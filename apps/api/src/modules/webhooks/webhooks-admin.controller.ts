@@ -148,17 +148,20 @@ export class WebhooksAdminController {
       const partner = await prisma.partner.findUnique({ where: { slug: 'demo-marketplace' } });
 
       // Cria ou pega um ConsumerUser demo
-      const demoUser = await prisma.consumerUser.upsert({
-        where: { partnerId_externalUserId: { partnerId: partner?.id || 'demo-partner', externalUserId: 'demo-user-001' } },
-        update: {},
-        create: {
-          id: 'demo-user-001',
-          email: 'demo@nextgenassets.com.br',
-          name: 'Demo User',
-          partnerId: partner?.id || 'demo-partner',
-          externalUserId: 'demo-user-001'
-        } as any
+      const partnerId = partner?.id || 'demo-partner';
+      let demoUser = await prisma.consumerUser.findUnique({
+        where: { partnerId_externalUserId: { partnerId, externalUserId: 'demo-user-001' } }
       });
+      if (!demoUser) {
+        demoUser = await prisma.consumerUser.create({
+          data: {
+            email: 'demo@nextgenassets.com.br',
+            name: 'Demo User',
+            partnerId,
+            externalUserId: 'demo-user-001'
+          } as any
+        });
+      }
 
       execution = await prisma.execution.create({
         data: {
