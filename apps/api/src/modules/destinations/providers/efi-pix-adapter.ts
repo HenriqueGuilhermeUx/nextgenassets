@@ -12,6 +12,7 @@ import {
   ValidationResult, CancelResult, ReconciliationResult, ExecutionStatusResult
 } from '../destination.interface';
 import { buildEfiConfig } from '../../../config/efi.config';
+import { httpsRequestWithMtls } from './efi-https';
 
 const EFI_CONFIG = buildEfiConfig(process.env);
 
@@ -51,24 +52,32 @@ export class EfiPixAdapter implements DestinationAdapter {
 
     const credentials = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
 
-    const response = await fetch(`${this.baseUrl}/v1/authorization`, {
+    // URL OFICIAL (confirmada em dev.efipay.com.br/docs/api-pix/credenciais):
+    //   https://pix.api.efipay.com.br/oauth/token
+    // OAuth fica em domínio DIFERENTE da API Pix.
+    // IMPORTANTE: usa httpsRequestWithMtls (fetch do Node 20 não suporta agent)
+    const oauthBaseUrl = EFI_CONFIG.oauthBaseUrl;
+    const body = 'grant_type=client_credentials';
+    const result = await httpsRequestWithMtls({
+      url: `${oauthBaseUrl}/oauth/token`,
       method: 'POST',
       headers: {
         'Authorization': `Basic ${credentials}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Length': Buffer.byteLength(body).toString()
       },
-      // @ts-ignore
-      agent: this.getHttpsAgent()
-    } as any);
+      body,
+      pfx: this.certBuffer || undefined,
+      passphrase: ''
+    });
 
-    if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`EFI auth failed: ${response.status} - ${err}`);
+    if (result.status < 200 || result.status >= 300) {
+      throw new Error(`EFI auth failed: ${result.status} - ${result.body.substring(0, 200)}`);
     }
 
-    const data: any = await response.json();
+    const data: any = JSON.parse(result.body);
     this.accessToken = data.access_token;
-    this.tokenExpiresAt = Date.now() + (data.expires_in * 1000) - 60000;
+    this.tokenExpiresAt = Date.now() + ((data.expires_in || 3600) * 1000) - 60000;
     return this.accessToken!;
   }
 
@@ -127,55 +136,59 @@ export class EfiPixAdapter implements DestinationAdapter {
       const token = await this.getAccessToken();
       const txid = action.txid || this.generateTxid();
 
-      const cobResponse = await fetch(`${this.baseUrl}/v2/cob/${txid}`, {
+      const cobBody = JSON.stringify({
+        calendario: { expiracao: 3600 },
+        devedor: { cpf: '00000000000', nome: 'Consumidor NextGen' },
+        valor: { original: action.amountBrl.toFixed(2) },
+        chave: this.pixKey,
+        infoAdicionais: [
+          { nome: 'product_id', valor: action.productInfo?.id || 'unknown' },
+          { nome: 'partner', valor: 'nextgen-assets' }
+        ]
+      });
+
+      const cobResult = await httpsRequestWithMtls({
+        url: `${this.baseUrl}/v2/cob/${txid}`,
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(cobBody).toString()
         },
-        // @ts-ignore
-        agent: this.getHttpsAgent(),
-        body: JSON.stringify({
-          calendario: { expiracao: 3600 },
-          devedor: { cpf: '00000000000', nome: 'Consumidor NextGen' },
-          valor: { original: action.amountBrl.toFixed(2) },
-          chave: this.pixKey,
-          infoAdicionais: [
-            { nome: 'product_id', valor: action.productInfo?.id || 'unknown' },
-            { nome: 'partner', valor: 'nextgen-assets' }
-          ]
-        })
-      } as any);
+        body: cobBody,
+        pfx: this.certBuffer || undefined,
+        passphrase: ''
+      });
 
-      if (!cobResponse.ok) {
-        const errText = await cobResponse.text();
-        throw new Error(`EFI create cob failed: ${cobResponse.status} - ${errText}`);
+      if (cobResult.status < 200 || cobResult.status >= 300) {
+        throw new Error(`EFI create cob failed: ${cobResult.status} - ${cobResult.body.substring(0, 300)}`);
       }
 
-      const cobData: any = await cobResponse.json();
+      const cobData: any = JSON.parse(cobResult.body);
 
-      const qrResponse = await fetch(
-        `${this.baseUrl}/v2/loc/${cobData.loc.id}/qrcode`,
-        {
-          method: 'GET',
-          headers: { 'Authorization': `Bearer ${token}` },
-          // @ts-ignore
-          agent: this.getHttpsAgent()
-        } as any
-      );
+      // Gerar QR code
+      const qrResult = await httpsRequestWithMtls({
+        url: `${this.baseUrl}/v2/loc/${cobData.loc.id}/qrcode`,
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}` },
+        pfx: this.certBuffer || undefined,
+        passphrase: ''
+      });
 
       let qrCode = '';
-      if (qrResponse.ok) {
-        const qrData: any = await qrResponse.json();
+      if (qrResult.status >= 200 && qrResult.status < 300) {
+        const qrData: any = JSON.parse(qrResult.body);
         qrCode = qrData.imagemQrcode;
       }
 
-      // Retorna PENDING com estimatedCompletion (status de execução)
+      this.logger.log(`✅ PIX criado: txid=${txid} amount=R$ ${action.amountBrl} locId=${cobData.loc?.id}`);
+
       return {
         status: 'PENDING',
         externalId: txid,
-        estimatedCompletion: new Date(Date.now() + 3600 * 1000) // 1h expiração
-      };
+        estimatedCompletion: new Date(Date.now() + 3600 * 1000),
+        details: { txid, qrCode, locId: cobData.loc?.id }
+      } as any;
     } catch (err: any) {
       this.logger.error(`EFI createPixCharge error: ${err.message}`);
       return {
@@ -215,17 +228,18 @@ export class EfiPixAdapter implements DestinationAdapter {
 
   async getChargeStatus(txid: string): Promise<any> {
     const token = await this.getAccessToken();
-    const response = await fetch(`${this.baseUrl}/v2/cob/${txid}`, {
+    const result = await httpsRequestWithMtls({
+      url: `${this.baseUrl}/v2/cob/${txid}`,
       method: 'GET',
       headers: { 'Authorization': `Bearer ${token}` },
-      // @ts-ignore
-      agent: this.getHttpsAgent()
-    } as any);
+      pfx: this.certBuffer || undefined,
+      passphrase: ''
+    });
 
-    if (!response.ok) {
-      throw new Error(`EFI get cob failed: ${response.status}`);
+    if (result.status < 200 || result.status >= 300) {
+      throw new Error(`EFI get cob failed: ${result.status} - ${result.body.substring(0, 200)}`);
     }
-    return response.json();
+    return JSON.parse(result.body);
   }
 
   verifyWebhookSignature(payload: string, signature: string): boolean {
