@@ -131,6 +131,7 @@ export class WebhooksAdminController {
   @Post('efi/test-charge')
   async testCharge(@Body() body: { amountBrl?: number; txid?: string }) {
     const amount = body.amountBrl ?? 0.01;
+    console.log('🔥 DEPLOY_MARKER_2f4a5b6c_v8_NEWCODE');
     // txid precisa ter 26-35 chars alfanumericos (Efi exige)
     const randomPart = Array.from({ length: 10 }, () =>
       'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'[Math.floor(Math.random() * 62)]
