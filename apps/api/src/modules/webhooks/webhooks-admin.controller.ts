@@ -132,6 +132,8 @@ export class WebhooksAdminController {
       this.logger.log(`📸 Baixando QR code: ${url}`);
 
       // Faz download da imagem via https nativo (mTLS nao precisa aqui)
+      // IMPORTANTE: precisa do header 'Accept: image/png' pra Efí retornar PNG
+      // Sem isso, retorna JWT (token assinado) ao invés da imagem
       const chunks: Buffer[] = [];
       const parsedUrl = new URL(url);
 
@@ -141,7 +143,10 @@ export class WebhooksAdminController {
           port: 443,
           path: parsedUrl.pathname,
           method: 'GET',
-          rejectUnauthorized: false
+          rejectUnauthorized: false,
+          headers: {
+            'Accept': 'image/png'
+          }
         },
         (response) => {
           response.on('data', (chunk: Buffer) => chunks.push(chunk));
