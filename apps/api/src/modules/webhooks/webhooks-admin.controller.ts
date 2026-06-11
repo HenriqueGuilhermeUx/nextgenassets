@@ -54,6 +54,48 @@ export class WebhooksAdminController {
   }
 
   /**
+   * POST /v1/admin/partners/setup-demo
+   * Cria/atualiza Partner demo com pixKey pra testar split
+   * Body: { pixKey: string, pixKeyType?: 'CPF'|'CNPJ'|'EMAIL'|'PHONE'|'EVP', commissionRate?: number }
+   */
+  @Post('partners/setup-demo')
+  async setupDemoPartner(@Body() body: { pixKey: string; pixKeyType?: string; commissionRate?: number }) {
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+
+    const partner = await prisma.partner.upsert({
+      where: { slug: 'demo-marketplace' },
+      update: {
+        pixKey: body.pixKey,
+        pixKeyType: body.pixKeyType as any || 'EVP',
+        commissionRate: body.commissionRate || 0.03
+      },
+      create: {
+        slug: 'demo-marketplace',
+        name: 'Demo Marketplace',
+        type: 'RETAILER',
+        config: {},
+        pixKey: body.pixKey,
+        pixKeyType: body.pixKeyType as any || 'EVP',
+        commissionRate: body.commissionRate || 0.03
+      }
+    });
+
+    return {
+      success: true,
+      partner: {
+        id: partner.id,
+        name: partner.name,
+        slug: partner.slug,
+        pixKey: partner.pixKey,
+        pixKeyType: partner.pixKeyType,
+        commissionRate: Number(partner.commissionRate),
+        totalCommissionEarnedBrl: Number(partner.totalCommissionEarnedBrl)
+      }
+    };
+  }
+
+  /**
    * POST /v1/admin/webhooks/efi/test-charge
    * Cria uma cobrança PIX REAL na Efí (pra testar webhook)
    * Body: { amountBrl?: number, txid?: string }
