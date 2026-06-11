@@ -1,0 +1,205 @@
+/* ============================================
+   POPUP STYLES
+   ============================================ */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #0f0f1e;
+  color: #fff;
+  width: 360px;
+  min-height: 400px;
+}
+
+.popup {
+  padding: 16px;
+}
+
+.popup__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.popup__logo {
+  font-size: 32px;
+  background: linear-gradient(135deg, #00d97e 0%, #00b368 100%);
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.popup__title {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.popup__subtitle {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.state.hidden { display: none; }
+
+.state__title {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 16px 0 10px;
+}
+
+.state__desc {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+.input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 8px;
+  font-family: monospace;
+}
+
+.input:focus {
+  outline: none;
+  border-color: #00d97e;
+}
+
+.btn {
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+
+.btn--primary {
+  background: linear-gradient(135deg, #00d97e 0%, #00b368 100%);
+  color: #0f0f1e;
+}
+
+.btn--primary:hover { transform: translateY(-1px); }
+
+.btn--ghost {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.btn--sm {
+  padding: 4px 10px;
+  font-size: 11px;
+  width: auto;
+}
+
+.status {
+  margin-top: 8px;
+  font-size: 12px;
+  text-align: center;
+  min-height: 16px;
+}
+
+.status--error { color: #ff5252; }
+.status--success { color: #00d97e; }
+
+.authed__user {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: rgba(0, 217, 126, 0.1);
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.authed__name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.authed__slug {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+  font-family: monospace;
+}
+
+.marketplaces {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mkt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.mkt__icon { font-size: 18px; }
+
+.triggers {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.trigger {
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  font-size: 12px;
+  border-left: 3px solid #00d97e;
+}
+
+.trigger__title {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.trigger__rule {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.footer {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: center;
+}
+
+.footer__link {
+  color: #00d97e;
+  text-decoration: none;
+  font-size: 12px;
+}

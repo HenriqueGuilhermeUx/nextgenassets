@@ -1,0 +1,65 @@
+{
+  "manifest_version": 3,
+  "name": "NextGen Assets — Cérebro B2B",
+  "version": "0.1.0",
+  "description": "Captura intenção de compra cross-marketplace e cria gatilhos automáticos no NextGen Assets",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://*.mercadolivre.com.br/*",
+    "https://*.mercadolivre.com/*",
+    "https://*.amazon.com.br/*",
+    "https://*.magazineluiza.com.br/*",
+    "https://*.americanas.com.br/*",
+    "https://*.shopee.com.br/*",
+    "https://api.nextgenassets.com.br/*"
+  ],
+  "background": {
+    "service_worker": "src/background/background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    },
+    "default_title": "NextGen Assets"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.mercadolivre.com.br/*",
+        "https://*.mercadolivre.com/*"
+      ],
+      "js": ["src/lib/api.js", "src/marketplaces/mercadolivre.js", "src/content/detector.js"],
+      "css": ["src/content/badges.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://*.amazon.com.br/*"
+      ],
+      "js": ["src/lib/api.js", "src/marketplaces/amazon.js", "src/content/detector.js"],
+      "css": ["src/content/badges.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://*.magazineluiza.com.br/*"
+      ],
+      "js": ["src/lib/api.js", "src/marketplaces/magalu.js", "src/content/detector.js"],
+      "css": ["src/content/badges.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  }
+}

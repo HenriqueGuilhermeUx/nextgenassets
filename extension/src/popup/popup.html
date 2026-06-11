@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NextGen Assets</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup">
+    <div class="popup__header">
+      <div class="popup__logo">⚡</div>
+      <div>
+        <div class="popup__title">NextGen Assets</div>
+        <div class="popup__subtitle">Cérebro B2B</div>
+      </div>
+    </div>
+
+    <!-- Estado 1: Login -->
+    <div id="state-login" class="state">
+      <h2 class="state__title">Conectar conta</h2>
+      <p class="state__desc">Cole seu token de API (você encontra no painel NextGen Assets → Configurações → Tokens).</p>
+      <input type="text" id="token-input" class="input" placeholder="nxt_live_..." autocomplete="off">
+      <input type="text" id="partner-slug-input" class="input" placeholder="Slug do marketplace (ex: meu-mercado)" value="demo-marketplace">
+      <button id="login-btn" class="btn btn--primary">Conectar</button>
+      <div id="login-status" class="status"></div>
+    </div>
+
+    <!-- Estado 2: Logado -->
+    <div id="state-authed" class="state hidden">
+      <div class="authed__user">
+        <div>
+          <div class="authed__name" id="partner-name">Carregando...</div>
+          <div class="authed__slug" id="partner-slug-display"></div>
+        </div>
+        <button id="logout-btn" class="btn btn--ghost btn--sm">Sair</button>
+      </div>
+
+      <h2 class="state__title">Marketplaces suportados</h2>
+      <div class="marketplaces">
+        <div class="mkt"><span class="mkt__icon">🛒</span> Mercado Livre</div>
+        <div class="mkt"><span class="mkt__icon">📦</span> Amazon BR</div>
+        <div class="mkt"><span class="mkt__icon">🏬</span> Magazine Luiza</div>
+      </div>
+
+      <h2 class="state__title">Seus gatilhos</h2>
+      <div id="triggers-list" class="triggers">Carregando...</div>
+
+      <div class="footer">
+        <a href="https://nextgenassets.com.br" target="_blank" class="footer__link">🌐 Painel NextGen</a>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
