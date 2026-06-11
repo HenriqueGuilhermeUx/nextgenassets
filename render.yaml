@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: nextgen-assets-api
+    runtime: node
+    rootDir: apps/api
+    plan: starter
+    region: oregon
+    branch: main
+    buildCommand: npm install --legacy-peer-deps && npx prisma generate && npm run build
+    startCommand: node dist/main.js
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
