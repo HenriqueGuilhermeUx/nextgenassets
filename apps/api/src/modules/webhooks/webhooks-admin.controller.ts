@@ -164,19 +164,17 @@ export class WebhooksAdminController {
       }
 
       // Pega ou cria um Trigger demo (Execution precisa de trigger)
-      let demoTrigger = await prisma.trigger.findFirst({ where: { userId: demoUser.id } });
+      let demoTrigger = await prisma.trigger.findFirst({ where: { userId: demoUser.id, code: 'TEST_CHARGE' } });
       if (!demoTrigger) {
         demoTrigger = await prisma.trigger.create({
           data: {
             userId: demoUser.id,
             partnerId: partnerId,
+            code: 'TEST_CHARGE',
             name: 'TEST_CHARGE_TRIGGER',
-            catalogCode: 'TEST_CHARGE',
-            naturalLanguageRule: 'Cobranca de teste via Efi',
+            description: 'Cobranca de teste via Efi',
             status: 'ACTIVE',
-            frequency: 'ONE_TIME',
-            condition: { type: 'TEST' },
-            action: { type: 'TEST_CHARGE' }
+            params: { type: 'TEST_CHARGE', note: 'demo trigger for split testing' }
           } as any
         });
         this.logger.log(`✅ Trigger demo criado: ${demoTrigger.id}`);
