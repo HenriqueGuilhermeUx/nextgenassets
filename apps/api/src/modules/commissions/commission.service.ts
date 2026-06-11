@@ -112,10 +112,13 @@ export class CommissionService {
       // 5. Criar registro de payout (pra histórico)
       await prisma.auditLog.create({
         data: {
-          partnerId: 'system',
+          actor: 'system',
+          partnerId: partner.id,
+          executionId: execution.id,
           action: 'COMMISSION_DISTRIBUTED',
-          targetId: execution.id,
-          details: {
+          resource: 'execution',
+          resourceId: execution.id,
+          metadata: {
             executionId: execution.id,
             originalTxid: opts.txid,
             pixOutTxid,
@@ -126,7 +129,7 @@ export class CommissionService {
             partnerName: partner.name,
             elapsedMs: Date.now() - startTime
           }
-        } as any
+        }
       });
 
       return {
@@ -143,10 +146,13 @@ export class CommissionService {
       // Audit log do erro
       await prisma.auditLog.create({
         data: {
-          partnerId: 'system',
+          actor: 'system',
+          partnerId: partner.id,
+          executionId: execution.id,
           action: 'COMMISSION_PAYOUT_FAILED',
-          targetId: execution.id,
-          details: {
+          resource: 'execution',
+          resourceId: execution.id,
+          metadata: {
             executionId: execution.id,
             amountBrl: opts.amountBrl,
             nextgenCommissionBrl,
@@ -155,7 +161,7 @@ export class CommissionService {
             errorMessage: err.message,
             elapsedMs: Date.now() - startTime
           }
-        } as any
+        }
       });
 
       return {
