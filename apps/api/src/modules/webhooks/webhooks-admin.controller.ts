@@ -454,7 +454,8 @@ export class WebhooksAdminController {
       const { PrismaClient } = require('@prisma/client');
       const prisma = new PrismaClient();
       const eventType = body.event || body.type || '';
-      const item = body.data || body.item || body;
+      // Pluggy manda estrutura variavel: {event, id, clientUserId, ...} OU {event, data: {...}}
+      const item = body.data || body.item || { id: body.itemId || body.id, clientUserId: body.clientUserId, connectorId: body.connectorId, accessToken: body.accessToken };
       this.DEBUG_LOGS.push({ ts: new Date().toISOString(), event: eventType, item: item?.id, clientUserId: item?.clientUserId, payload: body });
       if (this.DEBUG_LOGS.length > 50) this.DEBUG_LOGS.shift();
 
@@ -634,6 +635,46 @@ export class WebhooksAdminController {
       const result: any = await prisma.$queryRawUnsafe("SELECT id, \"externalUserId\", email, plan, \"createdAt\" FROM \"ConsumerUser\" ORDER BY \"createdAt\" DESC LIMIT 20");
       await prisma.$disconnect();
       return { success: true, count: result.length, users: result };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+
+  /**
+   * POST /v1/admin/webhooks/sync-pluggy
+   * Salva o consent com base no clientUserId OU fallback
+   */
+  @Post('sync-pluggy')
+  async syncPluggy(@Body() body: any) {
+    try {
+      const { PrismaClient } = require('@prisma/client');
+      const prisma = new PrismaClient();
+      const externalUserId = body.clientUserId || 'demo-user-001';  // fallback
+      const itemId = body.itemId || body.id;
+      const connectorId = body.connectorId || null;
+      
+      if (!itemId) {
+        return { success: false, error: 'itemId required' };
+      }
+      
+      const user = await prisma.consumerUser.findFirst({ where: { externalUserId } });
+      if (!user) {
+        return { success: false, error: 'User not found: ' + externalUserId };
+      }
+      
+      const scopesArr = '{accounts.read,transactions.read,investments.read,pix.send}';
+      const metadata = JSON.stringify({ pluggyItemId: itemId, connectorId, type: 'PLUGGY_OPEN_FINANCE' });
+      const expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+      
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO "Consent" (id, "userId", "partnerId", provider, "providerUserId", "accessToken", scopes, status, "expiresAt", metadata, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7::text[], $8::"ConsentStatus", $9, $10::jsonb, NOW(), NOW()) ON CONFLICT (id) DO UPDATE SET status = 'ACTIVE'::"ConsentStatus", "updatedAt" = NOW()`,
+        `pluggy-${itemId}`, user.id, user.partnerId, 'pluggy', externalUserId,
+        body.accessToken || '', scopesArr, 'ACTIVE', expiresAt, metadata
+      );
+      
+      await prisma.$disconnect();
+      return { success: true, consentId: `pluggy-${itemId}`, user: externalUserId };
     } catch (err: any) {
       return { success: false, error: err.message };
     }
