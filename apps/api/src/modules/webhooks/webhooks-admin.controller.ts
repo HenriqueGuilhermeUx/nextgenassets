@@ -474,7 +474,6 @@ export class WebhooksAdminController {
                   id: `pluggy-${item.id}`,
                   userId: user.id,
                   partnerId: user.partnerId,
-                  type: 'PLUGGY_OPEN_FINANCE',
                   status: 'ACTIVE',
                   provider: 'pluggy',
                   scope: ['accounts.read', 'transactions.read', 'investments.read', 'pix.send'],
