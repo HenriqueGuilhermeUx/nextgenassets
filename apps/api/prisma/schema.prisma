@@ -151,7 +151,15 @@ model ConsumerUser {
   notifyChannels    NotifyChannel[]
   locale            String   @default("pt-BR")
   timezone          String   @default("America/Sao_Paulo")
-  
+
+  // Plano B2C (free 3 usos, depois R$ 19,90/mês)
+  plan              UserPlan  @default(FREE)
+  planStartedAt     DateTime?
+  planExpiresAt     DateTime?
+  triggerCount      Int       @default(0)  // total de triggers criados
+  pixReceivedCount  Int       @default(0)  // PIX recebidos no mês (reseta mensalmente)
+  billingPeriodStart DateTime?  // início do mês de billing
+
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   
@@ -231,6 +239,13 @@ model Trigger {
   @@index([userId])
   @@index([status])
   @@index([nextEvaluationAt])
+}
+
+enum UserPlan {
+  FREE       // 0-3 triggers / mês
+  PREMIUM    // R$ 19,90/mês - ilimitado
+  EXPIRED    // premium venceu
+  CANCELLED  // cancelou
 }
 
 enum TriggerStatus {

@@ -28,6 +28,8 @@ import { EfiPixAdapter } from './modules/destinations/providers/efi-pix-adapter'
 import { AiService } from './modules/ai/ai.service';
 import { AiOrchestrator } from './modules/ai/ai-orchestrator.service';
 import { AiOrchestratorController } from './modules/ai/ai-orchestrator.controller';
+import { BillingController } from './modules/billing/billing.controller';
+import { BillingService } from './modules/billing/billing.service';
 import { CommissionService } from './modules/commissions/commission.service';
 import { AiSuggestionsService } from './modules/ai/ai-suggestions.service';
 import { AiSuggestionsController } from './modules/ai/ai-suggestions.controller';
@@ -73,6 +75,7 @@ import { MarketWatcherWorker } from './workers/market-watcher.worker';
     ),
     ScheduleModule.forRoot()
   ],
+
   controllers: [
     AppController,
     TriggersController,
@@ -89,7 +92,8 @@ import { MarketWatcherWorker } from './workers/market-watcher.worker';
     OffersController,
     ConsentsController,
     AggregatorAdminController,
-    AiSuggestionsController
+    AiSuggestionsController,
+    BillingController
   ],
   providers: [
     // Mocks
@@ -113,6 +117,7 @@ import { MarketWatcherWorker } from './workers/market-watcher.worker';
     AiService,
     AiOrchestrator,
     CommissionService,
+    BillingService,
     EfiWebhookRegistrar,
     AiSuggestionsService,
     MarketDataService,
