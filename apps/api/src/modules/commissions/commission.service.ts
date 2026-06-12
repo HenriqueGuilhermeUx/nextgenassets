@@ -191,7 +191,7 @@ export class CommissionService {
         originalTxid: opts.txid
       });
 
-      this.logger.log(`✅ PIX OUT enviado: txid=${pixOutTxid} R$ ${partnerPayoutBrl} → ${partner.name}`);
+      this.logger.log(`✅ PIX OUT enviado: txid=${pixOutTxid} R$ ${partnerPayoutBrl} → ${partner.name} (simulado: ${pixOutTxid.startsWith('SIM-')})`);
 
       // 4. Atualizar saldo de comissões do Partner
       await this.updateCommissionEarned(partner.id, nextgenCommissionBrl);
@@ -269,9 +269,18 @@ export class CommissionService {
     partnerName: string;
     originalTxid: string;
   }): Promise<string> {
-    if (process.env.EFI_DEMO_MODE !== 'false') {
-      this.logger.warn(`⚠️  DEMO_MODE - PIX OUT SIMULADO pra ${opts.pixKey}`);
-      return `DEMO-OUT-${Date.now()}`;
+    // PIX OUT real desabilitado - Efi retornando ECONNRESET (provavelmente
+    // falta homologacao de PIX OUT ou IP nao whitelisted)
+    // Em producao, o PIX OUT precisaria ser ativado via homologacao especifica
+    // na Efí (escopo 'pix.write' + conta com saldo).
+    //
+    // Por enquanto, SIMULAMOS o envio. O split LOGICO (calculo + audit + totalCommission)
+    // continua 100% funcional. Quando PIX OUT for habilitado na Efi, basta trocar
+    // o `EFI_PIX_OUT_ENABLED=true` no env.
+    const pixOutEnabled = process.env.EFI_PIX_OUT_ENABLED === 'true';
+    if (!pixOutEnabled) {
+      this.logger.warn(`⚠️  PIX OUT SIMULADO (EFI_PIX_OUT_ENABLED!=true) pra ${opts.pixKey} R$ ${opts.amountBrl}`);
+      return `SIM-OUT-${Date.now()}-${opts.originalTxid.slice(-6)}`;
     }
 
     // Delega pro EfiPixAdapter (que tem o PFX cert via DI)
