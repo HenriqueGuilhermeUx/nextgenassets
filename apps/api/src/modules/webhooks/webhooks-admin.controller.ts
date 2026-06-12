@@ -1,3 +1,5 @@
+// PLUGGY_FIX: v3 - provider + scope[]
+
 // ============================================
 //  WEBHOOKS ADMIN — Registra e testa webhooks da Efí
 // ============================================
