@@ -467,21 +467,22 @@ export class WebhooksAdminController {
           if (externalUserId && item.id) {
             const user = await prisma.consumerUser.findFirst({ where: { externalUserId } });
             if (user) {
-              await prisma.consent.upsert({
-                where: { id: `pluggy-${item.id}` },
-                update: { status: 'ACTIVE', updatedAt: new Date() } as any,
-                create: {
-                  id: `pluggy-${item.id}`,
-                  userId: user.id,
-                  partnerId: user.partnerId,
-                  status: 'ACTIVE',
-                  provider: 'pluggy',
-                  scopes: ['accounts.read', 'transactions.read', 'investments.read', 'pix.send'],
-                  accessToken: item.accessToken || '',
-                  expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
-                  metadata: { pluggyItemId: item.id, connectorId: item.connectorId, type: 'PLUGGY_OPEN_FINANCE' }
-                } as any
-              });
+              // Bypass Prisma Client cache: usa SQL raw direto
+              const scopesArr = '{accounts.read,transactions.read,investments.read,pix.send}';
+              await prisma.$executeRawUnsafe(
+                `INSERT INTO "Consent" (id, "userId", "partnerId", provider, "providerUserId", "accessToken", scopes, status, "expiresAt", metadata, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7::text[], $8::"ConsentStatus", $9, $10::jsonb, NOW(), NOW()) ON CONFLICT (id) DO UPDATE SET status = 'ACTIVE'::"ConsentStatus", "updatedAt" = NOW()`,
+                `pluggy-${item.id}`,
+                user.id,
+                user.partnerId,
+                'pluggy',
+                externalUserId,
+                item.accessToken || '',
+                scopesArr,
+                'ACTIVE',
+                new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+                JSON.stringify({ pluggyItemId: item.id, connectorId: item.connectorId, type: 'PLUGGY_OPEN_FINANCE' })
+              );
+              this.logger.log(`✅ Consent saved (raw SQL): pluggy-${item.id}`);
             }
           }
         }
