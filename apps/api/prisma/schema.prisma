@@ -509,7 +509,7 @@ model Consent {
   expiresAt     DateTime?
   
   // Permissões consentidas
-  scopes        String[] // ['accounts.read', 'transactions.read', 'pix.send']
+  scopes        String[]        @default(["accounts.read"])
   
   // Status
   status        ConsentStatus @default(PENDING)
