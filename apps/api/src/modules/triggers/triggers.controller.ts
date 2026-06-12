@@ -41,7 +41,25 @@ export class TriggersController {
   // Cria gatilho a partir de parâmetros estruturados
   @Post()
   async create(@Body() body: { partnerId: string; userId: string; code: string; name?: string; params: any; safetyLimits?: any }) {
-    return prisma.trigger.create({
+    // === B2C BILLING: checa limite FREE 3 triggers ===
+    const FREE_LIMIT = 3;
+    const user = await prisma.consumerUser.findUnique({ where: { id: body.userId } });
+    if (user) {
+      const isPremium = user.plan === 'PREMIUM' && (!user.planExpiresAt || user.planExpiresAt > new Date());
+      if (!isPremium && user.triggerCount >= FREE_LIMIT) {
+        return {
+          success: false,
+          error: 'LIMIT_REACHED',
+          message: `Limite do plano FREE atingido (${user.triggerCount}/${FREE_LIMIT} triggers). Faca upgrade pra Premium por R$ 19,90/mes.`,
+          plan: user.plan,
+          currentUsage: user.triggerCount,
+          limit: FREE_LIMIT,
+          upgradeUrl: '/billing/upgrade',
+          upgradePriceBrl: 19.90
+        };
+      }
+    }
+    const trigger = await prisma.trigger.create({
       data: {
         partnerId: body.partnerId,
         userId: body.userId,
@@ -52,6 +70,14 @@ export class TriggersController {
         nextEvaluationAt: new Date()
       }
     });
+    // Incrementa contador
+    if (user) {
+      await prisma.consumerUser.update({
+        where: { id: body.userId },
+        data: { triggerCount: { increment: 1 } }
+      });
+    }
+    return trigger;
   }
 
   // Cria gatilho a partir de LINGUAGEM NATURAL (IA)

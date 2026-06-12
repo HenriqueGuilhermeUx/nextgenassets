@@ -379,6 +379,45 @@ export class WebhooksAdminController {
   }
 
   /**
+   * POST /v1/admin/webhooks/billing/activate
+   * Ativa Premium de um user (manual, sem PIX OUT)
+   * Body: { userId: "demo-user-001", durationDays?: 30 }
+   */
+  @Post('billing/activate')
+  async activateBilling(@Body() body: { userId: string; durationDays?: number }) {
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+    try {
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + (body.durationDays || 30) * 24 * 60 * 60 * 1000);
+      const user = await prisma.consumerUser.update({
+        where: { id: body.userId },
+        data: {
+          plan: 'PREMIUM',
+          planStartedAt: now,
+          planExpiresAt: expiresAt,
+          billingPeriodStart: now
+        }
+      });
+      return {
+        success: true,
+        message: `Premium ativado por ${body.durationDays || 30} dias`,
+        user: {
+          id: user.id,
+          name: user.name,
+          plan: user.plan,
+          planStartedAt: user.planStartedAt,
+          planExpiresAt: user.planExpiresAt
+        }
+      };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    } finally {
+      await prisma.$disconnect();
+    }
+  }
+
+  /**
    * GET /v1/admin/webhooks/efi/qrcode/:txid
    * Gera QR Code localmente a partir do BR Code (pixCopiaECola)
    * Retorna como IMAGEM PNG (pra abrir no navegador e ler com app)
