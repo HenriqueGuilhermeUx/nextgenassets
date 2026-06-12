@@ -30,6 +30,8 @@ import { AiOrchestrator } from './modules/ai/ai-orchestrator.service';
 import { AiOrchestratorController } from './modules/ai/ai-orchestrator.controller';
 import { BillingController } from './modules/billing/billing.controller';
 import { BillingService } from './modules/billing/billing.service';
+import { PluggyWebhookController } from './modules/pluggy/pluggy-webhook.controller';
+import { PluggyService } from './modules/pluggy/pluggy.service';
 import { CommissionService } from './modules/commissions/commission.service';
 import { AiSuggestionsService } from './modules/ai/ai-suggestions.service';
 import { AiSuggestionsController } from './modules/ai/ai-suggestions.controller';
@@ -93,7 +95,8 @@ import { MarketWatcherWorker } from './workers/market-watcher.worker';
     ConsentsController,
     AggregatorAdminController,
     AiSuggestionsController,
-    BillingController
+    BillingController,
+    PluggyWebhookController
   ],
   providers: [
     // Mocks
@@ -118,6 +121,7 @@ import { MarketWatcherWorker } from './workers/market-watcher.worker';
     AiOrchestrator,
     CommissionService,
     BillingService,
+    PluggyService,
     EfiWebhookRegistrar,
     AiSuggestionsService,
     MarketDataService,
