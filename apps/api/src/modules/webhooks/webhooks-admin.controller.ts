@@ -13,6 +13,7 @@ import { EfiPixAdapter } from '../destinations/providers/efi-pix-adapter';
 
 @Controller('admin/webhooks')
 export class WebhooksAdminController {
+  private DEBUG_LOGS: any[] = [];
   private readonly logger = new Logger(WebhooksAdminController.name);
 
   constructor(
@@ -449,12 +450,13 @@ export class WebhooksAdminController {
    */
   @Post('pluggy-alias')
   async pluggyWebhookAlias(@Body() body: any) {
-    this.logger.log(`Pluggy webhook: ${body.event || body.type || 'unknown'}`);
     try {
       const { PrismaClient } = require('@prisma/client');
       const prisma = new PrismaClient();
       const eventType = body.event || body.type || '';
       const item = body.data || body.item || body;
+      this.DEBUG_LOGS.push({ ts: new Date().toISOString(), event: eventType, item: item?.id, clientUserId: item?.clientUserId, payload: body });
+      if (this.DEBUG_LOGS.length > 50) this.DEBUG_LOGS.shift();
 
       if (eventType.startsWith('item/') || eventType.startsWith('item.')) {
         if (eventType === 'item/deleted' || eventType === 'item.deleted') {
@@ -467,7 +469,8 @@ export class WebhooksAdminController {
           if (externalUserId && item.id) {
             const user = await prisma.consumerUser.findFirst({ where: { externalUserId } });
             if (user) {
-              // Bypass Prisma Client cache: usa SQL raw direto
+              // DEBUG: log in-memory de webhooks recebidos
+// Bypass Prisma Client cache: usa SQL raw direto
               const scopesArr = '{accounts.read,transactions.read,investments.read,pix.send}';
               await prisma.$executeRawUnsafe(
                 `INSERT INTO "Consent" (id, "userId", "partnerId", provider, "providerUserId", "accessToken", scopes, status, "expiresAt", metadata, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7::text[], $8::"ConsentStatus", $9, $10::jsonb, NOW(), NOW()) ON CONFLICT (id) DO UPDATE SET status = 'ACTIVE'::"ConsentStatus", "updatedAt" = NOW()`,
@@ -586,6 +589,16 @@ export class WebhooksAdminController {
     } catch (err: any) {
       return { success: false, error: err.message };
     }
+  }
+
+
+  /**
+   * GET /v1/admin/webhooks/debug-logs
+   * Mostra ultimos payloads recebidos
+   */
+  @Get('debug-logs')
+  async debugLogs() {
+    return { success: true, count: this.DEBUG_LOGS.length, logs: this.DEBUG_LOGS.slice().reverse() };
   }
 
 }
