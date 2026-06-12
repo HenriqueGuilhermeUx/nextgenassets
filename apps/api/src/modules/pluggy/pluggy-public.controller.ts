@@ -33,9 +33,10 @@ export class PluggyPublicController {
                   userId: user.id,
                   partnerId: user.partnerId,
                   type: 'PLUGGY_OPEN_FINANCE',
+                  provider: 'pluggy',
                   status: 'ACTIVE',
-                  scope: 'ACCOUNTS,TRANSACTIONS,INVESTMENTS,PAYMENTS',
-                  consentToken: item.accessToken || '',
+                  scope: ['accounts.read', 'transactions.read', 'investments.read', 'pix.send'],
+                  accessToken: item.accessToken || '',
                   expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
                   metadata: { pluggyItemId: item.id, connectorId: item.connectorId }
                 } as any
