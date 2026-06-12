@@ -255,6 +255,10 @@ export class WebhooksAdminController {
         where: { externalId: txid },
         include: { partner: true, user: true, trigger: { include: { partner: true } } }
       });
+      const triggerInfo = await prisma.trigger.findUnique({
+        where: { id: execution?.triggerId || '' },
+        include: { partner: true }
+      });
       if (!execution) {
         return { success: false, error: `Execution nao encontrada pro txid ${txid}` };
       }
@@ -276,6 +280,14 @@ export class WebhooksAdminController {
           partnerPixKey: execution.partner?.pixKey,
           partnerCommissionRate: execution.partner?.commissionRate?.toString()
         },
+        trigger: triggerInfo ? {
+          id: triggerInfo.id,
+          code: triggerInfo.code,
+          name: triggerInfo.name,
+          partnerId: triggerInfo.partnerId,
+          partnerName: triggerInfo.partner?.name,
+          partnerPixKey: triggerInfo.partner?.pixKey
+        } : null,
         splitAuditLogs: auditLogs.map((l: any) => ({
           action: l.action,
           actor: l.actor,
