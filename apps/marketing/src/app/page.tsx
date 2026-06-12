@@ -38,6 +38,7 @@ function Navbar() {
         <div className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-600">
           <a href="#solucao" className="hover:text-brand-500">Solução</a>
           <a href="#gatilhos" className="hover:text-brand-500">Gatilhos</a>
+          <a href="/preco" className="hover:text-brand-500 font-semibold">Preços</a>
           <a href="#casos" className="hover:text-brand-500">Casos de Uso</a>
           <a href="#preco" className="hover:text-brand-500">Preço</a>
           <a href="#docs" className="hover:text-brand-500">Docs</a>
