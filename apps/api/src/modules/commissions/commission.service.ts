@@ -18,6 +18,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { httpsRequestWithMtls } from '../destinations/providers/efi-https';
 import { buildEfiConfig } from '../../config/efi.config';
+import { EfiPixAdapter } from '../destinations/providers/efi-pix-adapter';
 
 const prisma = new PrismaClient();
 const EFI_CONFIG = buildEfiConfig(process.env);
@@ -25,6 +26,20 @@ const EFI_CONFIG = buildEfiConfig(process.env);
 @Injectable()
 export class CommissionService {
   private readonly logger = new Logger(CommissionService.name);
+  private efiAdapter: EfiPixAdapter | null = null;
+
+  constructor() {
+    // Lazy init pra evitar DI circular
+  }
+
+  private getEfiAdapter(): EfiPixAdapter {
+    if (!this.efiAdapter) {
+      this.efiAdapter = new EfiPixAdapter({
+        get: (key: string) => process.env[key]
+      } as any);
+    }
+    return this.efiAdapter;
+  }
 
   /**
    * Distribui o split quando um pagamento é recebido.
@@ -259,9 +274,8 @@ export class CommissionService {
       return `DEMO-OUT-${Date.now()}`;
     }
 
-    // Delega pro EfiPixAdapter (que tem o PFX cert)
-    const { EfiPixAdapter } = require('../destinations/providers/efi-pix-adapter');
-    const adapter = new EfiPixAdapter();
+    // Delega pro EfiPixAdapter (que tem o PFX cert via DI)
+    const adapter = this.getEfiAdapter();
     const txid = `NGAOUT${Date.now()}`.slice(0, 35);
 
     return await adapter.sendPixOut({
