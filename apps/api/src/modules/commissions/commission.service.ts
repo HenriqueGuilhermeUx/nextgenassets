@@ -66,6 +66,29 @@ export class CommissionService {
 
     if (!partner) {
       this.logger.warn(`Execution ${opts.executionId} sem Partner vinculado - split nao aplicado`);
+      // SEMPRE cria audit log pra debug
+      try {
+        await prisma.auditLog.create({
+          data: {
+            actor: 'system',
+            executionId: execution.id,
+            action: 'COMMISSION_SKIPPED_NO_PARTNER',
+            resource: 'execution',
+            resourceId: execution.id,
+            metadata: {
+              executionId: execution.id,
+              txid: opts.txid,
+              amountBrl: opts.amountBrl,
+              reason: 'execution.trigger.partner is null',
+              triggerId: execution.triggerId,
+              executionPartnerId: execution.partnerId,
+              hasExecutionPartner: !!execution.partner
+            }
+          }
+        });
+      } catch (e: any) {
+        this.logger.error(`Falha ao criar audit log: ${e.message}`);
+      }
       return {
         success: true,
         nextgenCommissionBrl: opts.amountBrl,
