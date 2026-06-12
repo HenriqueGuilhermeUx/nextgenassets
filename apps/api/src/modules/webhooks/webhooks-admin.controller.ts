@@ -680,4 +680,63 @@ export class WebhooksAdminController {
     }
   }
 
+
+  /**
+   * POST /v1/admin/webhooks/pluggy-test
+   * Testa Pluggy: cria Connect Token + lista items
+   */
+  @Post('pluggy-test')
+  async pluggyTest(@Body() body: any) {
+    const clientId = process.env.PLUGGY_CLIENT_ID;
+    const clientSecret = process.env.PLUGGY_CLIENT_SECRET;
+    
+    if (!clientId || !clientSecret) {
+      return { success: false, error: 'PLUGGY_CLIENT_ID / PLUGGY_CLIENT_SECRET nao configurados' };
+    }
+    
+    try {
+      // 1) Auth
+      const authRes = await fetch('https://api.pluggy.ai/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, clientSecret })
+      });
+      if (!authRes.ok) {
+        return { success: false, step: 'auth', status: authRes.status, body: await authRes.text() };
+      }
+      const { apiKey } = await authRes.json();
+      
+      // 2) Connect Token
+      const tokenRes = await fetch('https://api.pluggy.ai/connect_token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-API-KEY': apiKey },
+        body: JSON.stringify({
+          clientUserId: body.clientUserId || 'demo-user-001',
+          webhookUrl: process.env.PLUGGY_WEBHOOK_URL || 'https://api.nextgenassets.com.br/v1/admin/webhooks/pluggy-alias',
+          country: 'BR',
+          language: 'pt-BR'
+        })
+      });
+      if (!tokenRes.ok) {
+        return { success: false, step: 'connect_token', status: tokenRes.status, body: await tokenRes.text() };
+      }
+      const { accessToken } = await tokenRes.json();
+      
+      // 3) Lista items
+      const itemsRes = await fetch('https://api.pluggy.ai/items?page=0&pageSize=10', {
+        headers: { 'X-API-KEY': apiKey }
+      });
+      const items = itemsRes.ok ? await itemsRes.json() : null;
+      
+      return {
+        success: true,
+        apiKeyPreview: apiKey.substring(0, 50) + '...',
+        connectTokenPreview: accessToken.substring(0, 50) + '...',
+        items: items ? { count: items.total, results: items.results.map((i: any) => ({ id: i.id, connector: i.connector?.name, status: i.status, createdAt: i.createdAt })) } : null
+      };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
 }
