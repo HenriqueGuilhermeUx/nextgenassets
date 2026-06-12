@@ -35,6 +35,7 @@ import { PluggyService } from './modules/pluggy/pluggy.service';
 import { PluggyPublicController } from './modules/pluggy/pluggy-public.controller';
 import { PluggyFreshController } from './modules/webhooks/pluggy-fresh.controller';
 import { PluggyDirectController } from './modules/pluggy-webhook/pluggy-direct.controller';
+import { PluggyTraceController } from './modules/pluggy-webhook/pluggy-trace.controller';
 import { CommissionService } from './modules/commissions/commission.service';
 import { AiSuggestionsService } from './modules/ai/ai-suggestions.service';
 import { AiSuggestionsController } from './modules/ai/ai-suggestions.controller';
@@ -102,7 +103,8 @@ import { MarketWatcherWorker } from './workers/market-watcher.worker';
     PluggyWebhookController,
     PluggyPublicController,
     PluggyFreshController,
-    PluggyDirectController
+    PluggyDirectController,
+    PluggyTraceController
   ],
   providers: [
     // Mocks
