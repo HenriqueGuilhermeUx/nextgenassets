@@ -365,6 +365,69 @@ export class WebhooksAdminController {
   }
 
   /**
+   * POST /v1/admin/webhooks/efi/probe-of
+   * Testa endpoints Open Finance da Efi (debug)
+   * Body: { endpoint: "participantes" | "pix" | "pagamentos" }
+   */
+  @Post('efi/probe-of')
+  async probeOf(@Body() body: { endpoint: string }) {
+    // Vou tentar os endpoints OF com mTLS e ver qual responde
+    const { httpsRequestWithMtls } = require('../destinations/providers/efi-https');
+    const { buildEfiConfig } = require('../../config/efi.config');
+    const EFI_CONFIG = buildEfiConfig(process.env);
+
+    const token = await (async () => {
+      const credentials = Buffer.from(
+        `${process.env.EFI_CLIENT_ID}:${process.env.EFI_CLIENT_SECRET}`
+      ).toString('base64');
+      const result = await httpsRequestWithMtls({
+        url: `${EFI_CONFIG.oauthBaseUrl}/oauth/token`,
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${credentials}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Length': '29'
+        },
+        body: 'grant_type=client_credentials'
+      });
+      return JSON.parse(result.body).access_token;
+    })();
+
+    const certBase64 = process.env.EFI_CERTIFICATE_BASE64;
+    const pfx = certBase64 ? Buffer.from(certBase64, 'base64') : undefined;
+
+    // Possíveis URLs OF (em ordem de tentativa)
+    const candidates = [
+      `https://api.efipay.com.br/v1/of/${body.endpoint || 'participantes'}`,
+      `https://api.efipay.com.br/v1/open-finance/${body.endpoint || 'participantes'}`,
+      `https://api.efipay.com.br/open-finance/v1/${body.endpoint || 'participantes'}`,
+      `https://api-pix.gerencianet.com.br/v1/of/${body.endpoint || 'participantes'}`,
+      `https://api.efipay.com.br/v1/openFinance/${body.endpoint || 'participantes'}`,
+    ];
+
+    const results = [];
+    for (const url of candidates) {
+      try {
+        const r = await httpsRequestWithMtls({
+          url,
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'x-skip-mtls-checking': 'true'
+          },
+          pfx,
+          passphrase: ''
+        });
+        results.push({ url, status: r.status, bodyPreview: r.body.substring(0, 200) });
+      } catch (e: any) {
+        results.push({ url, error: e.message });
+      }
+    }
+
+    return { success: true, results };
+  }
+
+  /**
    * GET /v1/admin/webhooks/efi/balance
    * Retorna o saldo Efí (debug pra ver se tem grana pra fazer PIX OUT)
    */
