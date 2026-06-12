@@ -570,4 +570,22 @@ export class WebhooksAdminController {
       res.status(500).json({ error: err.message });
     }
   }
+
+  /**
+   * GET /v1/admin/webhooks/consents
+   * Lista consents Pluggy (debug)
+   */
+  @Get('consents')
+  async listConsents() {
+    try {
+      const { PrismaClient } = require('@prisma/client');
+      const prisma = new PrismaClient();
+      const result: any = await prisma.$queryRawUnsafe("SELECT id, provider, status, metadata, \"providerUserId\", \"createdAt\" FROM \"Consent\" WHERE id LIKE 'pluggy-%' ORDER BY \"createdAt\" DESC LIMIT 10");
+      await prisma.$disconnect();
+      return { success: true, count: result.length, consents: result };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
 }
