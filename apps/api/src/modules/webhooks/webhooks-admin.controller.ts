@@ -475,7 +475,9 @@ export class WebhooksAdminController {
                   type: 'PLUGGY_OPEN_FINANCE',
                   status: 'ACTIVE',
                   scope: 'ACCOUNTS,TRANSACTIONS,INVESTMENTS,PAYMENTS',
-                  consentToken: item.accessToken || '',
+                  accessToken: item.accessToken || '',
+                  provider: 'pluggy',
+                  scope: ['accounts.read', 'transactions.read', 'investments.read', 'pix.send'],
                   expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
                   metadata: { pluggyItemId: item.id, connectorId: item.connectorId }
                 } as any
