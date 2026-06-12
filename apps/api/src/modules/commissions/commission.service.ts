@@ -259,37 +259,17 @@ export class CommissionService {
       return `DEMO-OUT-${Date.now()}`;
     }
 
-    const token = await this.getAccessToken();
+    // Delega pro EfiPixAdapter (que tem o PFX cert)
+    const { EfiPixAdapter } = require('../destinations/providers/efi-pix-adapter');
+    const adapter = new EfiPixAdapter();
     const txid = `NGAOUT${Date.now()}`.slice(0, 35);
 
-    const body = JSON.stringify({
-      valor: opts.amountBrl.toFixed(2),
-      pagador: {
-        chave: EFI_CONFIG.pixKey // nossa chave Efí (quem paga)
-      },
-      favorecido: {
-        chave: opts.pixKey // chave do parceiro
-      }
+    return await adapter.sendPixOut({
+      amountBrl: opts.amountBrl,
+      recipientPixKey: opts.pixKey,
+      recipientPixKeyType: 'EVP',
+      txid
     });
-
-    const result = await httpsRequestWithMtls({
-      url: `${EFI_CONFIG.apiBaseUrl}/v2/pix`,
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'x-skip-mtls-checking': 'true',
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(body).toString()
-      },
-      body
-    });
-
-    if (result.status < 200 || result.status >= 300) {
-      throw new Error(`EFI send pix failed: ${result.status} - ${result.body.substring(0, 300)}`);
-    }
-
-    const data = JSON.parse(result.body);
-    return data.txid || txid;
   }
 
   /**
