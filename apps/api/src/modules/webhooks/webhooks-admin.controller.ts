@@ -476,10 +476,10 @@ export class WebhooksAdminController {
                   partnerId: user.partnerId,
                   status: 'ACTIVE',
                   provider: 'pluggy',
-                  scope: ['accounts.read', 'transactions.read', 'investments.read', 'pix.send'],
+                  scopes: ['accounts.read', 'transactions.read', 'investments.read', 'pix.send'],
                   accessToken: item.accessToken || '',
                   expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
-                  metadata: { pluggyItemId: item.id, connectorId: item.connectorId }
+                  metadata: { pluggyItemId: item.id, connectorId: item.connectorId, type: 'PLUGGY_OPEN_FINANCE' }
                 } as any
               });
             }
