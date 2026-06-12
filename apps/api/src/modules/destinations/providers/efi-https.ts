@@ -30,10 +30,10 @@ export interface HttpsRequestResult {
  * Faz requisição HTTPS com mTLS via Node nativo.
  * Segue redirects 301/302/303/307/308 manualmente.
  */
-export function httpsRequestWithMtls(opts: HttpsRequestOptions): Promise<HttpsRequestResult> {
+export function httpsRequestWithMtls(opts: HttpsRequestOptions, attempt = 1): Promise<HttpsRequestResult> {
   return new Promise((resolve, reject) => {
     const maxRedirects = opts.maxRedirects ?? 3;
-    makeRequest(opts, maxRedirects, resolve, reject);
+    makeRequest(opts, maxRedirects, resolve, reject, attempt);
   });
 }
 
@@ -41,7 +41,8 @@ function makeRequest(
   opts: HttpsRequestOptions,
   redirectsLeft: number,
   resolve: (r: HttpsRequestResult) => void,
-  reject: (e: Error) => void
+  reject: (e: Error) => void,
+  attempt: number
 ): void {
   let parsedUrl: URL;
   try {
@@ -63,6 +64,11 @@ function makeRequest(
   };
 
   const req = https.request(reqOpts, (res) => {
+    // Timeout de 30s na request (proteção contra socket hang up)
+    req.setTimeout(30000, () => {
+      req.destroy(new Error('Request timeout (30s sem resposta)'));
+    });
+
     const chunks: Buffer[] = [];
 
     res.on('data', (chunk: Buffer) => chunks.push(chunk));
@@ -98,7 +104,8 @@ function makeRequest(
           { ...opts, url: newUrl, method: newMethod, body: newBody, headers: newHeaders },
           redirectsLeft - 1,
           resolve,
-          reject
+          reject,
+          attempt
         );
         return;
       }
@@ -107,7 +114,18 @@ function makeRequest(
     });
   });
 
-  req.on('error', (err) => reject(err));
+  req.on('error', (err) => {
+    // Retry em socket hang up (até 3 tentativas com backoff)
+    if (attempt < 3 && (err.message.includes('socket hang up') || err.message.includes('timeout'))) {
+      const backoffMs = attempt * 1000;
+      console.warn(`[efi-https] Retry ${attempt}/3 apos ${backoffMs}ms: ${err.message}`);
+      setTimeout(() => {
+        makeRequest(opts, redirectsLeft, resolve, reject, attempt + 1);
+      }, backoffMs);
+      return;
+    }
+    reject(err);
+  });
 
   if (opts.body) {
     req.write(opts.body);
