@@ -739,4 +739,47 @@ export class WebhooksAdminController {
     }
   }
 
+
+  /**
+   * POST /v1/admin/webhooks/pluggy-connect-token
+   * Gera Connect Token Pluggy (chamado pelo Consumer UI)
+   */
+  @Post('pluggy-connect-token')
+  async pluggyConnectToken(@Body() body: any) {
+    const clientUserId = body.clientUserId || 'demo-user-001';
+    const clientId = process.env.PLUGGY_CLIENT_ID;
+    const clientSecret = process.env.PLUGGY_CLIENT_SECRET;
+    
+    if (!clientId || !clientSecret) {
+      return { success: false, error: 'PLUGGY_CLIENT_ID/SECRET nao configurados' };
+    }
+    
+    try {
+      const authRes = await fetch('https://api.pluggy.ai/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, clientSecret })
+      });
+      if (!authRes.ok) return { success: false, step: 'auth', status: authRes.status, body: await authRes.text() };
+      const { apiKey } = await authRes.json();
+      
+      const tokenRes = await fetch('https://api.pluggy.ai/connect_token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-API-KEY': apiKey },
+        body: JSON.stringify({
+          clientUserId,
+          webhookUrl: process.env.PLUGGY_WEBHOOK_URL || 'https://api.nextgenassets.com.br/v1/admin/webhooks/pluggy-alias',
+          country: 'BR',
+          language: 'pt-BR'
+        })
+      });
+      if (!tokenRes.ok) return { success: false, step: 'connect_token', status: tokenRes.status, body: await tokenRes.text() };
+      const { accessToken } = await tokenRes.json();
+      
+      return { success: true, connectToken: accessToken, clientUserId };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
 }

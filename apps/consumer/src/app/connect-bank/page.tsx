@@ -36,7 +36,7 @@ export default function ConnectBankPage() {
   const getConnectToken = async () => {
     setStatus('Gerando Connect Token...');
     try {
-      const r = await api.post('/consents/connect-token', { clientUserId: userId });
+      const r = await api.post('/admin/webhooks/pluggy-connect-token', { clientUserId: userId });
       if (r.connectToken) {
         setConnectToken(r.connectToken);
         setStatus('Connect Token gerado! Abrindo widget...');
