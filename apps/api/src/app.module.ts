@@ -33,6 +33,7 @@ import { BillingService } from './modules/billing/billing.service';
 import { PluggyWebhookController } from './modules/pluggy/pluggy-webhook.controller';
 import { PluggyService } from './modules/pluggy/pluggy.service';
 import { PluggyPublicController } from './modules/pluggy/pluggy-public.controller';
+import { PluggyFreshController } from './modules/webhooks/pluggy-fresh.controller';
 import { CommissionService } from './modules/commissions/commission.service';
 import { AiSuggestionsService } from './modules/ai/ai-suggestions.service';
 import { AiSuggestionsController } from './modules/ai/ai-suggestions.controller';
@@ -98,7 +99,8 @@ import { MarketWatcherWorker } from './workers/market-watcher.worker';
     AiSuggestionsController,
     BillingController,
     PluggyWebhookController,
-    PluggyPublicController
+    PluggyPublicController,
+    PluggyFreshController
   ],
   providers: [
     // Mocks
