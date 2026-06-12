@@ -123,6 +123,25 @@ export class EfiPixAdapter implements DestinationAdapter {
   }
 
   // ============================================
+  //  GET SALDO (debug)
+  // ============================================
+  async getBalance(): Promise<any> {
+    const token = await this.getAccessToken();
+    const result = await httpsRequestWithMtls({
+      url: `${EFI_CONFIG.apiBaseUrl}/v2/gn/saldo`,
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'x-skip-mtls-checking': 'true'
+      }
+    });
+    if (result.status < 200 || result.status >= 300) {
+      throw new Error(`Efi getBalance failed: ${result.status} - ${result.body.substring(0, 500)}`);
+    }
+    return JSON.parse(result.body);
+  }
+
+  // ============================================
   //  SEND PIX OUT (para Parceiro)
   // ============================================
   async sendPixOut(opts: {

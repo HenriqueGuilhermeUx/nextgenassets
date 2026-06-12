@@ -365,6 +365,20 @@ export class WebhooksAdminController {
   }
 
   /**
+   * GET /v1/admin/webhooks/efi/balance
+   * Retorna o saldo Efí (debug pra ver se tem grana pra fazer PIX OUT)
+   */
+  @Get('efi/balance')
+  async getBalance() {
+    try {
+      const balance = await this.efiAdapter.getBalance();
+      return { success: true, balance };
+    } catch (err: any) {
+      return { success: false, error: err.message, stack: err.stack?.substring(0, 500) };
+    }
+  }
+
+  /**
    * GET /v1/admin/webhooks/efi/qrcode/:txid
    * Gera QR Code localmente a partir do BR Code (pixCopiaECola)
    * Retorna como IMAGEM PNG (pra abrir no navegador e ler com app)
