@@ -1,6 +1,6 @@
 {
   "version": 2,
   "buildCommand": "cd ../.. && npm install --prefix apps/consumer --legacy-peer-deps && npm run build --prefix apps/consumer",
-  "outputDirectory": "apps/consumer/.next",
+  "outputDirectory": ".next",
   "installCommand": "echo 'install handled in buildCommand'"
 }
