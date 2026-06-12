@@ -115,7 +115,7 @@ model ApiKey {
   key         String   @unique
   secretHash  String   // bcrypt
   name        String
-  scopes      String[] // ['partners:read', 'triggers:write', ...]
+  scopes        String[] // ['partners:read', 'triggers:write', ...]
   lastUsedAt  DateTime?
   expiresAt   DateTime?
   createdAt   DateTime @default(now())
