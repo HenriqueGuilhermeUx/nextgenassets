@@ -85,3 +85,4 @@ desktop.ini
 # Migrations geradas (mantém os arquivos mas ignora logs)
 prisma/migrations/*/migration_lock.toml.bak
 .deploy-hook
+*.bak
