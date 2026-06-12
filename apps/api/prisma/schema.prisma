@@ -517,7 +517,10 @@ model Consent {
   
   // Dados coletados no consent
   accounts      Json?    // [{ accountId, type, balance, ... }]
-  
+
+  // Metadata adicional (connectorId, pluggyItemId, etc)
+  metadata      Json?
+
   // Audit
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
