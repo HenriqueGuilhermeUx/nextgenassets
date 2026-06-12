@@ -442,6 +442,57 @@ export class WebhooksAdminController {
   }
 
   /**
+   * POST /v1/admin/webhooks/pluggy-alias
+   * Endpoint publico do Pluggy (funciona mesmo se o controller dedicado nao deployou)
+   */
+  @Post('pluggy-alias')
+  async pluggyWebhookAlias(@Body() body: any) {
+    this.logger.log(`Pluggy webhook: ${body.event || body.type || 'unknown'}`);
+    try {
+      const { PrismaClient } = require('@prisma/client');
+      const prisma = new PrismaClient();
+      const eventType = body.event || body.type || '';
+      const item = body.data || body.item || body;
+
+      if (eventType.startsWith('item/') || eventType.startsWith('item.')) {
+        if (eventType === 'item/deleted' || eventType === 'item.deleted') {
+          await prisma.consent.updateMany({
+            where: { id: `pluggy-${item.id}` },
+            data: { status: 'REVOKED', updatedAt: new Date() } as any
+          });
+        } else {
+          const externalUserId = item.clientUserId || item.userId;
+          if (externalUserId && item.id) {
+            const user = await prisma.consumerUser.findFirst({ where: { externalUserId } });
+            if (user) {
+              await prisma.consent.upsert({
+                where: { id: `pluggy-${item.id}` },
+                update: { status: 'ACTIVE', updatedAt: new Date() } as any,
+                create: {
+                  id: `pluggy-${item.id}`,
+                  userId: user.id,
+                  partnerId: user.partnerId,
+                  type: 'PLUGGY_OPEN_FINANCE',
+                  status: 'ACTIVE',
+                  scope: 'ACCOUNTS,TRANSACTIONS,INVESTMENTS,PAYMENTS',
+                  consentToken: item.accessToken || '',
+                  expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+                  metadata: { pluggyItemId: item.id, connectorId: item.connectorId }
+                } as any
+              });
+            }
+          }
+        }
+      }
+      await prisma.$disconnect();
+      return { received: true, event: eventType };
+    } catch (err: any) {
+      this.logger.error(`Erro: ${err.message}`);
+      return { received: true, error: err.message };
+    }
+  }
+
+  /**
    * POST /v1/admin/webhooks/billing/activate
    * Ativa Premium de um user (manual, sem PIX OUT)
    * Body: { userId: "demo-user-001", durationDays?: 30 }
