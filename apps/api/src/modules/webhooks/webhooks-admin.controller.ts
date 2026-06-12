@@ -621,4 +621,22 @@ export class WebhooksAdminController {
     }
   }
 
+
+  /**
+   * GET /v1/admin/webhooks/list-users
+   * Lista ConsumerUsers (debug)
+   */
+  @Get('list-users')
+  async listUsers() {
+    try {
+      const { PrismaClient } = require('@prisma/client');
+      const prisma = new PrismaClient();
+      const result: any = await prisma.$queryRawUnsafe("SELECT id, \"externalUserId\", email, plan, \"createdAt\" FROM \"ConsumerUser\" ORDER BY \"createdAt\" DESC LIMIT 20");
+      await prisma.$disconnect();
+      return { success: true, count: result.length, users: result };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
 }
