@@ -601,4 +601,24 @@ export class WebhooksAdminController {
     return { success: true, count: this.DEBUG_LOGS.length, logs: this.DEBUG_LOGS.slice().reverse() };
   }
 
+
+  /**
+   * GET /v1/admin/webhooks/trace
+   * Lista webhooks recebidos (tabela WebhookTrace)
+   */
+  @Get('trace')
+  async listTrace() {
+    try {
+      const { PrismaClient } = require('@prisma/client');
+      const prisma = new PrismaClient();
+      // Cria tabela se nao existir
+      await prisma.$executeRawUnsafe("CREATE TABLE IF NOT EXISTS \"WebhookTrace\" (id SERIAL PRIMARY KEY, ts TIMESTAMPTZ NOT NULL DEFAULT NOW(), method TEXT NOT NULL, route TEXT NOT NULL, data JSONB NOT NULL)");
+      const result: any = await prisma.$queryRawUnsafe("SELECT id, ts, method, route, data FROM \"WebhookTrace\" ORDER BY id DESC LIMIT 20");
+      await prisma.$disconnect();
+      return { success: true, count: result.length, traces: result };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
 }
