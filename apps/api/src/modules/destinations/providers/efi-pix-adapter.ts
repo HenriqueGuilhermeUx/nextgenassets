@@ -123,6 +123,56 @@ export class EfiPixAdapter implements DestinationAdapter {
   }
 
   // ============================================
+  //  SEND PIX OUT (para Parceiro)
+  // ============================================
+  async sendPixOut(opts: {
+    amountBrl: number;
+    recipientPixKey: string;
+    recipientPixKeyType?: 'CPF' | 'CNPJ' | 'EMAIL' | 'PHONE' | 'EVP';
+    txid: string;
+  }): Promise<string> {
+    if (process.env.EFI_DEMO_MODE !== 'false') {
+      this.logger.warn(`⚠️  DEMO_MODE - PIX OUT SIMULADO pra ${opts.recipientPixKey}`);
+      return `DEMO-OUT-${opts.txid}`;
+    }
+
+    const token = await this.getAccessToken();
+
+    const body = JSON.stringify({
+      valor: opts.amountBrl.toFixed(2),
+      pagador: {
+        chave: EFI_CONFIG.pixKey // nossa chave Efí (quem paga)
+      },
+      favorecido: {
+        chave: opts.recipientPixKey // chave do favorecido
+      }
+    });
+
+    this.logger.log(`💸 PIX OUT: ${body}`);
+
+    const result = await httpsRequestWithMtls({
+      url: `${EFI_CONFIG.apiBaseUrl}/v2/pix`,
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'x-skip-mtls-checking': 'true',
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body).toString()
+      },
+      body
+    });
+
+    this.logger.log(`💸 PIX OUT response: status=${result.status} body=${result.body.substring(0, 500)}`);
+
+    if (result.status < 200 || result.status >= 300) {
+      throw new Error(`EFI send pix failed: ${result.status} - ${result.body.substring(0, 500)}`);
+    }
+
+    const data = JSON.parse(result.body);
+    return data.txid || opts.txid;
+  }
+
+  // ============================================
   //  CREATE PIX CHARGE
   // ============================================
   async createPixCharge(action: {

@@ -335,6 +335,36 @@ export class WebhooksAdminController {
   }
 
   /**
+   * POST /v1/admin/webhooks/efi/test-payout
+   * Testa envio de PIX OUT pra uma chave (debug)
+   * Body: { amountBrl: 0.10, pixKey: "...", pixKeyType: "EVP" }
+   */
+  @Post('efi/test-payout')
+  async testPayout(@Body() body: { amountBrl: number; pixKey: string; pixKeyType?: string }) {
+    const amount = body.amountBrl || 0.10;
+    const pixKey = body.pixKey;
+    if (!pixKey) {
+      return { success: false, error: 'pixKey obrigatorio' };
+    }
+    try {
+      const txid = `NGATESTOUT${Date.now()}`.slice(0, 35);
+      const pixOut = await this.efiAdapter.sendPixOut({
+        amountBrl: amount,
+        recipientPixKey: pixKey,
+        recipientPixKeyType: (body.pixKeyType as any) || 'EVP',
+        txid
+      });
+      return { success: true, txid: pixOut, amount, pixKey, message: 'PIX OUT enviado' };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err.message,
+        stack: err.stack?.substring(0, 500)
+      };
+    }
+  }
+
+  /**
    * GET /v1/admin/webhooks/efi/qrcode/:txid
    * Gera QR Code localmente a partir do BR Code (pixCopiaECola)
    * Retorna como IMAGEM PNG (pra abrir no navegador e ler com app)
