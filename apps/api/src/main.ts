@@ -84,3 +84,5 @@ bootstrap().catch((err) => {
 // Build: 8ad80e6 - 
 // Schema ConsumerUser: name, partnerId, externalUserId (no cpf, no status)
 // Schema Execution: user + partner required
+
+// FORCE_REBUILD: Fri Jun 12 15:03:50 UTC 2026
