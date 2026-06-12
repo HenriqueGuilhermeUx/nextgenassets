@@ -42,6 +42,54 @@ export class CommissionService {
     pixOutTxid?: string;
     errorMessage?: string;
   }> {
+    // SAFETY NET: try-catch global pra nunca crashar o webhook
+    try {
+      return await this._distributeInternal(opts);
+    } catch (err: any) {
+      this.logger.error(`❌ CRASH em distribute: ${err.message}`, err.stack);
+      try {
+        const { PrismaClient } = require('@prisma/client');
+        const prismaCrash = new PrismaClient();
+        await prismaCrash.auditLog.create({
+          data: {
+            actor: 'system',
+            action: 'COMMISSION_CRASH',
+            resource: 'execution',
+            resourceId: opts.executionId,
+            metadata: {
+              error: err.message,
+              stack: err.stack?.substring(0, 500),
+              executionId: opts.executionId,
+              txid: opts.txid,
+              amountBrl: opts.amountBrl
+            }
+          }
+        });
+        await prismaCrash.$disconnect();
+      } catch (e: any) {
+        this.logger.error(`❌ Falha ate no audit log: ${e.message}`);
+      }
+      return {
+        success: false,
+        nextgenCommissionBrl: 0,
+        partnerPayoutBrl: 0,
+        errorMessage: err.message
+      };
+    }
+  }
+
+  private async _distributeInternal(opts: {
+    executionId: string;
+    amountBrl: number;
+    txid: string;
+    pix?: any;
+  }): Promise<{
+    success: boolean;
+    nextgenCommissionBrl: number;
+    partnerPayoutBrl: number;
+    pixOutTxid?: string;
+    errorMessage?: string;
+  }> {
     const startTime = Date.now();
     this.logger.log(
       `💰 CommissionService.distribute: execution=${opts.executionId} amount=R$ ${opts.amountBrl} txid=${opts.txid}`
@@ -50,7 +98,7 @@ export class CommissionService {
     // 1. Buscar a Execution pra saber qual Partner
     const execution = await prisma.execution.findUnique({
       where: { id: opts.executionId },
-      include: { trigger: { include: { partner: true } } }
+      include: { trigger: { include: { partner: true } }, partner: true }
     });
 
     if (!execution) {
