@@ -132,7 +132,9 @@ export class EfiPixAdapter implements DestinationAdapter {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
-        'x-skip-mtls-checking': 'true'
+        'x-skip-mtls-checking': 'true',
+        'User-Agent': 'NextGenAssets/1.0',
+        'Accept': 'application/json'
       }
     });
     if (result.status < 200 || result.status >= 300) {
@@ -175,6 +177,8 @@ export class EfiPixAdapter implements DestinationAdapter {
       headers: {
         'Authorization': `Bearer ${token}`,
         'x-skip-mtls-checking': 'true',
+        'User-Agent': 'NextGenAssets/1.0',
+        'Accept': 'application/json',
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(body).toString()
       },
