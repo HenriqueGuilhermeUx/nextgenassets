@@ -917,4 +917,79 @@ export class WebhooksAdminController {
     }
   }
 
+
+  /**
+   * POST /v1/admin/webhooks/woovi-simulate
+   * Simula um webhook charge.paid da Woovi (executa a lógica diretamente)
+   */
+  @Post('woovi-simulate')
+  async wooviSimulate(@Body() body: any) {
+    try {
+      const { PrismaClient } = require('@prisma/client');
+      const prisma = new PrismaClient();
+      const event = body.event || 'OPENPIX:CHARGE_PAID';
+      const charge = body.data || body.charge || {
+        identifier: '30e46ba2f1774cd6a9569b9a86487e3e',
+        correlationID: body.correlationID || 'test-woovi-nosplit-1781311000',
+        value: 1000,
+        status: 'COMPLETED',
+        paidAt: new Date().toISOString(),
+        splits: body.splits || []
+      };
+      
+      const correlationID = charge.correlationID;
+      this.logger.log(`🧪 Simulated Woovi event: ${event} correlationID=${correlationID}`);
+      
+      // Tenta achar o trigger
+      const trigger = await prisma.trigger.findFirst({ where: { id: correlationID }, include: { partner: true } });
+      
+      if (trigger) {
+        // Atualiza trigger
+        const metadata = (trigger as any).metadata || {};
+        metadata.wooviChargeId = charge.identifier;
+        metadata.wooviPaidAt = charge.paidAt || new Date().toISOString();
+        metadata.wooviStatus = 'PAID';
+        metadata.simulated = true;
+        
+        await prisma.trigger.update({
+          where: { id: trigger.id },
+          data: {
+            status: 'COMPLETED' as any,
+            paidAt: new Date(charge.paidAt || Date.now()),
+            metadata: metadata as any
+          } as any
+        });
+        
+        // Audit log
+        if (charge.splits && charge.splits.length > 0) {
+          await prisma.auditLog.create({
+            data: {
+              action: 'COMMISSION_DISTRIBUTED',
+              resource: 'trigger',
+              resourceId: trigger.id,
+              actor: 'webhook:woovi:simulated',
+              metadata: {
+                provider: 'woovi',
+                simulated: true,
+                chargeId: charge.identifier,
+                totalCents: charge.value,
+                splits: charge.splits,
+                partnerId: trigger.partnerId
+              } as any
+            } as any
+          });
+        }
+        
+        await prisma.$disconnect();
+        return { success: true, triggerId: trigger.id, status: 'COMPLETED', splits: charge.splits };
+      } else {
+        // Trigger nao existe - cria um ficticio
+        await prisma.$disconnect();
+        return { success: true, note: 'Trigger nao encontrado, webhook simulado sem persistir', correlationID, charge };
+      }
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
 }
