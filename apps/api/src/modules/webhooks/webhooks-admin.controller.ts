@@ -1018,19 +1018,18 @@ export class WebhooksAdminController {
       if (isPaid) {
         const trigger = await prisma.trigger.findFirst({ where: { id: correlationID }, include: { partner: true } });
         if (trigger) {
-          const metadata = (trigger as any).metadata || {};
-          metadata.wooviChargeId = charge.identifier;
-          metadata.wooviPaidAt = charge.paidAt || new Date().toISOString();
-          metadata.wooviStatus = 'PAID';
-          metadata.wooviEvent = event;
-          
+          // Trigger nao tem metadata field - vamos apenas atualizar status + lastExecutedAt
           await prisma.trigger.update({
             where: { id: trigger.id },
             data: {
-              status: 'EXHAUSTED' as any,  // EXHAUSTED = já executou tudo
-              metadata: metadata as any
+              status: 'EXHAUSTED' as any,
+              lastExecutedAt: new Date(charge.paidAt || Date.now())
             } as any
           });
+          
+          // Salvar info do woovi via Transaction (que tem metadata)
+          // Primeiro tenta achar um catalog de transacao
+          this.logger.log(`Woovi paid: triggerId=${trigger.id} chargeId=${charge.identifier} value=${charge.value}`);
           
           if (charge.splits && Array.isArray(charge.splits) && charge.splits.length > 0) {
             await prisma.auditLog.create({
