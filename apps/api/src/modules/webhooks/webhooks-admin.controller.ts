@@ -782,4 +782,91 @@ export class WebhooksAdminController {
     }
   }
 
+
+  /**
+   * POST /v1/admin/webhooks/woovi-test
+   * Testa Woovi: cria charge com split
+   */
+  @Post('woovi-test')
+  async wooviTest(@Body() body: any) {
+    const appId = process.env.WOOVI_APP_ID;
+    const apiUrl = process.env.WOOVI_API_URL || 'https://api.woovi.com';
+    const fromPixKey = process.env.WOOVI_FROM_PIX_KEY;
+
+    if (!appId) {
+      return { success: false, error: 'WOOVI_APP_ID nao configurado' };
+    }
+
+    const totalCents = body.totalCents || 100;  // R$ 1,00
+    const nextgenCents = body.nextgenCents || 3; // 3% NextGen
+    const partnerCents = body.partnerCents || 97; // 97% Partner
+    const correlationID = body.correlationID || `test-${Date.now()}`;
+
+    try {
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': appId
+      };
+
+      // 1) Verifica config
+      const cfgRes = await {
+        success: true,
+        apiUrl,
+        fromPixKey: fromPixKey || 'NÃO CONFIGURADO',
+        hasAppId: !!appId
+      };
+
+      // 2) Cria charge com split
+      const chargePayload: any = {
+        correlationID,
+        value: totalCents,
+        comment: body.comment || `NextGen test ${correlationID}`,
+        expiresIn: 3600
+      };
+      if (body.nextgenPixKey && body.partnerPixKey) {
+        chargePayload.splits = [
+          { pixKey: body.nextgenPixKey, value: nextgenCents },
+          { pixKey: body.partnerPixKey, value: partnerCents }
+        ];
+      }
+      if (body.customer) chargePayload.customer = body.customer;
+
+      const chargeRes = await fetch(`${apiUrl}/api/v1/charge`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(chargePayload)
+      });
+      const chargeData = await chargeRes.json();
+
+      return {
+        success: chargeRes.ok,
+        status: chargeRes.status,
+        config: cfgRes,
+        charge: chargeData.charge || chargeData,
+        splitsRequested: chargePayload.splits,
+        correlationID
+      };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * GET /v1/admin/webhooks/woovi-config
+   * Mostra config Woovi atual
+   */
+  @Get('woovi-config')
+  async wooviConfig() {
+    return {
+      success: true,
+      enabled: process.env.WOOVI_ENABLED !== 'false',
+      hasAppId: !!process.env.WOOVI_APP_ID,
+      hasFromPixKey: !!process.env.WOOVI_FROM_PIX_KEY,
+      apiUrl: process.env.WOOVI_API_URL || 'https://api.woovi.com',
+      fromPixKey: process.env.WOOVI_FROM_PIX_KEY || null,
+      hasWebhookSecret: !!process.env.WOOVI_WEBHOOK_SECRET,
+      webhookUrl: 'https://api.nextgenassets.com.br/v1/webhooks/woovi'
+    };
+  }
+
 }

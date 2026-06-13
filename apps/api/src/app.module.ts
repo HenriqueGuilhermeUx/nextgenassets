@@ -37,6 +37,7 @@ import { PluggyFreshController } from './modules/webhooks/pluggy-fresh.controlle
 import { PluggyDirectController } from './modules/pluggy-webhook/pluggy-direct.controller';
 import { PluggyTraceController } from './modules/pluggy-webhook/pluggy-trace.controller';
 import { PluggyTokenController } from './modules/pluggy-token/pluggy-token.controller';
+import { WooviModule } from './modules/woovi/woovi.module';
 import { CommissionService } from './modules/commissions/commission.service';
 import { AiSuggestionsService } from './modules/ai/ai-suggestions.service';
 import { AiSuggestionsController } from './modules/ai/ai-suggestions.controller';
@@ -80,7 +81,8 @@ import { MarketWatcherWorker } from './workers/market-watcher.worker';
       { name: 'trigger-evaluation' },
       { name: 'trigger-execution' }
     ),
-    ScheduleModule.forRoot()
+    ScheduleModule.forRoot(),
+    WooviModule
   ],
 
   controllers: [
