@@ -1091,4 +1091,33 @@ export class WebhooksAdminController {
     }
   }
 
+
+  /**
+   * POST /v1/admin/webhooks/woovi-pixout
+   * Testa PIX OUT (transferência) da Woovi
+   */
+  @Post('woovi-pixout')
+  async wooviPixOut(@Body() body: any) {
+    const appId = process.env.WOOVI_APP_ID;
+    const apiUrl = process.env.WOOVI_API_URL || 'https://api.woovi.com';
+
+    if (!appId) return { success: false, error: 'WOOVI_APP_ID nao configurado' };
+
+    const value = body.value || 30; // 30 centavos = R$ 0,30
+    const pixKey = body.pixKey || process.env.WOOVI_FROM_PIX_KEY;
+    const correlationID = body.correlationID || `pixout-test-${Date.now()}`;
+
+    try {
+      const r = await fetch(`${apiUrl}/api/v1/transfer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': appId },
+        body: JSON.stringify({ value, pixKey, correlationID })
+      });
+      const data = await r.json();
+      return { success: r.ok, status: r.status, request: { value, pixKey, correlationID }, response: data };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
 }
