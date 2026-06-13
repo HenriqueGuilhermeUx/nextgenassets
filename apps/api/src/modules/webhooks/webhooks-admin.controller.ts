@@ -992,4 +992,87 @@ export class WebhooksAdminController {
     }
   }
 
+
+  /**
+   * POST /v1/admin/webhooks/woovi-receiver
+   * Receiver do webhook Woovi (workaround: Render nao deploya novo controller)
+   */
+  @Post('woovi-receiver')
+  async wooviReceiver(@Body() body: any) {
+    const event = body.event || body.type || '';
+    const charge = body.data || body.charge || body;
+    const correlationID = charge.correlationID;
+    
+    this.logger.log(`📥 Woovi webhook: ${event} correlationID=${correlationID} value=${charge.value}`);
+    this.DEBUG_LOGS.push({ ts: new Date().toISOString(), event, item: charge.identifier, clientUserId: correlationID, payload: body });
+    if (this.DEBUG_LOGS.length > 50) this.DEBUG_LOGS.shift();
+    
+    try {
+      const { PrismaClient } = require('@prisma/client');
+      const prisma = new PrismaClient();
+      
+      // Lista todos os eventos que significam pagamento
+      const isPaid = ['OPENPIX:CHARGE_COMPLETED', 'OPENPIX:CHARGE_PAID', 'CHARGE_PAID', 'charge.paid', 'charge.completed', 'COMPLETED'].includes(event) || charge.status === 'COMPLETED' || charge.status === 'PAID';
+      const isFailed = event.includes('FAILED') || event.includes('EXPIRED') || charge.status === 'FAILED' || charge.status === 'EXPIRED';
+      
+      if (isPaid) {
+        const trigger = await prisma.trigger.findFirst({ where: { id: correlationID }, include: { partner: true } });
+        if (trigger) {
+          const metadata = (trigger as any).metadata || {};
+          metadata.wooviChargeId = charge.identifier;
+          metadata.wooviPaidAt = charge.paidAt || new Date().toISOString();
+          metadata.wooviStatus = 'PAID';
+          metadata.wooviEvent = event;
+          
+          await prisma.trigger.update({
+            where: { id: trigger.id },
+            data: {
+              status: 'COMPLETED' as any,
+              paidAt: new Date(charge.paidAt || Date.now()),
+              metadata: metadata as any
+            } as any
+          });
+          
+          if (charge.splits && Array.isArray(charge.splits) && charge.splits.length > 0) {
+            await prisma.auditLog.create({
+              data: {
+                action: 'COMMISSION_DISTRIBUTED',
+                resource: 'trigger',
+                resourceId: trigger.id,
+                actor: 'webhook:woovi',
+                metadata: {
+                  provider: 'woovi',
+                  chargeId: charge.identifier,
+                  totalCents: charge.value,
+                  splits: charge.splits,
+                  partnerId: trigger.partnerId
+                } as any
+              } as any
+            });
+          }
+          
+          await prisma.$disconnect();
+          return { received: true, event, triggerId: trigger.id, status: 'COMPLETED', splits: charge.splits?.length || 0 };
+        }
+        await prisma.$disconnect();
+        return { received: true, event, correlationID, note: 'Trigger nao encontrado (correlationID nao bate com trigger.id)' };
+      }
+      
+      if (isFailed) {
+        await prisma.trigger.updateMany({
+          where: { id: correlationID },
+          data: { status: 'FAILED' as any } as any
+        });
+        await prisma.$disconnect();
+        return { received: true, event, status: 'FAILED' };
+      }
+      
+      await prisma.$disconnect();
+      return { received: true, event, note: 'evento nao tratado' };
+    } catch (err: any) {
+      this.logger.error(`Erro: ${err.message}`);
+      return { received: true, error: err.message };
+    }
+  }
+
 }
