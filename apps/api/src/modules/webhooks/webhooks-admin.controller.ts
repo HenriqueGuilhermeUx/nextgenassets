@@ -1027,7 +1027,7 @@ export class WebhooksAdminController {
           await prisma.trigger.update({
             where: { id: trigger.id },
             data: {
-              status: 'COMPLETED' as any,
+              status: 'EXHAUSTED' as any,  // EXHAUSTED = já executou tudo
               paidAt: new Date(charge.paidAt || Date.now()),
               metadata: metadata as any
             } as any
