@@ -1,0 +1,5 @@
+{
+  "openapi": "3.0.0",
+  "info": { "title": "NextGen Assets API", "version": "1.0.0" },
+  "servers": [{ "url": "https://api.nextgenassets.com.br" }]
+}

@@ -1285,4 +1285,15 @@ export class WebhooksAdminController {
     };
   }
 
+
+  /**
+   * GET /v1/admin/webhooks/api-spec.json
+   * OpenAPI 3.0 spec (pra Swagger UI)
+   */
+  @Get('api-spec.json')
+  async apiSpec() {
+    // Retorna o spec OpenAPI inline (sem precisar de arquivo estático)
+    return { openapi: '3.0.0', info: { title: 'NextGen Assets API', version: '1.0.0' }, servers: [{ url: 'https://api.nextgenassets.com.br' }] };
+  }
+
 }

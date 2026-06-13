@@ -1,0 +1,202 @@
+{
+  "info": {
+    "name": "NextGen Assets API v1",
+    "description": "Split de PIX nativo. Open Finance. AI Orchestrator.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      { "key": "key", "value": "X-API-Key", "type": "string" },
+      { "key": "value", "value": "{{apiKey}}", "type": "string" }
+    ]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "https://api.nextgenassets.com.br" },
+    { "key": "apiKey", "value": "ng_live_your_key" }
+  ],
+  "item": [
+    {
+      "name": "Woovi — Cobrança com Split",
+      "item": [
+        {
+          "name": "Criar charge com split (R$ 10 = R$ 0,30 + R$ 9,20 + R$ 0,50 Woovi)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/v1/admin/webhooks/woovi-test", "host": ["{{baseUrl}}"], "path": ["v1","admin","webhooks","woovi-test"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"totalCents\": 1000,\n  \"nextgenCents\": 30,\n  \"partnerCents\": 920,\n  \"correlationID\": \"order-{{$timestamp}}\",\n  \"nextgenPixKey\": \"5f3325c1-2210-419c-977e-03b47fddbd1f\",\n  \"partnerPixKey\": \"henriquecampos66@gmail.com\",\n  \"comment\": \"NextGen split teste\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Criar charge SEM split (acumula na conta principal)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/v1/admin/webhooks/woovi-test", "host": ["{{baseUrl}}"], "path": ["v1","admin","webhooks","woovi-test"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"totalCents\": 1000,\n  \"correlationID\": \"order-{{$timestamp}}\",\n  \"comment\": \"NextGen sem split\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Listar subcontas (com saldos)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/v1/admin/webhooks/woovi-subaccounts", "host": ["{{baseUrl}}"], "path": ["v1","admin","webhooks","woovi-subaccounts"] }
+          }
+        },
+        {
+          "name": "Sacar saldo de 1 subconta",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/v1/admin/webhooks/woovi-withdraw", "host": ["{{baseUrl}}"], "path": ["v1","admin","webhooks","woovi-withdraw"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pixKey\": \"61922930000197\",\n  \"value\": 30\n}"
+            }
+          }
+        },
+        {
+          "name": "Sacar saldo de TODAS as subcontas (auto-withdraw)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/v1/admin/webhooks/woovi-withdraw-all", "host": ["{{baseUrl}}"], "path": ["v1","admin","webhooks","woovi-withdraw-all"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"minCents\": 100\n}"
+            }
+          }
+        },
+        {
+          "name": "PIX OUT (transferência entre contas Woovi)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/v1/admin/webhooks/woovi-pixout", "host": ["{{baseUrl}}"], "path": ["v1","admin","webhooks","woovi-pixout"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"value\": 30,\n  \"pixKey\": \"5f3325c1-2210-419c-977e-03b47fddbd1f\",\n  \"correlationID\": \"pixout-{{$timestamp}}\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Woovi — Webhook (simulação)",
+      "item": [
+        {
+          "name": "Simular webhook charge.completed",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/v1/admin/webhooks/woovi-receiver", "host": ["{{baseUrl}}"], "path": ["v1","admin","webhooks","woovi-receiver"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": \"OPENPIX:CHARGE_COMPLETED\",\n  \"data\": {\n    \"identifier\": \"charge-test-123\",\n    \"correlationID\": \"order-{{$timestamp}}\",\n    \"value\": 1000,\n    \"status\": \"COMPLETED\",\n    \"paidAt\": \"2026-06-13T00:00:00.000Z\",\n    \"splits\": [\n      { \"pixKey\": \"5f3325c1-2210-419c-977e-03b47fddbd1f\", \"value\": 30, \"splitType\": \"SPLIT_SUB_ACCOUNT\" },\n      { \"pixKey\": \"34198276870\", \"value\": 920, \"splitType\": \"SPLIT_SUB_ACCOUNT\" }\n    ]\n  }\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Pluggy — Open Finance",
+      "item": [
+        {
+          "name": "Criar Connect Token (pra abrir widget Pluggy)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/v1/admin/webhooks/pluggy-connect-token", "host": ["{{baseUrl}}"], "path": ["v1","admin","webhooks","pluggy-connect-token"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientUserId\": \"user-{{$timestamp}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Listar Consents Pluggy",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/v1/admin/webhooks/consents", "host": ["{{baseUrl}}"], "path": ["v1","admin","webhooks","consents"] }
+          }
+        },
+        {
+          "name": "Simular webhook Pluggy (item/created)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/v1/admin/webhooks/pluggy-alias", "host": ["{{baseUrl}}"], "path": ["v1","admin","webhooks","pluggy-alias"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": \"item/created\",\n  \"itemId\": \"item-{{$timestamp}}\",\n  \"clientUserId\": \"user-{{$timestamp}}\",\n  \"connectorId\": 201\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Debug",
+      "item": [
+        {
+          "name": "Debug logs (webhooks recebidos)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/v1/admin/webhooks/debug-logs", "host": ["{{baseUrl}}"], "path": ["v1","admin","webhooks","debug-logs"] }
+          }
+        },
+        {
+          "name": "Cron status (auto-withdraw)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/v1/admin/webhooks/woovi-cron-status", "host": ["{{baseUrl}}"], "path": ["v1","admin","webhooks","woovi-cron-status"] }
+          }
+        },
+        {
+          "name": "Rodar cron manualmente",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/v1/admin/webhooks/woovi-cron-run", "host": ["{{baseUrl}}"], "path": ["v1","admin","webhooks","woovi-cron-run"] },
+            "body": { "mode": "raw", "raw": "{}" }
+          }
+        },
+        {
+          "name": "SELECT SQL (debug)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/v1/admin/webhooks/select", "host": ["{{baseUrl}}"], "path": ["v1","admin","webhooks","select"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sql\": \"SELECT id, status FROM \\\"Trigger\\\" ORDER BY \\\"createdAt\\\" DESC LIMIT 5\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Billing B2C",
+      "item": [
+        {
+          "name": "Ativar PREMIUM manual (user demo)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/v1/admin/webhooks/billing/activate", "host": ["{{baseUrl}}"], "path": ["v1","admin","webhooks","billing","activate"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"demo-user-001\"\n}"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

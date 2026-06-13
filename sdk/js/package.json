@@ -1,0 +1,13 @@
+{
+  "name": "@nextgen/sdk",
+  "version": "0.1.0",
+  "description": "NextGen Assets SDK - Split PIX nativo, Open Finance, AI",
+  "main": "dist/nextgen-sdk.js",
+  "types": "dist/nextgen-sdk.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "node test.js"
+  },
+  "keywords": ["nextgen", "pix", "split", "open-finance", "pluggy", "woovi"],
+  "license": "MIT"
+}
