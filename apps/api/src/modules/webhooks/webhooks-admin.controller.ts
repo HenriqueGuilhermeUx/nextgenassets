@@ -1250,4 +1250,39 @@ export class WebhooksAdminController {
     }
   }
 
+
+  /**
+   * POST /v1/admin/webhooks/woovi-cron-run
+   * Roda o cron de auto-withdraw manualmente (pra teste)
+   */
+  @Post('woovi-cron-run')
+  async wooviCronRun(@Body() body: any) {
+    try {
+      const { WooviCronService } = require('../woovi/woovi-cron.service');
+      const service = new WooviCronService();
+      const minCents = body?.minCents || 100;
+      // Chama o método direto
+      await (service as any).autoWithdrawAll();
+      return { success: true, message: 'auto-withdraw executado' };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * GET /v1/admin/webhooks/woovi-cron-status
+   * Mostra config do cron
+   */
+  @Get('woovi-cron-status')
+  async wooviCronStatus() {
+    return {
+      success: true,
+      configured: !!process.env.WOOVI_APP_ID,
+      schedule: 'every 1 hour',
+      minCents: parseInt(process.env.AUTO_WITHDRAW_MIN_CENTS || '100'),
+      minBrl: (parseInt(process.env.AUTO_WITHDRAW_MIN_CENTS || '100') / 100).toFixed(2),
+      debugMode: process.env.AUTO_WITHDRAW_DEBUG === 'true'
+    };
+  }
+
 }
