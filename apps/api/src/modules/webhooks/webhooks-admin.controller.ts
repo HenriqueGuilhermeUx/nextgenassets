@@ -831,6 +831,7 @@ export class WebhooksAdminController {
       }
       if (body.customer) chargePayload.customer = body.customer;
 
+      this.logger.log(`Woovi payload: ${JSON.stringify(chargePayload)}`);
       const chargeRes = await fetch(`${apiUrl}/api/v1/charge`, {
         method: 'POST',
         headers,
@@ -843,6 +844,7 @@ export class WebhooksAdminController {
         status: chargeRes.status,
         config: cfgRes,
         charge: chargeData.charge || chargeData,
+        payloadSent: chargePayload,
         splitsRequested: chargePayload.splits,
         correlationID
       };
