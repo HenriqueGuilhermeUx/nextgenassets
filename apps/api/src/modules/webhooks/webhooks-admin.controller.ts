@@ -869,4 +869,52 @@ export class WebhooksAdminController {
     };
   }
 
+
+  /**
+   * POST /v1/admin/webhooks/woovi-register
+   * Registra o webhook NextGen na Woovi
+   */
+  @Post('woovi-register')
+  async wooviRegister(@Body() body: any) {
+    const appId = process.env.WOOVI_APP_ID;
+    const apiUrl = process.env.WOOVI_API_URL || 'https://api.woovi.com';
+    
+    if (!appId) {
+      return { success: false, error: 'WOOVI_APP_ID nao configurado' };
+    }
+
+    const url = body.url || 'https://api.nextgenassets.com.br/v1/webhooks/woovi';
+    const event = body.event || 'OPENPIX:CHARGE_PAID';
+    const name = body.name || 'NextGen Charge Webhook';
+
+    try {
+      // Lista webhooks existentes
+      const listRes = await fetch(`${apiUrl}/api/v1/webhook`, {
+        headers: { 'Authorization': appId }
+      });
+      const list = await listRes.json();
+      const existing = (list.webhooks || []).find((w: any) => w.actionPayload?.url === url);
+
+      if (existing && !body.force) {
+        return { success: true, status: 'already_exists', webhook: existing };
+      }
+
+      // Cria webhook
+      const res = await fetch(`${apiUrl}/api/v1/webhook`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': appId },
+        body: JSON.stringify({
+          name,
+          url,
+          event,
+          isActive: true
+        })
+      });
+      const data = await res.json();
+      return { success: res.ok, status: res.status, webhook: data.webhook || data };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
 }
