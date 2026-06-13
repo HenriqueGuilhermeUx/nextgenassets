@@ -1075,4 +1075,22 @@ export class WebhooksAdminController {
     }
   }
 
+
+  /**
+   * POST /v1/admin/webhooks/select
+   * Executa SELECT e retorna rows
+   */
+  @Post('select')
+  async select(@Body() body: any) {
+    try {
+      const { PrismaClient } = require('@prisma/client');
+      const prisma = new PrismaClient();
+      const result: any = await prisma.$queryRawUnsafe(body.sql);
+      await prisma.$disconnect();
+      return { success: true, rows: result };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
 }
