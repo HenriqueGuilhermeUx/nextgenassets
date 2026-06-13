@@ -825,8 +825,8 @@ export class WebhooksAdminController {
       };
       if (body.nextgenPixKey && body.partnerPixKey) {
         chargePayload.splits = [
-          { pixKey: body.nextgenPixKey, value: nextgenCents },
-          { pixKey: body.partnerPixKey, value: partnerCents }
+          { pixKey: body.nextgenPixKey, value: nextgenCents, splitType: 'SPLIT_SUB_ACCOUNT' },
+          { pixKey: body.partnerPixKey, value: partnerCents, splitType: 'SPLIT_SUB_ACCOUNT' }
         ];
       }
       if (body.customer) chargePayload.customer = body.customer;
