@@ -1,0 +1,181 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "NextGen Assets API",
+    "version": "1.0.0",
+    "description": "Split de PIX nativo. Open Finance. AI Orchestrator."
+  },
+  "servers": [{ "url": "https://api.nextgenassets.com.br" }],
+  "components": {
+    "securitySchemes": {
+      "ApiKey": { "type": "apiKey", "in": "header", "name": "X-API-Key" }
+    }
+  },
+  "security": [{ "ApiKey": [] }],
+  "tags": [
+    { "name": "Woovi", "description": "Cobrança + Split + Withdraw" },
+    { "name": "Pluggy", "description": "Open Finance" },
+    { "name": "Debug", "description": "Endpoints de debug" }
+  ],
+  "paths": {
+    "/v1/admin/webhooks/woovi-test": {
+      "post": {
+        "tags": ["Woovi"],
+        "summary": "Criar charge Woovi com split",
+        "description": "Cria uma cobrança PIX com split nativo (até 2 destinos + Woovi retém 5%).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["totalCents", "correlationID"],
+                "properties": {
+                  "totalCents": { "type": "integer", "description": "Valor total em centavos", "example": 1000 },
+                  "nextgenCents": { "type": "integer", "description": "Split pro NextGen (taxa)", "example": 30 },
+                  "partnerCents": { "type": "integer", "description": "Split pro Partner", "example": 920 },
+                  "correlationID": { "type": "string", "description": "ID único (trigger.id)", "example": "order-123" },
+                  "nextgenPixKey": { "type": "string", "example": "nextgen@pix" },
+                  "partnerPixKey": { "type": "string", "example": "partner@pix" },
+                  "comment": { "type": "string" },
+                  "customer": {
+                    "type": "object",
+                    "properties": {
+                      "name": { "type": "string" },
+                      "email": { "type": "string" },
+                      "taxID": { "type": "string" },
+                      "phone": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Charge criada com sucesso",
+            "content": { "application/json": { "schema": { "type": "object" } } }
+          }
+        }
+      }
+    },
+    "/v1/admin/webhooks/woovi-subaccounts": {
+      "get": {
+        "tags": ["Woovi"],
+        "summary": "Lista subcontas com saldos",
+        "responses": { "200": { "description": "Lista de subcontas", "content": { "application/json": { "schema": { "type": "object" } } } } }
+      }
+    },
+    "/v1/admin/webhooks/woovi-withdraw": {
+      "post": {
+        "tags": ["Woovi"],
+        "summary": "Sacar saldo de 1 subconta",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "required": ["pixKey", "value"], "properties": { "pixKey": { "type": "string" }, "value": { "type": "integer" } } } } }
+        },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/v1/admin/webhooks/woovi-withdraw-all": {
+      "post": {
+        "tags": ["Woovi"],
+        "summary": "Sacar saldo de TODAS as subcontas (auto-withdraw)",
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "minCents": { "type": "integer", "default": 100 } } } } } },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/v1/admin/webhooks/woovi-pixout": {
+      "post": {
+        "tags": ["Woovi"],
+        "summary": "PIX OUT (transferência entre contas)",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "required": ["value", "pixKey"], "properties": { "value": { "type": "integer" }, "pixKey": { "type": "string" }, "correlationID": { "type": "string" } } } } }
+        },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/v1/admin/webhooks/woovi-receiver": {
+      "post": {
+        "tags": ["Woovi"],
+        "summary": "Webhook receiver (charge.completed)",
+        "description": "Seu endpoint recebe este webhook quando uma cobrança é paga.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "event": { "type": "string", "example": "OPENPIX:CHARGE_COMPLETED" },
+                  "data": {
+                    "type": "object",
+                    "properties": {
+                      "identifier": { "type": "string" },
+                      "correlationID": { "type": "string" },
+                      "value": { "type": "integer" },
+                      "status": { "type": "string" },
+                      "paidAt": { "type": "string" },
+                      "splits": { "type": "array", "items": { "type": "object" } }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/v1/admin/webhooks/pluggy-connect-token": {
+      "post": {
+        "tags": ["Pluggy"],
+        "summary": "Cria Connect Token (pra abrir widget Pluggy Connect)",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "required": ["clientUserId"], "properties": { "clientUserId": { "type": "string" } } } } }
+        },
+        "responses": { "200": { "description": "Token gerado" } }
+      }
+    },
+    "/v1/admin/webhooks/consents": {
+      "get": {
+        "tags": ["Pluggy"],
+        "summary": "Lista Consents Pluggy",
+        "responses": { "200": { "description": "Lista de consents" } }
+      }
+    },
+    "/v1/admin/webhooks/pluggy-alias": {
+      "post": {
+        "tags": ["Pluggy"],
+        "summary": "Webhook Pluggy (item/created, item/updated)",
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object" } } } },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/v1/admin/webhooks/debug-logs": {
+      "get": {
+        "tags": ["Debug"],
+        "summary": "Logs in-memory (debug)",
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/v1/admin/webhooks/woovi-cron-status": {
+      "get": {
+        "tags": ["Debug"],
+        "summary": "Status do cron auto-withdraw",
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/v1/admin/webhooks/woovi-cron-run": {
+      "post": {
+        "tags": ["Debug"],
+        "summary": "Roda cron auto-withdraw manualmente",
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object" } } } },
+        "responses": { "200": { "description": "OK" } }
+      }
+    }
+  }
+}
