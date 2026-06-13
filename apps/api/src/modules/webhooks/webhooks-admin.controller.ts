@@ -1200,11 +1200,10 @@ export class WebhooksAdminController {
     if (!value || value <= 0) return { success: false, error: 'value required (> 0)' };
 
     try {
-      const r = await fetch(`${apiUrl}/api/v1/subaccount/withdraw`, {
+      const r = await fetch(`${apiUrl}/api/v1/subaccount/${pixKey}/withdraw`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': appId },
         body: JSON.stringify({
-          pixKey,
           value,
           correlationID: body.correlationID || `withdraw-${pixKey}-${Date.now()}`
         })
