@@ -1122,4 +1122,133 @@ export class WebhooksAdminController {
     }
   }
 
+
+  /**
+   * POST /v1/admin/webhooks/woovi-withdraw-all
+   * Saca TODO o saldo de TODAS as subcontas (auto-withdraw)
+   * Body opcional: { minCents: 10 } = só saca se > 10 centavos
+   */
+  @Post('woovi-withdraw-all')
+  async wooviWithdrawAll(@Body() body: any) {
+    const appId = process.env.WOOVI_APP_ID;
+    const apiUrl = process.env.WOOVI_API_URL || 'https://api.woovi.com';
+    const minCents = body?.minCents || 10;  // mínimo R$ 0,10 pra sacar
+
+    if (!appId) return { success: false, error: 'WOOVI_APP_ID nao configurado' };
+
+    try {
+      // 1) Lista subcontas
+      const subsRes = await fetch(`${apiUrl}/api/v1/subaccount`, {
+        headers: { 'Authorization': appId }
+      });
+      const subs = (await subsRes.json()).subAccounts || [];
+      const results: any[] = [];
+
+      for (const sub of subs) {
+        const balance = sub.balance || 0;
+        if (balance < minCents) {
+          results.push({ pixKey: sub.pixKey, name: sub.name, status: 'skipped', reason: 'saldo < minimo', balance });
+          continue;
+        }
+
+        // Saca tudo (ou balance - 1 centavo pra deixar residual)
+        const amount = balance;
+        try {
+          const wRes = await fetch(`${apiUrl}/api/v1/subaccount/withdraw`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': appId },
+            body: JSON.stringify({
+              pixKey: sub.pixKey,
+              value: amount,
+              correlationID: `auto-withdraw-${sub.pixKey}-${Date.now()}`
+            })
+          });
+          const wData = await wRes.json();
+          results.push({
+            pixKey: sub.pixKey,
+            name: sub.name,
+            status: wRes.ok ? 'withdrawn' : 'error',
+            balance,
+            amount,
+            response: wData
+          });
+        } catch (err: any) {
+          results.push({ pixKey: sub.pixKey, name: sub.name, status: 'error', error: err.message });
+        }
+      }
+
+      return { success: true, processed: results.length, results, minCents };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * POST /v1/admin/webhooks/woovi-withdraw
+   * Saca saldo de UMA subconta específica
+   * Body: { pixKey: "...", value: 30 }
+   */
+  @Post('woovi-withdraw')
+  async wooviWithdraw(@Body() body: any) {
+    const appId = process.env.WOOVI_APP_ID;
+    const apiUrl = process.env.WOOVI_API_URL || 'https://api.woovi.com';
+    const pixKey = body.pixKey;
+    const value = body.value;
+    
+    if (!appId) return { success: false, error: 'WOOVI_APP_ID nao configurado' };
+    if (!pixKey) return { success: false, error: 'pixKey required' };
+    if (!value || value <= 0) return { success: false, error: 'value required (> 0)' };
+
+    try {
+      const r = await fetch(`${apiUrl}/api/v1/subaccount/withdraw`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': appId },
+        body: JSON.stringify({
+          pixKey,
+          value,
+          correlationID: body.correlationID || `withdraw-${pixKey}-${Date.now()}`
+        })
+      });
+      const data = await r.json();
+      return { success: r.ok, status: r.status, response: data };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * GET /v1/admin/webhooks/woovi-subaccounts
+   * Lista subcontas com saldos
+   */
+  @Get('woovi-subaccounts')
+  async wooviSubaccounts() {
+    const appId = process.env.WOOVI_APP_ID;
+    const apiUrl = process.env.WOOVI_API_URL || 'https://api.woovi.com';
+    if (!appId) return { success: false, error: 'WOOVI_APP_ID nao configurado' };
+
+    try {
+      const r = await fetch(`${apiUrl}/api/v1/subaccount`, {
+        headers: { 'Authorization': appId }
+      });
+      const data = await r.json();
+      const subs = data.subAccounts || [];
+      const total = subs.reduce((s: number, sub: any) => s + (sub.balance || 0), 0);
+      return {
+        success: true,
+        count: subs.length,
+        totalCents: total,
+        totalBrl: (total / 100).toFixed(2),
+        subaccounts: subs.map((s: any) => ({
+          pixKey: s.pixKey,
+          name: s.name,
+          balance: s.balance || 0,
+          balanceBrl: ((s.balance || 0) / 100).toFixed(2),
+          withdrawBlocked: s.withdrawBlocked
+        }))
+      };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
 }
