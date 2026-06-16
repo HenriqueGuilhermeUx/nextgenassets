@@ -1296,4 +1296,51 @@ export class WebhooksAdminController {
     return { openapi: '3.0.0', info: { title: 'NextGen Assets API', version: '1.0.0' }, servers: [{ url: 'https://api.nextgenassets.com.br' }] };
   }
 
+
+  /**
+   * GET /v1/admin/webhooks/pluggy-list
+   * Lista webhooks Pluggy registrados
+   */
+  @Get('pluggy-list')
+  async pluggyList() {
+    const apiKey = process.env.PLUGGY_API_KEY;
+    if (!apiKey) return { success: false, error: 'PLUGGY_API_KEY nao configurado' };
+    
+    try {
+      const r = await fetch('https://api.pluggy.ai/webhooks', {
+        headers: { 'X-API-KEY': apiKey }
+      });
+      const data = await r.json();
+      return { success: r.ok, count: (data.results || []).length, webhooks: data.results || data };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * POST /v1/admin/webhooks/pluggy-register-events
+   * Registra webhook Pluggy pra todos eventos (item/created, transactions/*, etc)
+   */
+  @Post('pluggy-register-events')
+  async pluggyRegisterEvents(@Body() body: any) {
+    const apiKey = process.env.PLUGGY_API_KEY;
+    if (!apiKey) return { success: false, error: 'PLUGGY_API_KEY nao configurado' };
+    
+    const url = body.url || 'https://api.nextgenassets.com.br/v1/admin/webhooks/pluggy-alias';
+    const event = body.event || 'all';
+    const name = body.name || 'NextGen All Events Webhook';
+    
+    try {
+      const r = await fetch('https://api.pluggy.ai/webhooks', {
+        method: 'POST',
+        headers: { 'X-API-KEY': apiKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event, url, name })
+      });
+      const data = await r.json();
+      return { success: r.ok, status: r.status, webhook: data };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
 }
