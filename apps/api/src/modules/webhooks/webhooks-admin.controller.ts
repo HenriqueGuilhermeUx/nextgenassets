@@ -1685,14 +1685,19 @@ export class WebhooksAdminController {
         };
       } else {
         // FLUXO C: Link pagamento
+        // Split: 3% NextGen + 97% Partner (Woovi retém o resto)
+        // Taxa Woovi = 0,5% do total (mínimo 1 centavo)
+        const nextgenCents = Math.floor(value * 0.03);
+        const wooviFeeCents = Math.max(Math.ceil(value * 0.005), 1);
+        const partnerCents = value - nextgenCents - wooviFeeCents;
         const charge = await woovi.createChargeWithSplit({
           correlationID: body.correlationID || `gatilho-${Date.now()}`,
           totalCents: value,
-          nextgenCents: Math.floor(value * 0.03),
-          partnerCents: value - Math.floor(value * 0.03) - Math.ceil(value * 0.005),
+          nextgenCents,
+          partnerCents,
           nextgenPixKey: '61922930000197',
           partnerPixKey: 'henriquecampos66@gmail.com',
-          comment: body.comment || 'Gatilho disparou'
+          comment: body.comment || `Gatilho disparou (R$ ${(value/100).toFixed(2)})`
         });
         return {
           success: true,
