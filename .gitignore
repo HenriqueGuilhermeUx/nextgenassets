@@ -86,3 +86,4 @@ desktop.ini
 prisma/migrations/*/migration_lock.toml.bak
 .deploy-hook
 *.bak
+.env.klavi

@@ -1343,4 +1343,84 @@ export class WebhooksAdminController {
     }
   }
 
+
+  /**
+   * GET /v1/admin/webhooks/klavi-status
+   * Status config Klavi
+   */
+  @Get('klavi-status')
+  async klaviStatus() {
+    return {
+      enabled: process.env.KLAVI_ENABLED !== 'false',
+      configured: !!(process.env.KLAVI_ACCESS_KEY && process.env.KLAVI_SECRET_KEY),
+      apiUrl: process.env.KLAVI_API_URL || 'https://api-sandbox.klavi.ai',
+      productType: process.env.KLAVI_PRODUCT_TYPE || 'OF',
+      accessKey: process.env.KLAVI_ACCESS_KEY ? '***' + process.env.KLAVI_ACCESS_KEY.slice(-4) : null
+    };
+  }
+
+  /**
+   * POST /v1/admin/webhooks/klavi-test
+   * Testa Klavi: auth + create link
+   */
+  @Post('klavi-test')
+  async klaviTest(@Body() body: any) {
+    const accessKey = process.env.KLAVI_ACCESS_KEY;
+    const secretKey = process.env.KLAVI_SECRET_KEY;
+    const apiUrl = process.env.KLAVI_API_URL || 'https://api-sandbox.klavi.ai';
+    
+    if (!accessKey || !secretKey) {
+      return { success: false, error: 'KLAVI_ACCESS_KEY / KLAVI_SECRET_KEY nao configurados' };
+    }
+
+    try {
+      // 1) Auth
+      const authRes = await fetch(`${apiUrl}/data/v1/auth`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accessKey, secretKey })
+      });
+      if (!authRes.ok) {
+        const err = await authRes.text();
+        return { success: false, step: 'auth', status: authRes.status, body: err };
+      }
+      const authData: any = await authRes.json();
+
+      // 2) Create link (com taxId do body ou default)
+      const personalTaxId = body.personalTaxId || '34198276870';
+      const linkRes = await fetch(`${apiUrl}/data/v1/links`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authData.accessToken}` },
+        body: JSON.stringify({ personalTaxId, email: body.email, redirectUrl: body.redirectUrl })
+      });
+      if (!linkRes.ok) {
+        const err = await linkRes.text();
+        return { success: false, step: 'createLink', status: linkRes.status, body: err, auth: { hasToken: true, expireIn: authData.expireIn } };
+      }
+      const linkData: any = await linkRes.json();
+
+      return {
+        success: true,
+        auth: { hasToken: true, expireIn: authData.expireIn },
+        link: {
+          linkId: linkData.linkId,
+          linkToken: linkData.linkToken ? linkData.linkToken.substring(0, 30) + '...' : null,
+          linkUrl: linkData.linkUrl,
+          expireIn: linkData.expireIn
+        }
+      };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * POST /v1/admin/webhooks/klavi-simulate
+   * Simula webhook do Klavi
+   */
+  @Post('klavi-simulate')
+  async klaviSimulate(@Body() body: any) {
+    return { received: true, simulated: true, body };
+  }
+
 }
