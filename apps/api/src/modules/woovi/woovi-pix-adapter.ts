@@ -42,6 +42,7 @@ export interface WooviCharge {
   qrCodeImage?: string;
   brCode?: string;
   paymentLinkID?: string;
+  paymentLinkUrl?: string;
   splits?: { id: string; pixKey: string; value: number; status: string }[];
   createdAt: string;
   paidAt?: string;

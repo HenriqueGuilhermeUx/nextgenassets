@@ -1423,4 +1423,147 @@ export class WebhooksAdminController {
     return { received: true, simulated: true, body };
   }
 
+
+  /**
+   * POST /v1/admin/webhooks/gatilho-criar
+   * Cria gatilho de compra end-to-end (Klavi + Woovi)
+   */
+  @Post('gatilho-criar')
+  async gatilhoCriar(@Body() body: any) {
+    try {
+      const { GatilhoCompraService } = require('../gatilho-compra/gatilho-compra.service');
+      const service = new GatilhoCompraService();
+      
+      // Gera link Klavi pra conectar banco (mock taxId)
+      const personalTaxId = body.personalTaxId || '34198276870';
+      const linkRes = await fetch(`${process.env.KLAVI_API_URL || 'https://api-sandbox.klavi.ai'}/data/v1/links`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${await this.klaviGetToken()}`
+        },
+        body: JSON.stringify({ personalTaxId, email: body.email || 'henriquecampos66@gmail.com' })
+      });
+      const linkData: any = await linkRes.json();
+      
+      const result = await service.configurar({
+        userId: body.userId || 'cmqa2r5w70001hmvqqvgywyxd',
+        partnerId: body.partnerId || 'cmq9py9m70000o0ijl4wreunk',
+        offerId: body.offerId,
+        bankCode: body.bankCode || 'itaú',
+        amountCents: body.amountCents || 1000,
+        condition: body.condition || 'auto',
+        threshold: body.threshold,
+        klaviLinkToken: linkData.linkToken,
+        klaviTaxId: personalTaxId
+      });
+      
+      return {
+        success: true,
+        gatilho: result,
+        klaviLinkUrl: linkData.linkUrl
+      };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * Helper: gera token Klavi
+   */
+  private async klaviGetToken(): Promise<string> {
+    const accessKey = process.env.KLAVI_ACCESS_KEY;
+    const secretKey = process.env.KLAVI_SECRET_KEY;
+    if (!accessKey || !secretKey) {
+      throw new Error('KLAVI_ACCESS_KEY / KLAVI_SECRET_KEY nao configurados');
+    }
+    const r = await fetch(`${process.env.KLAVI_API_URL || 'https://api-sandbox.klavi.ai'}/data/v1/auth`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accessKey, secretKey })
+    });
+    if (!r.ok) throw new Error(`Klavi auth: ${r.status}`);
+    const d: any = await r.json();
+    return d.accessToken;
+  }
+
+  /**
+   * POST /v1/admin/webhooks/gatilho-avaliar
+   * Avalia um gatilho (lê saldo via Klavi + cria charge se condição atender)
+   */
+  @Post('gatilho-avaliar')
+  async gatilhoAvaliar(@Body() body: any) {
+    try {
+      const { GatilhoCompraService } = require('../gatilho-compra/gatilho-compra.service');
+      const { KlaviService } = require('../klavi/klavi.service');
+      const { WooviPixAdapter } = require('../woovi/woovi-pix-adapter');
+      
+      const service = new GatilhoCompraService();
+      const klavi = new KlaviService();
+      const woovi = new WooviPixAdapter();
+      
+      const result = await service.avaliar({
+        gatilhoId: body.gatilhoId,
+        klaviService: klavi,
+        wooviAdapter: woovi
+      });
+      
+      return { success: true, ...result };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * POST /v1/admin/webhooks/gatilho-flow-completo
+   * FLUXO END-TO-END pra teste:
+   * 1. Cria gatilho
+   * 2. Avalia (lê saldo Klavi)
+   * 3. Cria charge Woovi se condição atender
+   * 4. Retorna link pagamento
+   */
+  @Post('gatilho-flow-completo')
+  async gatilhoFlowCompleto(@Body() body: any) {
+    try {
+      const { GatilhoCompraService } = require('../gatilho-compra/gatilho-compra.service');
+      const service = new GatilhoCompraService();
+      
+      // 1) Cria gatilho
+      const personalTaxId = body.personalTaxId || '34198276870';
+      const linkRes = await fetch(`${process.env.KLAVI_API_URL || 'https://api-sandbox.klavi.ai'}/data/v1/links`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${await this.klaviGetToken()}`
+        },
+        body: JSON.stringify({ personalTaxId, email: 'henriquecampos66@gmail.com' })
+      });
+      const linkData: any = await linkRes.json();
+      
+      const gatilho = await service.configurar({
+        userId: 'cmqa2r5w70001hmvqqvgywyxd',
+        partnerId: 'cmq9py9m70000o0ijl4wreunk',
+        offerId: 'offer-demo-001',
+        bankCode: body.bankCode || 'itau',
+        amountCents: body.amountCents || 1000,
+        condition: 'auto',
+        klaviLinkToken: linkData.linkToken,
+        klaviTaxId: personalTaxId
+      });
+      
+      return {
+        success: true,
+        step1_gatilho: gatilho,
+        step2_klaviLink: {
+          linkUrl: linkData.linkUrl,
+          linkId: linkData.linkId,
+          expireIn: linkData.expireIn
+        },
+        nextStep: 'POST /v1/admin/webhooks/gatilho-avaliar com {gatilhoId}'
+      };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
 }
