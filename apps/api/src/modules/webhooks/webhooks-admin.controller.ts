@@ -1566,4 +1566,143 @@ export class WebhooksAdminController {
     }
   }
 
+
+  /**
+   * POST /v1/admin/webhooks/woovi-subscription-create
+   * Cria subscription recorrente (Pix Automático)
+   */
+  @Post('woovi-subscription-create')
+  async wooviSubscriptionCreate(@Body() body: any) {
+    const appId = process.env.WOOVI_APP_ID;
+    const apiUrl = process.env.WOOVI_API_URL || 'https://api.woovi.com';
+    
+    if (!appId) return { success: false, error: 'WOOVI_APP_ID nao configurado' };
+
+    const value = body.value || 1990;  // R$ 19,90 default (PREMIUM)
+    const taxID = body.taxID || '34198276870';
+    const dayGenerateCharge = body.dayGenerateCharge || 5;  // dia 5
+    const name = body.name || 'Henrique Campos';
+    const email = body.email || 'henriquecampos66@gmail.com';
+    const phone = body.phone || '5511947984328';
+    const correlationID = body.correlationID || `sub-${Date.now()}`;
+
+    try {
+      const r = await fetch(`${apiUrl}/api/v1/subscriptions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': appId },
+        body: JSON.stringify({
+          value,
+          customer: { name, taxID, email, phone, address: { zipcode: '01310100', street: 'Av Paulista', number: '1000', neighborhood: 'Bela Vista', city: 'São Paulo', state: 'SP', country: 'BR' } },
+          dayGenerateCharge,
+          chargeType: 'OVERDUE',
+          correlationID
+        })
+      });
+      const data = await r.json();
+      return { success: r.ok, status: r.status, request: { value, taxID, dayGenerateCharge }, response: data };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * GET /v1/admin/webhooks/woovi-subscription-list
+   * Lista subscriptions
+   */
+  @Get('woovi-subscription-list')
+  async wooviSubscriptionList() {
+    const appId = process.env.WOOVI_APP_ID;
+    const apiUrl = process.env.WOOVI_API_URL || 'https://api.woovi.com';
+    if (!appId) return { success: false, error: 'WOOVI_APP_ID nao configurado' };
+
+    try {
+      const r = await fetch(`${apiUrl}/api/v1/subscriptions?pageSize=20`, {
+        headers: { 'Authorization': appId }
+      });
+      const data = await r.json();
+      return { success: r.ok, count: (data.subscriptions || []).length, subscriptions: data.subscriptions || data };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * DELETE /v1/admin/webhooks/woovi-subscription-cancel
+   * Cancela subscription
+   */
+  @Post('woovi-subscription-cancel')
+  async wooviSubscriptionCancel(@Body() body: any) {
+    const appId = process.env.WOOVI_APP_ID;
+    const apiUrl = process.env.WOOVI_API_URL || 'https://api.woovi.com';
+    if (!appId) return { success: false, error: 'WOOVI_APP_ID nao configurado' };
+    if (!body.globalID) return { success: false, error: 'globalID required' };
+
+    try {
+      const r = await fetch(`${apiUrl}/api/v1/subscriptions/${body.globalID}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': appId }
+      });
+      const data = await r.json();
+      return { success: r.ok, status: r.status, response: data };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * POST /v1/admin/webhooks/gatilho-avaliado-completo
+   * FLUXO A (subscription) + C (link pagamento) consolidado
+   * Se amountCents >= 10000 (R$ 100) E user tem consent Klavi: cria subscription
+   * Senão: cria charge normal (link pagamento)
+   */
+  @Post('gatilho-avaliado-completo')
+  async gatilhoAvaliadoCompleto(@Body() body: any) {
+    try {
+      const { WooviPixAdapter } = require('../woovi/woovi-pix-adapter');
+      const woovi = new WooviPixAdapter();
+      
+      const value = body.amountCents || 1990;
+      const taxID = body.taxID || '34198276870';
+      const isRecurring = body.recurring === true;
+      
+      if (isRecurring) {
+        // FLUXO A: Subscription
+        const sub = await woovi.createSubscription({
+          value,
+          customer: {
+            name: body.name || 'Henrique Campos',
+            taxID,
+            email: body.email || 'henriquecampos66@gmail.com',
+            phone: body.phone || '5511947984328'
+          },
+          dayGenerateCharge: body.dayGenerateCharge || 5,
+          correlationID: body.correlationID
+        });
+        return { 
+          success: true, 
+          flow: 'A (subscription recorrente)',
+          subscription: sub
+        };
+      } else {
+        // FLUXO C: Link pagamento
+        const charge = await woovi.createChargeWithSplit({
+          correlationID: body.correlationID || `gatilho-${Date.now()}`,
+          totalCents: value,
+          nextgenCents: Math.floor(value * 0.03),
+          partnerCents: value - Math.floor(value * 0.03) - Math.ceil(value * 0.005),
+          nextgenPixKey: '61922930000197',
+          partnerPixKey: 'henriquecampos66@gmail.com',
+          comment: body.comment || 'Gatilho disparou'
+        });
+        return {
+          success: true,
+          flow: 'C (link pagamento manual)',
+          charge
+        };
+      }
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
 }

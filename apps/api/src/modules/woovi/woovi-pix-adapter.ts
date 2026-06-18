@@ -176,6 +176,74 @@ export class WooviPixAdapter {
   }
 
   /**
+   * SUBSCRIPTION: cria uma recorrência (Pix Automático) - PRODUCTION READY
+   * Cliente autoriza recorrência: todo dia X, Woovi cobra automaticamente
+   */
+  async createSubscription(opts: {
+    value: number;          // centavos
+    customer: { name: string; taxID: string; email?: string; phone?: string };
+    dayGenerateCharge: number;  // 1-27 (dia do mês)
+    chargeType?: 'OVERDUE' | 'PIX';
+    periodicity?: 'MONTHLY' | 'WEEKLY';
+    correlationID?: string;
+  }): Promise<any> {
+    const body: any = {
+      value: opts.value,
+      customer: opts.customer,
+      dayGenerateCharge: opts.dayGenerateCharge,
+      chargeType: opts.chargeType || 'OVERDUE'
+    };
+    if (opts.periodicity) body.periodicity = opts.periodicity;
+    if (opts.correlationID) body.correlationID = opts.correlationID;
+
+    this.logger.log(`📅 Creating subscription: R$ ${(opts.value/100).toFixed(2)}/month day ${opts.dayGenerateCharge} taxID=${opts.customer.taxID}`);
+
+    const r = await fetch(`${this.baseUrl}/api/v1/subscriptions`, {
+      method: 'POST',
+      headers: this.headers(),
+      body: JSON.stringify(body)
+    });
+
+    if (!r.ok) {
+      const err = await r.text();
+      throw new Error(`Woovi subscription error: ${r.status} - ${err}`);
+    }
+    const data = await r.json();
+    this.logger.log(`✅ Subscription created: ${data.subscription?.globalID || 'OK'}`);
+    return data.subscription || data;
+  }
+
+  /**
+   * SUBSCRIPTION: lista todas
+   */
+  async listSubscriptions(opts: { page?: number; pageSize?: number } = {}): Promise<any> {
+    const params = new URLSearchParams();
+    if (opts.page) params.set('page', String(opts.page));
+    if (opts.pageSize) params.set('pageSize', String(opts.pageSize || 100));
+
+    const r = await fetch(`${this.baseUrl}/api/v1/subscriptions?${params}`, {
+      headers: this.headers()
+    });
+    if (!r.ok) throw new Error(`Woovi listSubscriptions: ${r.status}`);
+    return r.json();
+  }
+
+  /**
+   * SUBSCRIPTION: cancela
+   */
+  async cancelSubscription(globalID: string): Promise<any> {
+    const r = await fetch(`${this.baseUrl}/api/v1/subscriptions/${globalID}`, {
+      method: 'DELETE',
+      headers: this.headers()
+    });
+    if (!r.ok) {
+      const err = await r.text();
+      throw new Error(`Woovi cancelSubscription: ${r.status} - ${err}`);
+    }
+    return r.json();
+  }
+
+  /**
    * PIX OUT (transferência) - requer request access na Woovi
    */
   async createTransfer(opts: {
