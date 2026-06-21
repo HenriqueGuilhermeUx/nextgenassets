@@ -1872,4 +1872,112 @@ export class WebhooksAdminController {
     return { success: true, results };
   }
 
+
+  /**
+   * POST /v1/admin/webhooks/efi-of-flow-completo
+   * FLUXO END-TO-END: Cria consent → inicia pagamento → split Woovi
+   * Esse é O fluxo "pagar direto da conta do cliente"
+   */
+  @Post('efi-of-flow-completo')
+  async efiOfFlowCompleto(@Body() body: any) {
+    try {
+      const { EfiOFService } = require('../efi-of/efi-of.service');
+      const { WooviPixAdapter } = require('../woovi/woovi-pix-adapter');
+      const efi = new EfiOFService();
+      const woovi = new WooviPixAdapter();
+      
+      const cpf = body.cpf || '34198276870';
+      const amountCents = body.amountCents || 1000;
+      const description = body.description || 'NextGen payment';
+      const pixKey = body.pixKey || 'henriquecampos66@gmail.com';
+      
+      // 1) Cria consentimento (cliente autoriza NextGen a iniciar pagamento)
+      const consent = await efi.createConsent({
+        cpf,
+        permissions: ['accounts.read', 'transactions.read', 'payments.initiate']
+      });
+      
+      // 2) Inicia pagamento (PISP - direto da conta do cliente)
+      // NOTA: precisa de consent.authorized (cliente autorizou no app do banco)
+      // Pra teste, vamos simular
+      const payment = await efi.initiatePayment({
+        consentId: consent.consentId,
+        cpf,
+        amountCents,
+        pixKey,
+        description
+      });
+      
+      // 3) Quando PIX chegar na conta NextGen, Woovi faz split
+      const totalCents = amountCents;
+      const nextgenCents = Math.floor(totalCents * 0.03);
+      const wooviFeeCents = Math.max(Math.ceil(totalCents * 0.005), 1);
+      const partnerCents = totalCents - nextgenCents - wooviFeeCents;
+      
+      const charge = await woovi.createChargeWithSplit({
+        correlationID: `efi-${payment.paymentId}`,
+        totalCents,
+        nextgenCents,
+        partnerCents,
+        nextgenPixKey: '61922930000197',
+        partnerPixKey: pixKey,
+        comment: `Efi OF: ${description}`
+      });
+      
+      return {
+        success: true,
+        step1_consent: consent,
+        step2_payment: payment,
+        step3_split: charge
+      };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * POST /v1/admin/webhooks/efi-criar-consent
+   * Passo 1: Cria consentimento (cliente autoriza no app)
+   */
+  @Post('efi-criar-consent')
+  async efiCriarConsent(@Body() body: any) {
+    try {
+      const { EfiOFService } = require('../efi-of/efi-of.service');
+      const efi = new EfiOFService();
+      const result = await efi.createConsent({
+        cpf: body.cpf || '34198276870',
+        cnpj: body.cnpj,
+        permissions: body.permissions || ['accounts.read', 'transactions.read', 'payments.initiate'],
+        expirationDateTime: body.expirationDateTime,
+        redirectUrl: body.redirectUrl
+      });
+      return { success: true, ...result };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * POST /v1/admin/webhooks/efi-pay
+   * Passo 2: Inicia pagamento (já com consentId)
+   */
+  @Post('efi-pay')
+  async efiPay(@Body() body: any) {
+    try {
+      const { EfiOFService } = require('../efi-of/efi-of.service');
+      const efi = new EfiOFService();
+      const result = await efi.initiatePayment({
+        consentId: body.consentId,
+        cpf: body.cpf || '34198276870',
+        cnpj: body.cnpj,
+        amountCents: body.amountCents,
+        pixKey: body.pixKey || 'henriquecampos66@gmail.com',
+        description: body.description || 'NextGen payment'
+      });
+      return { success: true, ...result };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
 }
