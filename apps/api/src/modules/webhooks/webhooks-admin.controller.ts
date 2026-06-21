@@ -1789,4 +1789,28 @@ export class WebhooksAdminController {
     }
   }
 
+
+  /**
+   * GET /v1/admin/webhooks/efi-cert-info
+   * Info do certificado Efi (validade, subject, etc)
+   */
+  @Get('efi-cert-info')
+  async efiCertInfo() {
+    try {
+      const certBase64 = process.env.EFI_CERTIFICATE_BASE64;
+      if (!certBase64) return { success: false, error: 'EFI_CERTIFICATE_BASE64 nao configurado' };
+      
+      const pfx = Buffer.from(certBase64, 'base64');
+      return {
+        success: true,
+        size: pfx.length,
+        sha256: require('crypto').createHash('sha256').update(pfx).digest('hex').substring(0, 32),
+        // Tentamos extrair mais info se tiver openssl
+        hasPassphrase: !!process.env.EFI_CERT_PASSPHRASE
+      };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
 }
