@@ -1980,4 +1980,56 @@ export class WebhooksAdminController {
     }
   }
 
+
+  /**
+   * GET /v1/admin/webhooks/efi-cert-decode
+   * Decodifica o cert .p12 (validade, subject, issuer)
+   */
+  @Get('efi-cert-decode')
+  async efiCertDecode() {
+    try {
+      const { execSync } = require('child_process');
+      const certBase64 = process.env.EFI_CERTIFICATE_BASE64;
+      if (!certBase64) return { success: false, error: 'EFI_CERTIFICATE_BASE64 nao configurado' };
+      
+      // Salva em arquivo temp
+      const tmpPath = '/tmp/efi_cert.p12';
+      require('fs').writeFileSync(tmpPath, Buffer.from(certBase64, 'base64'));
+      
+      // Tenta ler info sem passphrase
+      let info: string;
+      try {
+        info = execSync(`openssl pkcs12 -in ${tmpPath} -info -nokeys -passin pass: 2>&1`, { encoding: 'utf-8', timeout: 5000 });
+      } catch (e: any) {
+        // Tenta com passphrase vazia
+        try {
+          info = execSync(`openssl pkcs12 -in ${tmpPath} -info -nokeys -passin pass:changeit 2>&1`, { encoding: 'utf-8', timeout: 5000 });
+        } catch (e2: any) {
+          return { 
+            success: false, 
+            error: 'Cert protegido por senha',
+            hint: 'Tente com senha. Ou set EFI_CERT_PASSPHRASE'
+          };
+        }
+      }
+      
+      // Extrai info básica
+      const lines = info.split('\n');
+      const issuerLine = lines.find((l: string) => l.includes('issuer='));
+      const subjectLine = lines.find((l: string) => l.includes('subject='));
+      const datesLine = lines.find((l: string) => l.includes('notBefore') || l.includes('notAfter'));
+      
+      return {
+        success: true,
+        size: Buffer.from(certBase64, 'base64').length,
+        issuer: issuerLine,
+        subject: subjectLine,
+        dates: datesLine,
+        preview: info.substring(0, 1000)
+      };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
 }
