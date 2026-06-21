@@ -32,6 +32,65 @@ export class EfiOFService {
   }
 
   /**
+   * Faz requisição HTTPS com mTLS (cert .p12)
+   * @param method POST/GET
+   * @param path ex: '/v1/consent'
+   * @param body JSON object ou undefined
+   * @param extraHeaders headers extras
+   */
+  private async mTLSRequest(opts: {
+    method: 'POST' | 'GET' | 'PUT' | 'DELETE';
+    path: string;
+    body?: any;
+    extraHeaders?: Record<string, string>;
+    useOAuthUrl?: boolean;
+  }): Promise<{ status: number; data: any; text: string }> {
+    if (!this.cfg.certBase64) {
+      throw new Error('EFI_CERTIFICATE_BASE64 nao configurado');
+    }
+    const pfx = Buffer.from(this.cfg.certBase64, 'base64');
+    
+    const baseUrl = opts.useOAuthUrl ? this.cfg.oauthUrl : this.cfg.apiUrl;
+    const url = new URL(baseUrl + opts.path);
+    
+    return new Promise((resolve, reject) => {
+      const reqOptions: https.RequestOptions = {
+        method: opts.method,
+        hostname: url.hostname,
+        port: url.port || 443,
+        path: url.pathname + url.search,
+        pfx: pfx,
+        passphrase: this.cfg.certPassphrase || '',
+        rejectUnauthorized: false,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(opts.extraHeaders || {})
+        }
+      };
+      
+      const req = https.request(reqOptions, (res) => {
+        let data = '';
+        res.on('data', (chunk) => data += chunk);
+        res.on('end', () => {
+          try {
+            const parsed = JSON.parse(data);
+            resolve({ status: res.statusCode || 0, data: parsed, text: data });
+          } catch {
+            resolve({ status: res.statusCode || 0, data: null, text: data });
+          }
+        });
+      });
+      
+      req.on('error', (err) => reject(err));
+      
+      if (opts.body) {
+        req.write(JSON.stringify(opts.body));
+      }
+      req.end();
+    });
+  }
+
+  /**
    * Gera access_token via OAuth2 client_credentials
    */
   async ensureToken(): Promise<string> {
@@ -53,25 +112,19 @@ export class EfiOFService {
       scope: 'open-finance.consent open-finance.payment'
     };
 
-    const httpsAgent = this.getHttpsAgent();
-    const url = this.cfg.oauthUrl;
-
-    const res = await fetch(url, {
+    const res = await this.mTLSRequest({
       method: 'POST',
-      headers: {
-        'Authorization': `Basic ${credenciais}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(body),
-      // @ts-ignore - Node fetch supports agent via dispatcher
+      path: '/v1/oauth/token',
+      body,
+      extraHeaders: { 'Authorization': `Basic ${credenciais}` },
+      useOAuthUrl: true
     });
 
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`Efi OAuth error: ${res.status} - ${err}`);
+    if (res.status < 200 || res.status >= 300) {
+      throw new Error(`Efi OAuth error: ${res.status} - ${res.text}`);
     }
 
-    const data: any = await res.json();
+    const data = res.data;
     this.accessToken = data.access_token;
     this.tokenExpiresAt = Date.now() + (data.expires_in * 1000);
     this.logger.log(`🔑 Efi OF token refreshed (expires in ${data.expires_in}s)`);
@@ -107,21 +160,18 @@ export class EfiOFService {
       redirectUri: opts.redirectUrl || 'https://app.nextgenassets.com.br/efi/callback'
     };
 
-    const res = await fetch(`${this.cfg.apiUrl}/v1/consent`, {
+    const res = await this.mTLSRequest({
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(body)
+      path: '/v1/consent',
+      body,
+      extraHeaders: { 'Authorization': `Bearer ${token}` }
     });
 
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`Efi createConsent error: ${res.status} - ${err}`);
+    if (res.status < 200 || res.status >= 300) {
+      throw new Error(`Efi createConsent error: ${res.status} - ${res.text}`);
     }
 
-    const data: any = await res.json();
+    const data = res.data;
     this.logger.log(`✅ Consent criado: ${data.data?.consentId}`);
     return {
       consentId: data.data?.consentId,
@@ -163,22 +213,21 @@ export class EfiOFService {
       }
     };
 
-    const res = await fetch(`${this.cfg.apiUrl}/v1/payments`, {
+    const res = await this.mTLSRequest({
       method: 'POST',
-      headers: {
+      path: '/v1/payments',
+      body,
+      extraHeaders: {
         'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
         'Idempotency-Key': body.data.idempotencyKey
-      },
-      body: JSON.stringify(body)
+      }
     });
 
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`Efi initiatePayment error: ${res.status} - ${err}`);
+    if (res.status < 200 || res.status >= 300) {
+      throw new Error(`Efi initiatePayment error: ${res.status} - ${res.text}`);
     }
 
-    const data: any = await res.json();
+    const data = res.data;
     this.logger.log(`💸 Pagamento iniciado: ${data.data?.paymentId}`);
     return {
       paymentId: data.data?.paymentId,
