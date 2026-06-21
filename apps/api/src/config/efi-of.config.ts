@@ -1,0 +1,27 @@
+// ============================================
+//  EFI OPEN FINANCE CONFIG
+//  PISP - Payment Initiation Service Provider
+//  Docs: https://dev.efipay.com.br
+// ============================================
+
+export interface EfiOFConfig {
+  apiUrl: string;
+  oauthUrl: string;
+  clientId: string;
+  clientSecret: string;
+  certBase64: string;
+  certPassphrase: string;
+  enabled: boolean;
+}
+
+export function buildEfiOFConfig(env: NodeJS.ProcessEnv = process.env): EfiOFConfig {
+  return {
+    apiUrl: env.EFI_OF_API_URL || 'https://openfinance.api.efibank.com.br',
+    oauthUrl: env.EFI_OAUTH_URL || 'https://openfinance.api.efibank.com.br/v1/oauth/token',
+    clientId: env.EFI_CLIENT_ID || '',
+    clientSecret: env.EFI_CLIENT_SECRET || '',
+    certBase64: env.EFI_CERTIFICATE_BASE64 || '',
+    certPassphrase: env.EFI_CERT_PASSPHRASE || '',
+    enabled: env.EFI_OF_ENABLED !== 'false'
+  };
+}

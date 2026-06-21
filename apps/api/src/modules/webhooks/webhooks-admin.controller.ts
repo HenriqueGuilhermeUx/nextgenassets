@@ -1710,4 +1710,83 @@ export class WebhooksAdminController {
     }
   }
 
+
+  /**
+   * GET /v1/admin/webhooks/efi-of-status
+   * Status config Efi OF
+   */
+  @Get('efi-of-status')
+  async efiOfStatus() {
+    return {
+      enabled: process.env.EFI_OF_ENABLED !== 'false',
+      configured: !!(process.env.EFI_CLIENT_ID && process.env.EFI_CLIENT_SECRET && process.env.EFI_CERTIFICATE_BASE64),
+      apiUrl: process.env.EFI_OF_API_URL || 'https://openfinance.api.efibank.com.br',
+      hasCert: !!process.env.EFI_CERTIFICATE_BASE64,
+      hasClientId: !!process.env.EFI_CLIENT_ID,
+      hasSecret: !!process.env.EFI_CLIENT_SECRET
+    };
+  }
+
+  /**
+   * POST /v1/admin/webhooks/efi-of-test
+   * Testa conexão Efi OF (gera access_token via OAuth2 + mTLS)
+   */
+  @Post('efi-of-test')
+  async efiOfTest(@Body() body: any) {
+    try {
+      const { EfiOFService } = require('../efi-of/efi-of.service');
+      const service = new EfiOFService();
+      const result = await service.testConnection();
+      return { success: result.ok, ...result };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * POST /v1/admin/webhooks/efi-of-consent
+   * Cria consentimento de pagamento (cliente autoriza NextGen a iniciar PIX)
+   */
+  @Post('efi-of-consent')
+  async efiOfConsent(@Body() body: any) {
+    try {
+      const { EfiOFService } = require('../efi-of/efi-of.service');
+      const service = new EfiOFService();
+      const result = await service.createConsent({
+        cpf: body.cpf || '34198276870',
+        cnpj: body.cnpj,
+        permissions: body.permissions || ['accounts.read', 'transactions.read', 'payments.initiate'],
+        expirationDateTime: body.expirationDateTime,
+        redirectUrl: body.redirectUrl
+      });
+      return { success: true, ...result };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * POST /v1/admin/webhooks/efi-of-pay
+   * INICIA PAGAMENTO PIX via Open Finance (PISP)
+   * Esse é o endpoint que faz o débito DIRETO na conta do cliente!
+   */
+  @Post('efi-of-pay')
+  async efiOfPay(@Body() body: any) {
+    try {
+      const { EfiOFService } = require('../efi-of/efi-of.service');
+      const service = new EfiOFService();
+      const result = await service.initiatePayment({
+        consentId: body.consentId,
+        cpf: body.cpf || '34198276870',
+        cnpj: body.cnpj,
+        amountCents: body.amountCents,
+        pixKey: body.pixKey || 'henriquecampos66@gmail.com',
+        description: body.description || 'NextGen split payment'
+      });
+      return { success: true, ...result };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
 }
