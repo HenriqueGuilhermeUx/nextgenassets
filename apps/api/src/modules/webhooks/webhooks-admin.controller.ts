@@ -1863,7 +1863,12 @@ export class WebhooksAdminController {
           }));
           req.end();
         });
-        results[env] = { ok: result.status >= 200 && result.status < 300, status: result.status, response: result.data || result.text?.substring(0, 200) };
+        results[env] = {
+          ok: result.status >= 200 && result.status < 300,
+          status: result.status,
+          error: result.error || null,
+          response: result.data || (result.text ? result.text.substring(0, 500) : null)
+        };
       } catch (err: any) {
         results[env] = { error: err.message };
       }
