@@ -1813,4 +1813,63 @@ export class WebhooksAdminController {
     }
   }
 
+
+  /**
+   * POST /v1/admin/webhooks/efi-of-test-both
+   * Testa homolog + produção (descobre qual cert está correto)
+   */
+  @Post('efi-of-test-both')
+  async efiOfTestBoth(@Body() body: any) {
+    const certBase64 = process.env.EFI_CERTIFICATE_BASE64;
+    const clientId = process.env.EFI_CLIENT_ID;
+    const clientSecret = process.env.EFI_CLIENT_SECRET;
+    
+    if (!certBase64) return { success: false, error: 'EFI_CERTIFICATE_BASE64 nao configurado' };
+    
+    const results: any = {};
+    
+    for (const env of ['producao', 'homologacao']) {
+      const isProd = env === 'producao';
+      const apiUrl = isProd 
+        ? 'https://openfinance.api.efibank.com.br'
+        : 'https://openfinance-h.api.efibank.com.br';
+      const credenciais = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+      
+      try {
+        const pfx = Buffer.from(certBase64, 'base64');
+        const result: any = await new Promise((resolve) => {
+          const url = new URL(`${apiUrl}/v1/oauth/token`);
+          const req = require('https').request({
+            method: 'POST',
+            hostname: url.hostname,
+            port: 443,
+            path: url.pathname,
+            pfx: pfx,
+            passphrase: '',
+            rejectUnauthorized: false,
+            headers: {
+              'Authorization': `Basic ${credenciais}`,
+              'Content-Type': 'application/json'
+            }
+          }, (res: any) => {
+            let data = '';
+            res.on('data', (chunk: any) => data += chunk);
+            res.on('end', () => resolve({ status: res.statusCode, data, text: data }));
+          });
+          req.on('error', (err: any) => resolve({ error: err.message }));
+          req.write(JSON.stringify({
+            grant_type: 'client_credentials',
+            scope: 'open-finance.consent open-finance.payment'
+          }));
+          req.end();
+        });
+        results[env] = { ok: result.status >= 200 && result.status < 300, status: result.status, response: result.data || result.text?.substring(0, 200) };
+      } catch (err: any) {
+        results[env] = { error: err.message };
+      }
+    }
+    
+    return { success: true, results };
+  }
+
 }
