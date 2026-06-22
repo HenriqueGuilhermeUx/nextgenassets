@@ -54,21 +54,33 @@ export class EfiOFService {
     const url = new URL(baseUrl + opts.path);
     
     return new Promise((resolve, reject) => {
-      // Carrega CA bundle Efi (chain prod OU homolog)
+      // Carrega CA bundle Efi (chain prod OU homolog) - tenta vários paths
       let ca: Buffer | Buffer[] | undefined;
       try {
         const fs = require('fs');
         const path = require('path');
-        const homologPath = path.join(process.cwd(), 'apps/api/src/certs/efi-chain-homolog.crt');
-        const prodPath = path.join(process.cwd(), 'apps/api/src/certs/efi-chain-prod.crt');
-        if (url.hostname.includes('-h.')) {
-          ca = fs.readFileSync(homologPath);
-        } else {
-          ca = fs.readFileSync(prodPath);
+        const isHomolog = url.hostname.includes('-h.');
+        const fileName = isHomolog ? 'efi-chain-homolog.crt' : 'efi-chain-prod.crt';
+        const possiblePaths = [
+          path.join(process.cwd(), 'apps/api/dist/certs', fileName),
+          path.join(process.cwd(), 'apps/api/src/certs', fileName),
+          path.join(process.cwd(), 'dist/certs', fileName),
+          path.join(process.cwd(), 'src/certs', fileName),
+          path.join(__dirname, '..', '..', '..', 'certs', fileName),
+          `/etc/secrets/${fileName}`
+        ];
+        for (const p of possiblePaths) {
+          if (fs.existsSync(p)) {
+            ca = fs.readFileSync(p);
+            this.logger.log(`🔐 mTLS CA bundle loaded: ${p} (${ca.length} bytes)`);
+            break;
+          }
         }
-        this.logger.log(`🔐 mTLS CA bundle loaded: ${url.hostname.includes('-h.') ? 'homolog' : 'prod'} (${ca.length} bytes)`);
+        if (!ca) {
+          this.logger.warn(`⚠️ CA bundle Efi NÃO encontrado em: ${possiblePaths.join(', ')}`);
+        }
       } catch (e: any) {
-        this.logger.warn(`⚠️ CA bundle Efi não encontrado: ${e.message}`);
+        this.logger.warn(`⚠️ Erro ao carregar CA bundle Efi: ${e.message}`);
       }
       
       const reqOptions: https.RequestOptions = {

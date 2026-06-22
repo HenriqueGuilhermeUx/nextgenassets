@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "prebuild": "prisma generate",
-    "build": "nest build",
+    "build": "nest build && (mkdir -p dist/certs && cp src/certs/*.crt dist/certs/ 2>/dev/null || true)",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main",

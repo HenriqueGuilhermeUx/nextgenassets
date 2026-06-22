@@ -24,9 +24,18 @@
     "alwaysStrict": false,
     "useUnknownInCatchVariables": false,
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": [
+        "src/*"
+      ]
     }
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "src/scripts"]
+  "include": [
+    "src/**/*",
+    "certs/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/scripts"
+  ]
 }
