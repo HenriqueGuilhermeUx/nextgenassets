@@ -2180,4 +2180,38 @@ export class WebhooksAdminController {
     }
   }
 
+
+  /**
+   * GET /v1/admin/webhooks/efi-debug-tls
+   * Mostra info detalhada do TLS agent usado
+   */
+  @Get('efi-debug-tls')
+  async efiDebugTls() {
+    const debug: any = {
+      certSize: Buffer.from(process.env.EFI_CERTIFICATE_BASE64 || '', 'base64').length,
+      certPassphrase: process.env.EFI_CERT_PASSPHRASE || '(vazio)',
+      clientId: process.env.EFI_CLIENT_ID?.substring(0, 30),
+      hasSecret: !!process.env.EFI_CLIENT_SECRET,
+      apiUrl: process.env.EFI_OF_API_URL,
+      oauthUrl: process.env.EFI_OAUTH_URL,
+      tls: {
+        nodeVersion: process.version,
+        opensslVersion: process.versions.openssl,
+        secureContext: 'N/A'
+      },
+      chainFiles: {}
+    };
+    
+    // Tenta ler os chain files
+    try {
+      const fs = require('fs');
+      debug.chainFiles.prod = fs.statSync('apps/api/src/certs/efi-chain-prod.crt').size;
+      debug.chainFiles.homolog = fs.statSync('apps/api/src/certs/efi-chain-homolog.crt').size;
+    } catch (e: any) {
+      debug.chainFiles.error = e.message;
+    }
+    
+    return debug;
+  }
+
 }
