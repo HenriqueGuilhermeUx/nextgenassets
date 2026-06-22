@@ -2375,4 +2375,92 @@ export class WebhooksAdminController {
     return { success: true, results };
   }
 
+
+  /**
+   * POST /v1/admin/webhooks/efi-test-with-cert
+   * Testa mTLS com cert enviado no body (pra debug rápido)
+   */
+  @Post('efi-test-with-cert')
+  async efiTestWithCert(@Body() body: any) {
+    const https = require('https');
+    const startTime = Date.now();
+    
+    try {
+      const certB64 = body.certBase64 || process.env.EFI_CERTIFICATE_BASE64;
+      const clientId = body.clientId || process.env.EFI_CLIENT_ID;
+      const clientSecret = body.clientSecret || process.env.EFI_CLIENT_SECRET;
+      const host = body.host || 'openfinance.api.efibank.com.br';
+      
+      if (!certB64) return { success: false, error: 'certBase64 não fornecido' };
+      if (!clientId || !clientSecret) return { success: false, error: 'clientId/clientSecret faltando' };
+      
+      const pfx = Buffer.from(certB64, 'base64');
+      const credenciais = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+      
+      // Tenta handshake com logs detalhados
+      const result: any = await new Promise((resolve) => {
+        const body = JSON.stringify({
+          grant_type: 'client_credentials',
+          scope: 'open-finance.consent open-finance.payment'
+        });
+        
+        const req = https.request({
+          method: 'POST',
+          hostname: host,
+          port: 443,
+          path: '/v1/oauth/token',
+          pfx: pfx,
+          passphrase: '',
+          rejectUnauthorized: false,
+          secureOptions: require('constants').SSL_OP_LEGACY_SERVER_CONNECT || 0,
+          ciphers: 'DEFAULT:@SECLEVEL=0',
+          headers: {
+            'Authorization': `Basic ${credenciais}`,
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(body)
+          }
+        }, (res: any) => {
+          let data = '';
+          res.on('data', (chunk: any) => data += chunk);
+          res.on('end', () => {
+            try {
+              resolve({
+                status: res.statusCode,
+                data: JSON.parse(data),
+                text: data,
+                latencyMs: Date.now() - startTime,
+                certFingerprint: require('crypto').createHash('sha256').update(pfx).digest('hex').substring(0, 16)
+              });
+            } catch {
+              resolve({
+                status: res.statusCode,
+                text: data,
+                latencyMs: Date.now() - startTime,
+                certFingerprint: require('crypto').createHash('sha256').update(pfx).digest('hex').substring(0, 16)
+              });
+            }
+          });
+        });
+        
+        req.on('error', (err: any) => {
+          resolve({
+            status: 0,
+            error: err.message,
+            errorCode: err.code,
+            latencyMs: Date.now() - startTime,
+            certFingerprint: require('crypto').createHash('sha256').update(pfx).digest('hex').substring(0, 16)
+          });
+        });
+        
+        req.setTimeout(15000, () => { req.destroy(); resolve({ status: 0, error: 'timeout', latencyMs: Date.now() - startTime }); });
+        req.write(body);
+        req.end();
+      });
+      
+      return { success: result.status > 0 && result.status < 500, ...result };
+    } catch (err: any) {
+      return { success: false, error: err.message, latencyMs: Date.now() - startTime };
+    }
+  }
+
 }
