@@ -1,17 +1,33 @@
-// Teste simples do SDK
-const NextGen = require('./nextgen-sdk.ts');
+/**
+ * Testes básicos do SDK NextGen
+ * Roda: node test.js
+ */
 
-async function main() {
-  const ng = new NextGen({ apiKey: 'demo' });
+const NextGen = require('./nextgen-sdk.ts').default;
+
+(async () => {
+  console.log('🧪 Testando SDK NextGen v0.2\n');
   
-  console.log('🟢 NextGen SDK v0.1');
-  console.log('   - ng.woovi.createCharge()');
-  console.log('   - ng.woovi.listSubaccounts()');
-  console.log('   - ng.woovi.withdraw()');
-  console.log('   - ng.woovi.withdrawAll()');
-  console.log('   - ng.woovi.createTransfer()');
-  console.log('   - ng.pluggy.createConnectToken()');
-  console.log('   - ng.pluggy.listConsents()');
-}
-
-main().catch(console.error);
+  const ng = new NextGen({
+    apiKey: 'nka_test_key',
+    baseUrl: 'https://api.nextgenassets.com.br'
+  });
+  
+  // Test 1: calculateSplit
+  console.log('1️⃣ calculateSplit(10000):');
+  console.log(ng.woovi.calculateSplit(10000));
+  console.log();
+  
+  // Test 2: billing
+  console.log('2️⃣ billing.me()...');
+  try {
+    const me = await ng.billing.me();
+    console.log(me);
+  } catch (err) {
+    console.log('   Erro (esperado sem API Key real):', err.message);
+  }
+  console.log();
+  
+  console.log('✅ SDK carregado com sucesso!');
+  console.log('📚 Docs: https://nextgenassets.com.br/docs/integracao');
+})();
