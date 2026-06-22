@@ -2924,4 +2924,27 @@ export class WebhooksAdminController {
     }
   }
 
+
+  /**
+   * GET /v1/admin/webhooks/efi-cert-get
+   * Retorna o cert completo do env em base64
+   */
+  @Get('efi-cert-get')
+  async efiCertGet() {
+    try {
+      const certBase64 = process.env.EFI_CERTIFICATE_BASE64 || '';
+      if (!certBase64) return { success: false, error: 'cert faltando' };
+      const clean = certBase64.replace(/\s+/g, '');
+      const buffer = Buffer.from(clean, 'base64');
+      return {
+        success: true,
+        size: buffer.length,
+        base64: clean,
+        sha256: require('crypto').createHash('sha256').update(buffer).digest('hex')
+      };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
 }
