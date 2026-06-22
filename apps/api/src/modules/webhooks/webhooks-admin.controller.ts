@@ -2564,4 +2564,79 @@ export class WebhooksAdminController {
     }
   }
 
+
+  /**
+   * GET /v1/admin/webhooks/efi-test-with-passphrase
+   * Testa mTLS usando EFI_CERT_PASSPHRASE do env (vazio por padrão)
+   */
+  @Get('efi-test-with-passphrase')
+  async efiTestWithPassphrase() {
+    const https = require('https');
+    const certBase64 = process.env.EFI_CERTIFICATE_BASE64;
+    const clientId = process.env.EFI_CLIENT_ID;
+    const clientSecret = process.env.EFI_CLIENT_SECRET;
+    const passphrase = process.env.EFI_CERT_PASSPHRASE || '';
+    
+    if (!certBase64) return { success: false, error: 'cert faltando' };
+    
+    const pfx = Buffer.from(certBase64, 'base64');
+    const credenciais = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    const size = pfx.length;
+    
+    const startTime = Date.now();
+    return new Promise((resolve) => {
+      const body = JSON.stringify({
+        grant_type: 'client_credentials',
+        scope: 'open-finance.consent open-finance.payment'
+      });
+      
+      const req = https.request({
+        method: 'POST',
+        hostname: 'openfinance.api.efibank.com.br',
+        port: 443,
+        path: '/v1/oauth/token',
+        pfx: pfx,
+        passphrase: passphrase,
+        keepAlive: true,
+        rejectUnauthorized: false,
+        secureOptions: require('constants').SSL_OP_LEGACY_SERVER_CONNECT || 0,
+        ciphers: 'DEFAULT:@SECLEVEL=0',
+        headers: {
+          'Authorization': 'Basic ' + credenciais,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Content-Length': Buffer.byteLength(body)
+        }
+      }, (res: any) => {
+        let data = '';
+        res.on('data', (chunk: any) => data += chunk);
+        res.on('end', () => {
+          resolve({
+            success: res.statusCode >= 200 && res.statusCode < 300,
+            status: res.statusCode,
+            data: data,
+            latencyMs: Date.now() - startTime,
+            certSize: size,
+            passphrase: passphrase || '(vazio)',
+            headers: res.headers
+          });
+        });
+      });
+      req.on('error', (err: any) => {
+        resolve({
+          success: false,
+          status: 0,
+          error: err.message,
+          errorCode: err.code,
+          latencyMs: Date.now() - startTime,
+          certSize: size,
+          passphrase: passphrase || '(vazio)'
+        });
+      });
+      req.setTimeout(30000, () => { req.destroy(); resolve({ success: false, error: 'timeout' }); });
+      req.write(body);
+      req.end();
+    });
+  }
+
 }
