@@ -3,7 +3,7 @@
 //  POST /v1/integration/process
 // ============================================
 
-import { Controller, Post, Body, Logger, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Get, Body, Logger, BadRequestException } from '@nestjs/common';
 import { NextGenIntegrationService } from './nextgen-integration.service';
 
 const logger = new Logger('NextGenIntegrationCtrl');
@@ -34,6 +34,50 @@ export class NextGenIntegrationController {
       userId,
       webhookUrl
     });
+  }
+
+  /**
+   * POST /v1/integration/register-app
+   * Registra um app externo pra usar a integração
+   */
+  @Post('register-app')
+  async registerApp(@Body() body: any) {
+    const { appId, appName, appSecret, webhookUrl, hmacSecret, allowedActions } = body;
+    
+    if (!appId || !appSecret) {
+      throw new BadRequestException('appId e appSecret são obrigatórios');
+    }
+
+    // Salva no DB (em produção)
+    // Por enquanto, hardcoded no service
+    
+    return {
+      success: true,
+      message: `App ${appId} registrado. Em produção, salvaria no DB.`,
+      appId,
+      appName,
+      webhookUrl,
+      allowedActions: allowedActions || ['create_charge', 'get_balance', 'connect_bank']
+    };
+  }
+
+  /**
+   * GET /v1/integration/apps
+   * Lista apps registrados
+   */
+  @Get('apps')
+  async listApps() {
+    return {
+      success: true,
+      apps: [
+        {
+          appId: 'smart-bot-staff',
+          appName: 'Smart Bot Staff',
+          allowedActions: ['create_charge', 'create_subscription', 'get_balance', 'connect_bank'],
+          status: 'active'
+        }
+      ]
+    };
   }
 
   /**
