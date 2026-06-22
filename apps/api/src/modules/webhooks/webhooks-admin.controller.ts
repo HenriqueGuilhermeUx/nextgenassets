@@ -2469,4 +2469,44 @@ export class WebhooksAdminController {
     }
   }
 
+
+  /**
+   * POST /v1/admin/webhooks/efi-cert-find-pass
+   * Tenta várias senhas no cert atual
+   */
+  @Post('efi-cert-find-pass')
+  async efiCertFindPass(@Body() body: any) {
+    try {
+      const { execSync } = require('child_process');
+      const certBase64 = process.env.EFI_CERTIFICATE_BASE64;
+      if (!certBase64) return { success: false, error: 'EFI_CERTIFICATE_BASE64 nao configurado' };
+      
+      const tmpPath = '/tmp/efi_cert_pass.p12';
+      require('fs').writeFileSync(tmpPath, Buffer.from(certBase64, 'base64'));
+      
+      const extraPasses = body.passphrases || [];
+      const allPasses = ['', 'changeit', 'efi', 'Efi', 'efi123', 'EfiPay', 'efipay', 'apis.efipay.com.br', 'api', '1234', '123456', 'nextgen', 'NextGen', 'notarize', 'NOTARIZE', 'efi2024', 'efi2025', 'efi2026', 'openfinance', 'OpenFinance', 'cert', 'Certificado', '34198276870', '61922930000197', ...extraPasses];
+      const results: any = { tried: [], found: null };
+      
+      for (const pass of allPasses) {
+        try {
+          const info = execSync(`openssl pkcs12 -in ${tmpPath} -info -nokeys -passin pass:${pass} 2>&1`, { encoding: 'utf-8', timeout: 3000 });
+          if (info.includes('subject=') && info.includes('BEGIN CERTIFICATE')) {
+            results.found = { passphrase: pass || '(vazia)', info: info.substring(0, 500) };
+            break;
+          }
+          results.tried.push({ pass: pass || '(vazia)', ok: false });
+        } catch (e: any) {
+          results.tried.push({ pass: pass || '(vazia)', ok: false });
+        }
+      }
+      
+      try { require('fs').unlinkSync(tmpPath); } catch {}
+      
+      return { success: !!results.found, ...results, totalTried: allPasses.length };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
 }
