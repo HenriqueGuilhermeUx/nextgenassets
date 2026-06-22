@@ -2037,4 +2037,44 @@ export class WebhooksAdminController {
     }
   }
 
+
+  /**
+   * POST /v1/admin/webhooks/efi-cert-test-passphrase
+   * Tenta várias passphrases comuns
+   */
+  @Post('efi-cert-test-passphrase')
+  async efiCertTestPassphrase(@Body() body: any) {
+    try {
+      const { execSync } = require('child_process');
+      const certBase64 = process.env.EFI_CERTIFICATE_BASE64;
+      if (!certBase64) return { success: false, error: 'EFI_CERTIFICATE_BASE64 nao configurado' };
+      
+      const tmpPath = '/tmp/efi_cert_test.p12';
+      require('fs').writeFileSync(tmpPath, Buffer.from(certBase64, 'base64'));
+      
+      const passphrases = body.passphrases || ['', 'changeit', 'efi', 'efi123', '1234', 'nextgen', 'NextGen', 'notarize', 'NOTARIZE', 'apis.efipay.com.br', 'api'];
+      const results: any[] = [];
+      
+      for (const pass of passphrases) {
+        try {
+          const info = execSync(`openssl pkcs12 -in ${tmpPath} -info -nokeys -passin pass:${pass} 2>&1`, { encoding: 'utf-8', timeout: 5000 });
+          if (info.includes('subject=') && !info.includes('Error')) {
+            results.push({ passphrase: pass || '(vazia)', ok: true, size: info.length });
+          } else {
+            results.push({ passphrase: pass || '(vazia)', ok: false });
+          }
+        } catch (e: any) {
+          results.push({ passphrase: pass || '(vazia)', ok: false, error: e.message.substring(0, 100) });
+        }
+      }
+      
+      // Limpa
+      try { require('fs').unlinkSync(tmpPath); } catch {}
+      
+      return { success: true, results };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
 }
