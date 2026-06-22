@@ -2001,21 +2001,27 @@ export class WebhooksAdminController {
       const tmpPath = '/tmp/efi_cert.p12';
       require('fs').writeFileSync(tmpPath, Buffer.from(certBase64, 'base64'));
       
-      // Tenta ler info sem passphrase
+      // Tenta ler info sem passphrase - várias tentativas
       let info: string;
-      try {
-        info = execSync(`openssl pkcs12 -in ${tmpPath} -info -nokeys -passin pass: 2>&1`, { encoding: 'utf-8', timeout: 5000 });
-      } catch (e: any) {
-        // Tenta com passphrase vazia
+      const tryRead = (pass: string): string | null => {
         try {
-          info = execSync(`openssl pkcs12 -in ${tmpPath} -info -nokeys -passin pass:changeit 2>&1`, { encoding: 'utf-8', timeout: 5000 });
-        } catch (e2: any) {
-          return { 
-            success: false, 
-            error: 'Cert protegido por senha',
-            hint: 'Tente com senha. Ou set EFI_CERT_PASSPHRASE'
-          };
-        }
+          const result = execSync(`openssl pkcs12 -in ${tmpPath} -info -nokeys -passin pass:${pass} 2>&1`, { encoding: 'utf-8', timeout: 5000 });
+          if (result.includes('subject=') && result.includes('BEGIN CERTIFICATE')) {
+            return result;
+          }
+        } catch {}
+        return null;
+      };
+      
+      info = tryRead('') || tryRead('changeit') || tryRead('efi') || tryRead('efi123') || tryRead('1234') || tryRead('nextgen') || tryRead('NextGen') || tryRead('notarize') || '';
+      
+      if (!info) {
+        return { 
+          success: false, 
+          error: 'Cert protegido por senha',
+          hint: 'Tente com senha. Ou set EFI_CERT_PASSPHRASE',
+          certSize: Buffer.from(certBase64, 'base64').length
+        };
       }
       
       // Extrai info básica
