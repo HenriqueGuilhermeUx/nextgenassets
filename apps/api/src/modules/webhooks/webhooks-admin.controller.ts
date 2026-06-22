@@ -2509,4 +2509,59 @@ export class WebhooksAdminController {
     }
   }
 
+
+  /**
+   * POST /v1/admin/webhooks/efi-cert-try-passwords
+   * Tenta várias senhas automaticamente no cert atual
+   */
+  @Post('efi-cert-try-passwords')
+  async efiCertTryPasswords(@Body() body: any) {
+    try {
+      const { execSync } = require('child_process');
+      const certBase64 = process.env.EFI_CERTIFICATE_BASE64;
+      if (!certBase64) return { success: false, error: 'EFI_CERTIFICATE_BASE64 nao configurado' };
+      
+      const tmpPath = '/tmp/efi_cert_pwd.p12';
+      require('fs').writeFileSync(tmpPath, Buffer.from(certBase64, 'base64'));
+      
+      const extra = body?.passwords || [];
+      const all = [
+        '', 'changeit', 'efi', 'Efi', 'EfiPay', 'efipay', 
+        'efi123', 'efi2024', 'efi2025', 'efi2026',
+        'apis.efipay.com.br', 'api', 'api-pix', 'api-pix-homolog',
+        '1234', '12345', '123456', '1234567', '12345678',
+        'nextgen', 'NextGen', 'NextGenAssets', 'notarize', 'NOTARIZE',
+        'openfinance', 'OpenFinance', 'open-finance', 'pix', 'PIX',
+        'cert', 'certificate', 'Certificado', 'senha', 'password',
+        '34198276870', '61922930000197', 'cpf', 'cnpj',
+        'qwerty', 'admin', 'root', 'master', 'homolog', 'producao',
+        'Gerencianet', 'gerencianet', 'GN', 'gn',
+        ...extra
+      ];
+      
+      for (const pass of all) {
+        try {
+          const result = execSync(
+            `openssl pkcs12 -in ${tmpPath} -info -nokeys -passin pass:${pass} 2>&1`,
+            { encoding: 'utf-8', timeout: 3000 }
+          );
+          if (result.includes('subject=') && result.includes('BEGIN CERTIFICATE')) {
+            return { 
+              success: true, 
+              found: true, 
+              password: pass || '(vazia)', 
+              size: Buffer.from(certBase64, 'base64').length,
+              hint: pass ? `Use EFI_CERT_PASSPHRASE=${pass} no Render` : 'Sem senha - não precisa EFI_CERT_PASSPHRASE'
+            };
+          }
+        } catch {}
+      }
+      
+      try { require('fs').unlinkSync(tmpPath); } catch {}
+      return { success: false, found: false, tried: all.length };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
 }
