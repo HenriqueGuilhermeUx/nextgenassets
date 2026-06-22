@@ -2525,7 +2525,6 @@ export class WebhooksAdminController {
       require('fs').writeFileSync(tmpPath, Buffer.from(certBase64, 'base64'));
       
       const extra = body?.passwords || [];
-      const extra = body?.passwords || [];
       const all = [
         '', 'changeit', 'efi', 'Efi', 'EfiPay', 'efipay', 
         'efi123', 'efi2024', 'efi2025', 'efi2026', 'efi2027',
