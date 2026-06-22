@@ -2571,6 +2571,14 @@ export class WebhooksAdminController {
    */
   @Get('efi-test-with-passphrase')
   async efiTestWithPassphrase() {
+    try {
+      return await this._efiTestWithPassphrase();
+    } catch (err: any) {
+      return { success: false, error: err.message, stack: err.stack?.substring(0, 500) };
+    }
+  }
+  
+  private async _efiTestWithPassphrase() {
     const https = require('https');
     const certBase64 = process.env.EFI_CERTIFICATE_BASE64;
     const clientId = process.env.EFI_CLIENT_ID;
