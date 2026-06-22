@@ -129,62 +129,61 @@ export class EfiOFService {
     if (!this.cfg.certBase64) {
       throw new Error('EFI_CERTIFICATE_BASE64 nao configurado');
     }
+    
+    // IMPORTANTE: passphrase DEVE ser string vazia explícita, não undefined
+    const passphrase = (this.cfg.certPassphrase || '').toString();
     const pfx = Buffer.from(this.cfg.certBase64, 'base64');
     
     const baseUrl = opts.useOAuthUrl ? this.cfg.oauthUrl : this.cfg.apiUrl;
     const url = new URL(baseUrl + opts.path);
     
+    // Carrega CA bundle Efi (embutido no código)
+    let ca: Buffer | Buffer[] | undefined;
+    try {
+      const isHomolog = url.hostname.includes('-h.');
+      ca = loadEfiCaBundle(isHomolog);
+      this.logger.log(`🔐 mTLS CA bundle loaded (embutido): ${isHomolog ? 'homolog' : 'prod'} (${ca.length} bytes)`);
+    } catch (e: any) {
+      this.logger.warn(`⚠️ Erro ao carregar CA bundle Efi: ${e.message}`);
+    }
+    
+    // httpsAgent com keepAlive + timeout longo
+    const agent = new https.Agent({
+      pfx: pfx,
+      passphrase: passphrase,  // STRING VAZIA explícita
+      ca: ca,
+      keepAlive: true,
+      timeout: 60000,
+      maxVersion: 'TLSv1.3',
+      minVersion: 'TLSv1.2',
+      secureOptions: require('constants').SSL_OP_LEGACY_SERVER_CONNECT || 0,
+      ciphers: 'DEFAULT:@SECLEVEL=0',
+      rejectUnauthorized: false
+    });
+    
     return new Promise((resolve, reject) => {
-      // Carrega CA bundle Efi (chain prod OU homolog) - tenta vários paths
-      let ca: Buffer | Buffer[] | undefined;
-      try {
-        const fs = require('fs');
-        const path = require('path');
-        const isHomolog = url.hostname.includes('-h.');
-        const fileName = isHomolog ? 'efi-chain-homolog.crt' : 'efi-chain-prod.crt';
-        const possiblePaths = [
-          path.join(process.cwd(), 'apps/api/dist/certs', fileName),
-          path.join(process.cwd(), 'apps/api/src/certs', fileName),
-          path.join(process.cwd(), 'dist/certs', fileName),
-          path.join(process.cwd(), 'src/certs', fileName),
-          path.join(__dirname, '..', '..', '..', 'certs', fileName),
-          `/etc/secrets/${fileName}`
-        ];
-        for (const p of possiblePaths) {
-          if (fs.existsSync(p)) {
-            ca = fs.readFileSync(p);
-            this.logger.log(`🔐 mTLS CA bundle loaded: ${p} (${ca.length} bytes)`);
-            break;
-          }
-        }
-        if (!ca) {
-          this.logger.warn(`⚠️ CA bundle Efi NÃO encontrado em: ${possiblePaths.join(', ')}`);
-        }
-      } catch (e: any) {
-        this.logger.warn(`⚠️ Erro ao carregar CA bundle Efi: ${e.message}`);
-      }
-      
+      const body = opts.body ? JSON.stringify(opts.body) : '';
       const reqOptions: https.RequestOptions = {
         method: opts.method,
         hostname: url.hostname,
         port: url.port || 443,
         path: url.pathname + url.search,
-        pfx: pfx,
-        passphrase: this.cfg.certPassphrase || '',
-        ca: ca,
-        rejectUnauthorized: false,  // Efi às vezes tem cert cross-signed
-        secureOptions: require('constants').SSL_OP_LEGACY_SERVER_CONNECT || 0,
-        ciphers: 'DEFAULT:@SECLEVEL=0',
+        agent: agent,
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',  // OBRIGATÓRIO pra Efi
+          'Content-Length': Buffer.byteLength(body),
           ...(opts.extraHeaders || {})
         }
       };
       
       const req = https.request(reqOptions, (res) => {
-        let data = '';
-        res.on('data', (chunk) => data += chunk);
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk) => chunks.push(chunk));
         res.on('end', () => {
+          const buffer = Buffer.concat(chunks);
+          const data = buffer.toString('utf-8');
+          this.logger.log(`📥 Efi response: ${res.statusCode} (${buffer.length} bytes): ${data.substring(0, 200)}`);
           try {
             const parsed = JSON.parse(data);
             resolve({ status: res.statusCode || 0, data: parsed, text: data });
@@ -194,11 +193,17 @@ export class EfiOFService {
         });
       });
       
-      req.on('error', (err) => reject(err));
+      req.on('error', (err) => {
+        this.logger.error(`❌ Efi request error: ${err.message}`);
+        reject(err);
+      });
       
-      if (opts.body) {
-        req.write(JSON.stringify(opts.body));
-      }
+      req.setTimeout(60000, () => {
+        req.destroy();
+        reject(new Error('timeout 60s'));
+      });
+      
+      if (body) req.write(body);
       req.end();
     });
   }
