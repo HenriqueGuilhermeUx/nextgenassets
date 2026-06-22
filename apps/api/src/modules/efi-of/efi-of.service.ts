@@ -39,6 +39,86 @@ export class EfiOFService {
    * @param body JSON object ou undefined
    * @param extraHeaders headers extras
    */
+
+  /**
+   * mTLS com mais controle de TLS (alternativo)
+   * Usa tls.connect direto pra ter mais debug
+   */
+  private mTLSRequestRaw(opts: {
+    method: string;
+    hostname: string;
+    port?: number;
+    path: string;
+    body: any;
+    extraHeaders?: Record<string, string>;
+  }): Promise<{ status: number; data?: any; text?: string; error?: string; tlsInfo?: any }> {
+    return new Promise((resolve) => {
+      const tls = require('tls');
+      const http = require('http');
+      const pfx = Buffer.from(this.cfg.certBase64, 'base64');
+      const ca = loadEfiCaBundle(opts.hostname.includes('-h.'));
+      const body = typeof opts.body === 'string' ? opts.body : JSON.stringify(opts.body);
+      
+      const socket = tls.connect({
+        host: opts.hostname,
+        port: opts.port || 443,
+        pfx: pfx,
+        passphrase: this.cfg.certPassphrase || '',
+        ca: ca,
+        rejectUnauthorized: false,
+        secureOptions: require('constants').SSL_OP_LEGACY_SERVER_CONNECT || 0,
+        ciphers: 'DEFAULT:@SECLEVEL=0',
+        servername: opts.hostname
+      }, () => {
+        const tlsInfo = {
+          authorized: socket.authorized,
+          authorizationError: socket.authorizationError?.toString(),
+          cipher: socket.getCipher(),
+          peerCert: socket.getPeerCertificate() ? {
+            subject: socket.getPeerCertificate().subject,
+            issuer: socket.getPeerCertificate().issuer,
+            validFrom: socket.getPeerCertificate().valid_from,
+            validTo: socket.getPeerCertificate().valid_to
+          } : null
+        };
+        
+        if (!socket.authorized && !opts.hostname.includes('efi')) {
+          this.logger.warn(`⚠️ TLS não autorizado: ${socket.authorizationError}`);
+        }
+        
+        const req = http.request({
+          method: opts.method,
+          hostname: opts.hostname,
+          port: opts.port || 443,
+          path: opts.path,
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(body),
+            ...(opts.extraHeaders || {})
+          },
+          createConnection: () => socket
+        }, (res: any) => {
+          let data = '';
+          res.on('data', (chunk: any) => data += chunk);
+          res.on('end', () => {
+            try {
+              resolve({ status: res.statusCode, data: JSON.parse(data), text: data, tlsInfo });
+            } catch {
+              resolve({ status: res.statusCode, text: data, tlsInfo });
+            }
+          });
+        });
+        req.on('error', (err: any) => resolve({ status: 0, error: err.message, tlsInfo }));
+        req.write(body);
+        req.end();
+      });
+      
+      socket.on('error', (err: any) => resolve({ status: 0, error: err.message }));
+      socket.setTimeout(15000, () => { socket.destroy(); resolve({ status: 0, error: 'timeout' }); });
+    });
+  }
+
+
   private async mTLSRequest(opts: {
     method: 'POST' | 'GET' | 'PUT' | 'DELETE';
     path: string;
