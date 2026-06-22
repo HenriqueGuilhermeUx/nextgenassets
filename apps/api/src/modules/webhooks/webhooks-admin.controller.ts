@@ -2214,4 +2214,60 @@ export class WebhooksAdminController {
     return debug;
   }
 
+
+  /**
+   * GET /v1/admin/webhooks/efi-chain-search
+   * Procura chain certs em TODOS os paths possíveis
+   */
+  @Get('efi-chain-search')
+  async efiChainSearch() {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const search = (name: string) => {
+        const paths = [
+          path.join(process.cwd(), 'apps/api/dist/certs', name),
+          path.join(process.cwd(), 'apps/api/src/certs', name),
+          path.join(process.cwd(), 'dist/certs', name),
+          path.join(process.cwd(), 'src/certs', name),
+          path.join(__dirname, '..', '..', '..', 'certs', name),
+          path.join(__dirname, '..', '..', '..', '..', 'certs', name),
+          path.join(__dirname, '..', '..', '..', '..', '..', 'certs', name),
+          `/etc/secrets/${name}`,
+          `/tmp/${name}`,
+          `./${name}`,
+          `./apps/api/src/certs/${name}`,
+          `./certs/${name}`,
+        ];
+        return paths.map((p) => {
+          try {
+            if (fs.existsSync(p)) {
+              const stat = fs.statSync(p);
+              return { path: p, exists: true, size: stat.size };
+            }
+            return { path: p, exists: false };
+          } catch (e: any) {
+            return { path: p, exists: false, error: e.message };
+          }
+        });
+      };
+      
+      return {
+        success: true,
+        cwd: process.cwd(),
+        dirname: __dirname,
+        prodSearch: search('efi-chain-prod.crt'),
+        homologSearch: search('efi-chain-homolog.crt'),
+        // Lista arquivos em paths comuns
+        listings: {
+          'process.cwd()': fs.existsSync(process.cwd()) ? fs.readdirSync(process.cwd()).slice(0, 20) : [],
+          'cwd/apps/api': fs.existsSync(path.join(process.cwd(), 'apps/api')) ? fs.readdirSync(path.join(process.cwd(), 'apps/api')).slice(0, 20) : [],
+          'cwd/apps/api/src': fs.existsSync(path.join(process.cwd(), 'apps/api/src')) ? fs.readdirSync(path.join(process.cwd(), 'apps/api/src')).slice(0, 30) : [],
+        }
+      };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
 }
