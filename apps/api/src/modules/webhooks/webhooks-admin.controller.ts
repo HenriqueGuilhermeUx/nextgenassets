@@ -2893,4 +2893,35 @@ export class WebhooksAdminController {
     }
   }
 
+
+  /**
+   * GET /v1/admin/webhooks/efi-cert-compare
+   * Retorna base64 do cert no env pra comparar com o enviado
+   */
+  @Get('efi-cert-compare')
+  async efiCertCompare() {
+    try {
+      const certBase64 = process.env.EFI_CERTIFICATE_BASE64 || '';
+      if (!certBase64) return { success: false, error: 'cert faltando' };
+      
+      // Remove newlines/spaces
+      const clean = certBase64.replace(/\s+/g, '');
+      const buffer = Buffer.from(clean, 'base64');
+      
+      return {
+        success: true,
+        rawLength: certBase64.length,
+        cleanLength: clean.length,
+        hasNewlines: certBase64.includes('\n'),
+        hasSpaces: certBase64.includes(' '),
+        binarySize: buffer.length,
+        firstBytes: clean.substring(0, 60),
+        lastBytes: clean.substring(clean.length - 60),
+        sha256: require('crypto').createHash('sha256').update(buffer).digest('hex')
+      };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
 }
