@@ -2141,4 +2141,43 @@ export class WebhooksAdminController {
     return { success: true, results };
   }
 
+
+  /**
+   * GET /v1/admin/webhooks/efi-cert-full
+   * Mostra cert completo do cliente em formato PEM
+   */
+  @Get('efi-cert-full')
+  async efiCertFull() {
+    try {
+      const { execSync } = require('child_process');
+      const certBase64 = process.env.EFI_CERTIFICATE_BASE64;
+      if (!certBase64) return { success: false, error: 'EFI_CERTIFICATE_BASE64 nao configurado' };
+      
+      const tmpPath = '/tmp/efi_cert_full.p12';
+      require('fs').writeFileSync(tmpPath, Buffer.from(certBase64, 'base64'));
+      
+      // Extrai cert (sem passphrase)
+      const certPem = execSync(`openssl pkcs12 -in ${tmpPath} -clcerts -nokeys -passin pass: 2>&1`, { encoding: 'utf-8' });
+      const caPem = execSync(`openssl pkcs12 -in ${tmpPath} -cacerts -nokeys -passin pass: 2>&1`, { encoding: 'utf-8' });
+      
+      // Salva em temp files e pega info
+      require('fs').writeFileSync('/tmp/efi_client_only.pem', certPem);
+      const certInfo = execSync(`openssl x509 -in /tmp/efi_client_only.pem -text -noout 2>&1`, { encoding: 'utf-8' });
+      
+      // Pega chain CA (se houver)
+      const hasCa = caPem.includes('BEGIN CERTIFICATE');
+      
+      return {
+        success: true,
+        size: Buffer.from(certBase64, 'base64').length,
+        certOnly: certPem,
+        caChain: hasCa ? caPem : null,
+        info: certInfo,
+        hasCaBundle: hasCa
+      };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
 }
