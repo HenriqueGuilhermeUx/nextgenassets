@@ -6,6 +6,7 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import * as https from 'https';
+import { loadEfiCaBundle } from './efi-ca-bundle';
 import { buildEfiOFConfig, EfiOFConfig } from '../../config/efi-of.config';
 
 @Injectable()
