@@ -2077,4 +2077,68 @@ export class WebhooksAdminController {
     }
   }
 
+
+  /**
+   * POST /v1/admin/webhooks/efi-test-urls
+   * Tenta várias URLs alternativas pra Efi
+   */
+  @Post('efi-test-urls')
+  async efiTestUrls(@Body() body: any) {
+    const certBase64 = process.env.EFI_CERTIFICATE_BASE64;
+    const clientId = process.env.EFI_CLIENT_ID;
+    const clientSecret = process.env.EFI_CLIENT_SECRET;
+    
+    if (!certBase64) return { success: false, error: 'EFI_CERTIFICATE_BASE64 nao configurado' };
+    
+    const credenciais = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    const urls = [
+      'https://openfinance.api.efibank.com.br/v1/oauth/token',
+      'https://openfinance-h.api.efibank.com.br/v1/oauth/token',
+      'https://api.efipay.com.br/v1/oauth/token',
+      'https://api-h.efipay.com.br/v1/oauth/token',
+      'https://pix.api.efipay.com.br/oauth/token',
+      'https://api-pix.gerencianet.com.br/oauth/token',
+      'https://openfinance-api.efipay.com.br/v1/oauth/token'
+    ];
+    
+    const pfx = Buffer.from(certBase64, 'base64');
+    const results: any = {};
+    
+    for (const url of urls) {
+      try {
+        const result: any = await new Promise((resolve) => {
+          const u = new URL(url);
+          const req = require('https').request({
+            method: 'POST',
+            hostname: u.hostname,
+            port: 443,
+            path: u.pathname + u.search,
+            pfx: pfx,
+            passphrase: '',
+            rejectUnauthorized: false,
+            headers: {
+              'Authorization': `Basic ${credenciais}`,
+              'Content-Type': 'application/json',
+              'Content-Length': 100
+            },
+            timeout: 5000
+          }, (res: any) => {
+            let data = '';
+            res.on('data', (chunk: any) => data += chunk);
+            res.on('end', () => resolve({ status: res.statusCode, text: data.substring(0, 200) }));
+          });
+          req.on('error', (err: any) => resolve({ error: err.message.substring(0, 200) }));
+          req.on('timeout', () => { req.destroy(); resolve({ error: 'timeout' }); });
+          req.write(JSON.stringify({ grant_type: 'client_credentials', scope: 'open-finance.consent open-finance.payment' }));
+          req.end();
+        });
+        results[url] = result;
+      } catch (err: any) {
+        results[url] = { error: err.message };
+      }
+    }
+    
+    return { success: true, results };
+  }
+
 }
