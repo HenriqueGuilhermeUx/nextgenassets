@@ -2738,4 +2738,93 @@ export class WebhooksAdminController {
     return { success: true, results };
   }
 
+
+  /**
+   * GET /v1/admin/webhooks/efi-convert-and-test
+   * Extrai cert+key do P12, converte pra PEM, testa mTLS
+   */
+  @Get('efi-convert-and-test')
+  async efiConvertAndTest() {
+    const { execSync } = require('child_process');
+    const fs = require('fs');
+    const https = require('https');
+    
+    const certBase64 = process.env.EFI_CERTIFICATE_BASE64;
+    const envPassphrase = process.env.EFI_CERT_PASSPHRASE || '';
+    const clientId = process.env.EFI_CLIENT_ID;
+    const clientSecret = process.env.EFI_CLIENT_SECRET;
+    const host = 'openfinance.api.efibank.com.br';
+    
+    if (!certBase64) return { success: false, error: 'cert faltando' };
+    
+    const tmpP12 = '/tmp/efi_env.p12';
+    const tmpPEM = '/tmp/efi_env_clean.pem';
+    fs.writeFileSync(tmpP12, Buffer.from(certBase64, 'base64'));
+    
+    // Tenta extrair com várias senhas
+    const passes = [envPassphrase, '', 'changeit', 'efi', '1234', 'nextgen', 'apis.efipay.com.br', 'Notarize', 'NOTARIZE', 'Gerencianet', 'gerencianet'];
+    let extractedWith = null;
+    
+    for (const p of passes) {
+      try {
+        execSync(`openssl pkcs12 -in ${tmpP12} -out ${tmpPEM} -nodes -passin pass:${p} 2>/dev/null`, { encoding: 'utf-8' });
+        if (fs.existsSync(tmpPEM) && fs.statSync(tmpPEM).size > 100) {
+          extractedWith = p || '(vazia)';
+          break;
+        }
+      } catch {}
+    }
+    
+    if (!extractedWith) {
+      return { success: false, error: 'Nenhuma senha funcionou', tries: passes.length };
+    }
+    
+    // Separa key e cert
+    const pem = fs.readFileSync(tmpPEM, 'utf-8');
+    const keyMatch = pem.match(/-----BEGIN (?:RSA )?PRIVATE KEY-----[\s\S]+?-----END (?:RSA )?PRIVATE KEY-----/);
+    const certMatch = pem.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/);
+    
+    if (!keyMatch || !certMatch) {
+      return { success: false, error: 'Não consegui separar cert/key', pemPreview: pem.substring(0, 500) };
+    }
+    
+    const key = keyMatch[0];
+    const cert = certMatch[0];
+    
+    // Testa mTLS com cert+key separados
+    const credenciais = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    const body = JSON.stringify({ grant_type: 'client_credentials', scope: 'open-finance.consent open-finance.payment' });
+    
+    return new Promise((resolve) => {
+      const req = https.request({
+        method: 'POST', hostname: host, port: 443, path: '/v1/oauth/token',
+        key: key, cert: cert, rejectUnauthorized: false, keepAlive: true,
+        secureOptions: require('constants').SSL_OP_LEGACY_SERVER_CONNECT,
+        ciphers: 'DEFAULT:@SECLEVEL=0',
+        headers: { 'Authorization': 'Basic ' + credenciais, 'Content-Type': 'application/json', 'Accept': 'application/json', 'Content-Length': Buffer.byteLength(body) }
+      }, (res: any) => {
+        let data = '';
+        res.on('data', (chunk: any) => data += chunk);
+        res.on('end', () => {
+          try { fs.unlinkSync(tmpP12); fs.unlinkSync(tmpPEM); } catch {}
+          resolve({
+            success: res.statusCode >= 200 && res.statusCode < 300,
+            status: res.statusCode,
+            response: data.substring(0, 500),
+            extractedWith,
+            keySize: key.length,
+            certSize: cert.length
+          });
+        });
+      });
+      req.on('error', (err: any) => {
+        try { fs.unlinkSync(tmpP12); fs.unlinkSync(tmpPEM); } catch {}
+        resolve({ success: false, error: err.message, extractedWith, keySize: key.length, certSize: cert.length });
+      });
+      req.setTimeout(15000, () => { req.destroy(); resolve({ success: false, error: 'timeout' }); });
+      req.write(body);
+      req.end();
+    });
+  }
+
 }
