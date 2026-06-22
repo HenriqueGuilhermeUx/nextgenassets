@@ -39,6 +39,7 @@ import { PluggyTraceController } from './modules/pluggy-webhook/pluggy-trace.con
 import { PluggyTokenController } from './modules/pluggy-token/pluggy-token.controller';
 import { WooviModule } from './modules/woovi/woovi.module';
 import { EfiOFModule } from './modules/efi-of/efi-of.module';
+import { NextGenIntegrationModule } from './modules/nextgen-integration/nextgen-integration.module';
 import { KlaviModule } from './modules/klavi/klavi.module';
 import { CommissionService } from './modules/commissions/commission.service';
 import { AiSuggestionsService } from './modules/ai/ai-suggestions.service';
