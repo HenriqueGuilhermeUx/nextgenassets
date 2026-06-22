@@ -2827,4 +2827,70 @@ export class WebhooksAdminController {
     });
   }
 
+
+  /**
+   * GET /v1/admin/webhooks/efi-openssl-test
+   * Testa mTLS usando OpenSSL direto (mais robusto)
+   */
+  @Get('efi-openssl-test')
+  async efiOpensslTest() {
+    const { execSync } = require('child_process');
+    const fs = require('fs');
+    
+    const certBase64 = process.env.EFI_CERTIFICATE_BASE64;
+    const passphrase = process.env.EFI_CERT_PASSPHRASE || '';
+    const clientId = process.env.EFI_CLIENT_ID;
+    const clientSecret = process.env.EFI_CLIENT_SECRET;
+    
+    if (!certBase64) return { success: false, error: 'cert faltando' };
+    
+    const tmpP12 = '/tmp/efi_ossl.p12';
+    const tmpPem = '/tmp/efi_ossl.pem';
+    fs.writeFileSync(tmpP12, Buffer.from(certBase64, 'base64'));
+    
+    // Tenta extrair
+    const passes = [passphrase, '', 'changeit', 'efi', '1234', 'nextgen', 'apis.efipay.com.br'];
+    let extractedWith = null;
+    for (const p of passes) {
+      try {
+        execSync(`openssl pkcs12 -in ${tmpP12} -out ${tmpPem} -nodes -passin pass:${p} 2>/dev/null`);
+        if (fs.existsSync(tmpPem) && fs.statSync(tmpPem).size > 100) {
+          extractedWith = p || '(vazia)';
+          break;
+        }
+      } catch {}
+    }
+    
+    if (!extractedWith) {
+      return { success: false, error: 'Nenhuma senha funcionou', tried: passes };
+    }
+    
+    // Testa mTLS com OpenSSL s_client
+    const credenciais = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    const body = JSON.stringify({ grant_type: 'client_credentials', scope: 'open-finance.consent open-finance.payment' });
+    
+    try {
+      const result = execSync(
+        `echo '${body}' | openssl s_client -connect openfinance.api.efibank.com.br:443 ` +
+        `-cert ${tmpPem} -key ${tmpPem} -servername openfinance.api.efibank.com.br ` +
+        `-tls1_2 -quiet -no_ign_eof`,
+        {
+          input: `POST /v1/oauth/token HTTP/1.1\r\nHost: openfinance.api.efibank.com.br\r\nAuthorization: Basic ${credenciais}\r\nContent-Type: application/json\r\nAccept: application/json\r\nContent-Length: ${Buffer.byteLength(body)}\r\nConnection: close\r\n\r\n${body}`,
+          encoding: 'utf-8',
+          timeout: 30000
+        }
+      );
+      return { success: true, result: result.substring(0, 1000), extractedWith };
+    } catch (err: any) {
+      return { 
+        success: false, 
+        error: err.message.substring(0, 500),
+        stdout: err.stdout?.toString()?.substring(0, 500),
+        extractedWith
+      };
+    } finally {
+      try { fs.unlinkSync(tmpP12); fs.unlinkSync(tmpPem); } catch {}
+    }
+  }
+
 }
