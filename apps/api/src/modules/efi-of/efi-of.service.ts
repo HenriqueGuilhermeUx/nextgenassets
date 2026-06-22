@@ -54,6 +54,23 @@ export class EfiOFService {
     const url = new URL(baseUrl + opts.path);
     
     return new Promise((resolve, reject) => {
+      // Carrega CA bundle Efi (chain prod OU homolog)
+      let ca: Buffer | Buffer[] | undefined;
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        const homologPath = path.join(process.cwd(), 'apps/api/src/certs/efi-chain-homolog.crt');
+        const prodPath = path.join(process.cwd(), 'apps/api/src/certs/efi-chain-prod.crt');
+        if (url.hostname.includes('-h.')) {
+          ca = fs.readFileSync(homologPath);
+        } else {
+          ca = fs.readFileSync(prodPath);
+        }
+        this.logger.log(`🔐 mTLS CA bundle loaded: ${url.hostname.includes('-h.') ? 'homolog' : 'prod'} (${ca.length} bytes)`);
+      } catch (e: any) {
+        this.logger.warn(`⚠️ CA bundle Efi não encontrado: ${e.message}`);
+      }
+      
       const reqOptions: https.RequestOptions = {
         method: opts.method,
         hostname: url.hostname,
@@ -61,7 +78,10 @@ export class EfiOFService {
         path: url.pathname + url.search,
         pfx: pfx,
         passphrase: this.cfg.certPassphrase || '',
-        rejectUnauthorized: false,
+        ca: ca,
+        rejectUnauthorized: false,  // Efi às vezes tem cert cross-signed
+        secureOptions: require('constants').SSL_OP_LEGACY_SERVER_CONNECT || 0,
+        ciphers: 'DEFAULT:@SECLEVEL=0',
         headers: {
           'Content-Type': 'application/json',
           ...(opts.extraHeaders || {})
