@@ -2653,4 +2653,89 @@ export class WebhooksAdminController {
     });
   }
 
+
+  /**
+   * POST /v1/admin/webhooks/efi-tls-configs
+   * Testa várias configs TLS pra contornar Cloudflare
+   */
+  @Post('efi-tls-configs')
+  async efiTlsConfigs(@Body() body: any) {
+    const tls = require('tls');
+    const https = require('https');
+    const certBase64 = process.env.EFI_CERTIFICATE_BASE64;
+    const clientId = process.env.EFI_CLIENT_ID;
+    const clientSecret = process.env.EFI_CLIENT_SECRET;
+    const passphrase = process.env.EFI_CERT_PASSPHRASE || '';
+    
+    if (!certBase64) return { success: false, error: 'cert faltando' };
+    
+    const pfx = Buffer.from(certBase64, 'base64');
+    const credenciais = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    const body_data = JSON.stringify({ grant_type: 'client_credentials', scope: 'open-finance.consent open-finance.payment' });
+    
+    const results: any = {};
+    
+    // Test 1: TLS 1.2 forçado
+    try {
+      const r: any = await new Promise((resolve) => {
+        const req = https.request({
+          method: 'POST', hostname: 'openfinance.api.efibank.com.br', port: 443, path: '/v1/oauth/token',
+          pfx: pfx, passphrase: passphrase, rejectUnauthorized: false,
+          maxVersion: 'TLSv1.2', minVersion: 'TLSv1.2',
+          secureOptions: require('constants').SSL_OP_LEGACY_SERVER_CONNECT,
+          ciphers: 'ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384',
+          headers: { 'Authorization': 'Basic ' + credenciais, 'Content-Type': 'application/json', 'Accept': 'application/json', 'Content-Length': Buffer.byteLength(body_data) },
+          timeout: 15000
+        }, (res: any) => {
+          let d = ''; res.on('data', (c: any) => d += c); res.on('end', () => resolve({ ok: res.statusCode < 500, status: res.statusCode, data: d.substring(0, 200) }));
+        });
+        req.on('error', (e: any) => resolve({ error: e.message }));
+        req.setTimeout(15000, () => { req.destroy(); resolve({ error: 'timeout' }); });
+        req.write(body_data); req.end();
+      });
+      results.tls12 = r;
+    } catch (err: any) { results.tls12 = { error: err.message }; }
+    
+    // Test 2: TLS 1.3
+    try {
+      const r: any = await new Promise((resolve) => {
+        const req = https.request({
+          method: 'POST', hostname: 'openfinance.api.efibank.com.br', port: 443, path: '/v1/oauth/token',
+          pfx: pfx, passphrase: passphrase, rejectUnauthorized: false,
+          maxVersion: 'TLSv1.3', minVersion: 'TLSv1.2',
+          secureOptions: require('constants').SSL_OP_LEGACY_SERVER_CONNECT,
+          ciphers: 'TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256',
+          headers: { 'Authorization': 'Basic ' + credenciais, 'Content-Type': 'application/json', 'Accept': 'application/json', 'Content-Length': Buffer.byteLength(body_data) },
+          timeout: 15000
+        }, (res: any) => {
+          let d = ''; res.on('data', (c: any) => d += c); res.on('end', () => resolve({ ok: res.statusCode < 500, status: res.statusCode, data: d.substring(0, 200) }));
+        });
+        req.on('error', (e: any) => resolve({ error: e.message }));
+        req.setTimeout(15000, () => { req.destroy(); resolve({ error: 'timeout' }); });
+        req.write(body_data); req.end();
+      });
+      results.tls13 = r;
+    } catch (err: any) { results.tls13 = { error: err.message }; }
+    
+    // Test 3: SEM mTLS (só pra ver se a porta responde)
+    try {
+      const r: any = await new Promise((resolve) => {
+        const req = https.request({
+          method: 'GET', hostname: 'openfinance.api.efibank.com.br', port: 443, path: '/',
+          rejectUnauthorized: false,
+          headers: { 'Accept': 'application/json' },
+          timeout: 10000
+        }, (res: any) => {
+          let d = ''; res.on('data', (c: any) => d += c); res.on('end', () => resolve({ ok: true, status: res.statusCode, data: d.substring(0, 200) }));
+        });
+        req.on('error', (e: any) => resolve({ error: e.message }));
+        req.setTimeout(10000, () => { req.destroy(); resolve({ error: 'timeout' }); });
+        req.end();
+      });
+      results.no_mtls_get = r;
+    } catch (err: any) { results.no_mtls_get = { error: err.message }; }
+    
+    return { success: true, results };
+  }
+
 }
