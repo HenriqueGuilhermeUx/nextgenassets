@@ -2325,4 +2325,54 @@ export class WebhooksAdminController {
     return { success: true, results };
   }
 
+
+  /**
+   * POST /v1/admin/webhooks/efi-tcp-direct
+   * Testa TLS direto via IP (bypass cloudflare)
+   */
+  @Post('efi-tcp-direct')
+  async efiTcpDirect(@Body() body: any) {
+    const tls = require('tls');
+    const dns = require('dns').promises;
+    
+    const results: any = {};
+    const hosts = [
+      { name: 'producao', host: 'openfinance.api.efibank.com.br' },
+      { name: 'homolog', host: 'openfinance-h.api.efibank.com.br' }
+    ];
+    
+    for (const { name, host } of hosts) {
+      try {
+        const addrs = await dns.resolve4(host);
+        const ip = addrs[0];
+        const result: any = await new Promise((resolve) => {
+          const startTime = Date.now();
+          const socket = tls.connect({
+            host: ip,
+            port: 443,
+            servername: host,
+            rejectUnauthorized: false,
+            timeout: 10000
+          }, () => {
+            const peerCert = socket.getPeerCertificate();
+            socket.end();
+            resolve({
+              success: true,
+              ip: ip,
+              latencyMs: Date.now() - startTime,
+              certSubject: peerCert?.subject,
+              certIssuer: peerCert?.issuer
+            });
+          });
+          socket.on('error', (err: any) => resolve({ success: false, ip, error: err.message }));
+        });
+        results[name] = result;
+      } catch (err: any) {
+        results[name] = { error: err.message };
+      }
+    }
+    
+    return { success: true, results };
+  }
+
 }
