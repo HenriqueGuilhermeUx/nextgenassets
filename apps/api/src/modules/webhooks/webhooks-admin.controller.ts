@@ -2273,4 +2273,56 @@ export class WebhooksAdminController {
 
 
 
+
+  /**
+   * GET /v1/admin/webhooks/efi-tcp-test
+   * Testa conectividade TCP+SSL com a Efi SEM mTLS
+   */
+  @Get('efi-tcp-test')
+  async efiTcpTest() {
+    const https = require('https');
+    const tls = require('tls');
+    
+    const results: any = {};
+    const hosts = [
+      { name: 'producao', host: 'openfinance.api.efibank.com.br' },
+      { name: 'homolog', host: 'openfinance-h.api.efibank.com.br' }
+    ];
+    
+    for (const { name, host } of hosts) {
+      const startTime = Date.now();
+      try {
+        const result: any = await new Promise((resolve) => {
+          const socket = tls.connect({
+            host: host,
+            port: 443,
+            rejectUnauthorized: false,
+            servername: host,
+            timeout: 10000
+          }, () => {
+            const peerCert = socket.getPeerCertificate();
+            const cipher = socket.getCipher();
+            const proto = socket.getProtocol();
+            socket.end();
+            resolve({
+              success: true,
+              latencyMs: Date.now() - startTime,
+              certSubject: peerCert?.subject,
+              certIssuer: peerCert?.issuer,
+              cipher: cipher?.name,
+              protocol: proto
+            });
+          });
+          socket.on('error', (err: any) => resolve({ success: false, error: err.message, latencyMs: Date.now() - startTime }));
+          socket.on('timeout', () => { socket.destroy(); resolve({ success: false, error: 'timeout' }); });
+        });
+        results[name] = result;
+      } catch (err: any) {
+        results[name] = { success: false, error: err.message };
+      }
+    }
+    
+    return { success: true, results };
+  }
+
 }
