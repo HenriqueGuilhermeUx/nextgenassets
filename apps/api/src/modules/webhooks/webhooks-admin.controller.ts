@@ -2525,17 +2525,24 @@ export class WebhooksAdminController {
       require('fs').writeFileSync(tmpPath, Buffer.from(certBase64, 'base64'));
       
       const extra = body?.passwords || [];
+      const extra = body?.passwords || [];
       const all = [
         '', 'changeit', 'efi', 'Efi', 'EfiPay', 'efipay', 
-        'efi123', 'efi2024', 'efi2025', 'efi2026',
+        'efi123', 'efi2024', 'efi2025', 'efi2026', 'efi2027',
         'apis.efipay.com.br', 'api', 'api-pix', 'api-pix-homolog',
-        '1234', '12345', '123456', '1234567', '12345678',
-        'nextgen', 'NextGen', 'NextGenAssets', 'notarize', 'NOTARIZE',
-        'openfinance', 'OpenFinance', 'open-finance', 'pix', 'PIX',
-        'cert', 'certificate', 'Certificado', 'senha', 'password',
-        '34198276870', '61922930000197', 'cpf', 'cnpj',
-        'qwerty', 'admin', 'root', 'master', 'homolog', 'producao',
-        'Gerencianet', 'gerencianet', 'GN', 'gn',
+        '1234', '12345', '123456', '1234567', '12345678', '123456789', '1234567890',
+        'nextgen', 'NextGen', 'NextGenAssets', 'notarize', 'NOTARIZE', 'NextGenAssets2026',
+        'openfinance', 'OpenFinance', 'open-finance', 'pix', 'PIX', 'Pix',
+        'cert', 'certificate', 'Certificado', 'senha', 'password', 'pass', 'secret',
+        '34198276870', '61922930000197', 'cpf', 'cnpj', 'CNPJ', 'CPF',
+        'qwerty', 'admin', 'root', 'master', 'homolog', 'producao', 'production',
+        'Gerencianet', 'gerencianet', 'GN', 'gn', 'EFI', 'EFI2026',
+        'openbanking', 'ob', 'of', 'pisp', 'PISP',
+        'integration', 'integracao', 'webhook', 'webhooks', 'callback', 'callbacks',
+        'nextgen2026', 'nextgen2025', 'nextgenassets', 'NextGen_2026',
+        'apitoken', 'appsecret', 'clientsecret', 'client_secret',
+        'teste', 'test', 'homologacao', 'producao2026',
+        'sandbox', 'live', 'prod', 'dev', 'staging',
         ...extra
       ];
       
