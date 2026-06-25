@@ -262,34 +262,56 @@ export class EfiOFService {
     permissions: ('accounts.read' | 'transactions.read' | 'payments.initiate')[];
     expirationDateTime?: string;
     redirectUrl?: string;
-    idParticipante?: string;  // ISPB do banco
+    idParticipante?: string;  // UUID do participante (NÃO ISPB)
+    ispbBanco?: string;       // ISPB do banco
+    conta?: string;
+    agencia?: string;
+    tipoConta?: 'CACC' | 'SVGS' | 'TRAN';
   }): Promise<{ consentId: string; status: string; authUrl?: string }> {
     const token = await this.ensureToken();
     const httpsAgent = this.getHttpsAgent();
 
     const doc = opts.cnpj || opts.cpf;
-    const rel = opts.cnpj ? 'CNPJ' : 'CPF';
-    const idPart = opts.idParticipante || '60701190'; // default Itaú
+    const idPart = opts.idParticipante || '68308291-ec0d-4398-83ce-68b6b1087e49'; // Itaú default
+    const ispb = opts.ispbBanco || '60701190'; // Itaú ISPB
+    const idempotencyKey = require('crypto').randomUUID();
 
-    // Estrutura Efi OF PISP - baseada em testes empíricos
+    // Estrutura Efi OF PISP - descoberta via testes empíricos
+    // Ver: docs/integracao/EFI_OF_PAYLOADS.md
     const body = {
-      data: {
-        pagador: {
-          idParticipante: idPart,
-          [rel.toLowerCase()]: doc,
-          nome: opts.cnpj ? 'NextGen Assets LTDA' : 'Cliente NextGen'
-        },
-        permissions: opts.permissions,
-        expirationDateTime: opts.expirationDateTime || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString()
+      pagador: {
+        idParticipante: idPart,
+        cpf: opts.cpf,
+        nome: 'Cliente NextGen'
       },
-      redirectUri: opts.redirectUrl || 'https://app.nextgenassets.com.br/efi/callback'
+      favorecido: {
+        contaBanco: {
+          conta: opts.conta || '12345',
+          agencia: opts.agencia || '0001',
+          nome: opts.cnpj ? 'NextGen Assets LTDA' : 'NextGen Assets',
+          documento: doc,
+          codigoBanco: ispb,
+          tipoConta: opts.tipoConta || 'CACC'
+        }
+      },
+      assinatura: {
+        configuracao: {
+          automatico: {
+            intervalo: 'MENSAL',
+            dataInicio: new Date(Date.now() + 7*24*60*60*1000).toISOString().split('T')[0]
+          }
+        }
+      }
     };
 
     const res = await this.mTLSRequest({
       method: 'POST',
-      path: '/v1/pagamentos-automaticos/adesao',  // PIX Automático adesão
+      path: '/v1/pagamentos-automaticos/adesao',
       body,
-      extraHeaders: { 'Authorization': `Bearer ${token}` }
+      extraHeaders: { 
+        'Authorization': `Bearer ${token}`,
+        'x-idempotency-key': idempotencyKey
+      }
     });
 
     if (res.status < 200 || res.status >= 300) {
