@@ -1809,6 +1809,11 @@ export class WebhooksAdminController {
     return { marker: 'V3_DEPLOYED_' + Date.now() };
   }
 
+  @Get('efi-marker-V3')
+  async efiMarker() {
+    return { marker: 'V3_DEPLOYED_' + Date.now() };
+  }
+
   @Get('efi-of-version')
   async efiOfVersion() {
     const fs = require('fs');
