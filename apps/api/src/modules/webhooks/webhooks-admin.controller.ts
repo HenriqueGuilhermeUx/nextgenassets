@@ -2947,4 +2947,66 @@ export class WebhooksAdminController {
     }
   }
 
+
+  /**
+   * POST /v1/admin/webhooks/efi-update-cert
+   * Atualiza o cert EFI em runtime (sem deploy)
+   */
+  @Post('efi-update-cert')
+  async efiUpdateCert(@Body() body: any) {
+    const { certBase64 } = body;
+    if (!certBase64) return { success: false, error: 'certBase64 obrigatório' };
+    
+    const clean = certBase64.replace(/\s+/g, '');
+    const buffer = Buffer.from(clean, 'base64');
+    
+    // Testa se tem senha
+    const { execSync } = require('child_process');
+    const tmpPath = '/tmp/cert_update.p12';
+    require('fs').writeFileSync(tmpPath, buffer);
+    
+    let hasPassword = false;
+    try {
+      const result = execSync(`openssl pkcs12 -in ${tmpPath} -info -nokeys -passin pass: 2>&1`, { encoding: 'utf-8' });
+      if (result.includes('subject=') && result.includes('BEGIN CERTIFICATE') && !result.includes('Mac verify error')) {
+        hasPassword = false;
+      } else {
+        hasPassword = true;
+      }
+    } catch {
+      hasPassword = true;
+    }
+    
+    if (hasPassword) {
+      try { require('fs').unlinkSync(tmpPath); } catch {}
+      return { 
+        success: false, 
+        error: 'Cert tem senha!',
+        hint: 'Gere novo cert NO PAINEL EFI sem senha, ou adicione EFI_CERT_PASSPHRASE',
+        size: buffer.length
+      };
+    }
+    
+    // Salva no DB / atualiza env
+    process.env.EFI_CERTIFICATE_BASE64 = clean;
+    
+    // Atualiza no DB também
+    try {
+      await this.prisma.systemConfig.upsert({
+        where: { key: 'EFI_CERTIFICATE_BASE64' },
+        create: { key: 'EFI_CERTIFICATE_BASE64', value: clean },
+        update: { value: clean }
+      });
+    } catch (e: any) {
+      // Tabela pode não existir, tudo bem
+    }
+    
+    return {
+      success: true,
+      size: buffer.length,
+      sha256: require('crypto').createHash('sha256').update(buffer).digest('hex'),
+      hasPassword: false,
+      message: 'Cert atualizado! Teste mTLS agora.'
+    };
+  }
 }
