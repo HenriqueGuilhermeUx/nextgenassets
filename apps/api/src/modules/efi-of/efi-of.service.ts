@@ -226,8 +226,9 @@ export class EfiOFService {
     const credenciais = Buffer.from(`${this.cfg.clientId}:${this.cfg.clientSecret}`).toString('base64');
 
     const body = {
-      grant_type: 'client_credentials',
-      scope: 'open-finance.consent open-finance.payment'
+      grant_type: 'client_credentials'
+      // NÃO passar scope - Efi retorna erro 500 se mandar
+      // Os scopes vêm todos automaticamente (ver TESTE 1 abaixo)
     };
 
     const res = await this.mTLSRequest({

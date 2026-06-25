@@ -74,7 +74,7 @@ EFI_OF_ENABLED=true
 ### 1. Auth (gera access_token)
 
 ```bash
-POST https://openfinance.api.efibank.com.br/v1/oauth/token
+POST https://openfinance.api.efipay.com.br/v1/oauth/token
 Authorization: Basic <base64(clientId:clientSecret)>
 Content-Type: application/json
 
@@ -100,7 +100,7 @@ Content-Type: application/json
 ### 2. Criar Consentimento
 
 ```bash
-POST https://openfinance.api.efibank.com.br/v1/consent
+POST https://openfinance.api.efipay.com.br/v1/consent
 Authorization: Bearer <access_token>
 Content-Type: application/json
 
@@ -165,7 +165,7 @@ Quando cliente autoriza, Efí manda webhook pra `https://seudominio.com/v1/webho
 ### 4. Iniciar Pagamento (PISP)
 
 ```bash
-POST https://openfinance.api.efibank.com.br/v1/payments
+POST https://openfinance.api.efipay.com.br/v1/payments
 Authorization: Bearer <access_token>
 Content-Type: application/json
 Idempotency-Key: <unique-per-payment>
