@@ -282,8 +282,9 @@ export class EfiOFService {
     const token = await this.ensureToken();
     const idempotencyKey = require('crypto').randomUUID();
 
-    // Estrutura EXATA da doc oficial Efi:
-    // https://dev.efipay.com.br/docs/api-open-finance/pagamentos-automaticos
+    // Estrutura testada e validada via testes empíricos:
+    // - Apenas "intervalo" + "dataInicio" + opcional "permiteRetentativa"
+    // - valorFixo/valorMinimo/valorMaximo da doc oficial são REJEITADOS pela API
     const body = {
       pagador: {
         cpf: opts.cpf,
@@ -307,9 +308,6 @@ export class EfiOFService {
         idProprio: `nextgen-${Date.now()}`,
         configuracao: {
           automatico: {
-            valorFixo: opts.valorFixo || '10.00',
-            valorMinimo: opts.valorMinimo || opts.valorFixo || '10.00',
-            valorMaximo: opts.valorMaximo || opts.valorFixo || '10.00',
             intervalo: opts.intervalo,
             dataInicio: opts.dataInicio,
             permiteRetentativa: opts.permiteRetentativa ?? false
