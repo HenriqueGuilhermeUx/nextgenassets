@@ -1720,7 +1720,7 @@ export class WebhooksAdminController {
     return {
       enabled: process.env.EFI_OF_ENABLED !== 'false',
       configured: !!(process.env.EFI_CLIENT_ID && process.env.EFI_CLIENT_SECRET && process.env.EFI_CERTIFICATE_BASE64),
-      apiUrl: process.env.EFI_OF_API_URL || 'https://openfinance.api.efibank.com.br',
+      apiUrl: process.env.EFI_OF_API_URL || 'https://openfinance.api.efipay.com.br',
       hasCert: !!process.env.EFI_CERTIFICATE_BASE64,
       hasClientId: !!process.env.EFI_CLIENT_ID,
       hasSecret: !!process.env.EFI_CLIENT_SECRET
@@ -1831,8 +1831,8 @@ export class WebhooksAdminController {
     for (const env of ['producao', 'homologacao']) {
       const isProd = env === 'producao';
       const apiUrl = isProd 
-        ? 'https://openfinance.api.efibank.com.br'
-        : 'https://openfinance-h.api.efibank.com.br';
+        ? 'https://openfinance.api.efipay.com.br'
+        : 'https://openfinance-h.api.efipay.com.br';
       const credenciais = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
       
       try {
@@ -2098,8 +2098,8 @@ export class WebhooksAdminController {
     
     const credenciais = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
     const urls = [
-      'https://openfinance.api.efibank.com.br/v1/oauth/token',
-      'https://openfinance-h.api.efibank.com.br/v1/oauth/token',
+      'https://openfinance.api.efipay.com.br/v1/oauth/token',
+      'https://openfinance-h.api.efipay.com.br/v1/oauth/token',
       'https://api.efipay.com.br/v1/oauth/token',
       'https://api-h.efipay.com.br/v1/oauth/token',
       'https://pix.api.efipay.com.br/oauth/token',
@@ -2291,8 +2291,8 @@ export class WebhooksAdminController {
     
     const results: any = {};
     const hosts = [
-      { name: 'producao', host: 'openfinance.api.efibank.com.br' },
-      { name: 'homolog', host: 'openfinance-h.api.efibank.com.br' }
+      { name: 'producao', host: 'openfinance.api.efipay.com.br' },
+      { name: 'homolog', host: 'openfinance-h.api.efipay.com.br' }
     ];
     
     for (const { name, host } of hosts) {
@@ -2343,8 +2343,8 @@ export class WebhooksAdminController {
     
     const results: any = {};
     const hosts = [
-      { name: 'producao', host: 'openfinance.api.efibank.com.br' },
-      { name: 'homolog', host: 'openfinance-h.api.efibank.com.br' }
+      { name: 'producao', host: 'openfinance.api.efipay.com.br' },
+      { name: 'homolog', host: 'openfinance-h.api.efipay.com.br' }
     ];
     
     for (const { name, host } of hosts) {
@@ -2395,7 +2395,7 @@ export class WebhooksAdminController {
       const certB64 = body.certBase64 || process.env.EFI_CERTIFICATE_BASE64;
       const clientId = body.clientId || process.env.EFI_CLIENT_ID;
       const clientSecret = body.clientSecret || process.env.EFI_CLIENT_SECRET;
-      const host = body.host || 'openfinance.api.efibank.com.br';
+      const host = body.host || 'openfinance.api.efipay.com.br';
       
       if (!certB64) return { success: false, error: 'certBase64 não fornecido' };
       if (!clientId || !clientSecret) return { success: false, error: 'clientId/clientSecret faltando' };
@@ -2606,7 +2606,7 @@ export class WebhooksAdminController {
       
       const req = https.request({
         method: 'POST',
-        hostname: 'openfinance.api.efibank.com.br',
+        hostname: 'openfinance.api.efipay.com.br',
         port: 443,
         path: '/v1/oauth/token',
         pfx: pfx,
@@ -2679,7 +2679,7 @@ export class WebhooksAdminController {
     try {
       const r: any = await new Promise((resolve) => {
         const req = https.request({
-          method: 'POST', hostname: 'openfinance.api.efibank.com.br', port: 443, path: '/v1/oauth/token',
+          method: 'POST', hostname: 'openfinance.api.efipay.com.br', port: 443, path: '/v1/oauth/token',
           pfx: pfx, passphrase: passphrase, rejectUnauthorized: false,
           maxVersion: 'TLSv1.2', minVersion: 'TLSv1.2',
           secureOptions: require('constants').SSL_OP_LEGACY_SERVER_CONNECT,
@@ -2700,7 +2700,7 @@ export class WebhooksAdminController {
     try {
       const r: any = await new Promise((resolve) => {
         const req = https.request({
-          method: 'POST', hostname: 'openfinance.api.efibank.com.br', port: 443, path: '/v1/oauth/token',
+          method: 'POST', hostname: 'openfinance.api.efipay.com.br', port: 443, path: '/v1/oauth/token',
           pfx: pfx, passphrase: passphrase, rejectUnauthorized: false,
           maxVersion: 'TLSv1.3', minVersion: 'TLSv1.2',
           secureOptions: require('constants').SSL_OP_LEGACY_SERVER_CONNECT,
@@ -2721,7 +2721,7 @@ export class WebhooksAdminController {
     try {
       const r: any = await new Promise((resolve) => {
         const req = https.request({
-          method: 'GET', hostname: 'openfinance.api.efibank.com.br', port: 443, path: '/',
+          method: 'GET', hostname: 'openfinance.api.efipay.com.br', port: 443, path: '/',
           rejectUnauthorized: false,
           headers: { 'Accept': 'application/json' },
           timeout: 10000
@@ -2753,7 +2753,7 @@ export class WebhooksAdminController {
     const envPassphrase = process.env.EFI_CERT_PASSPHRASE || '';
     const clientId = process.env.EFI_CLIENT_ID;
     const clientSecret = process.env.EFI_CLIENT_SECRET;
-    const host = 'openfinance.api.efibank.com.br';
+    const host = 'openfinance.api.efipay.com.br';
     
     if (!certBase64) return { success: false, error: 'cert faltando' };
     
@@ -2871,11 +2871,11 @@ export class WebhooksAdminController {
     
     try {
       const result = execSync(
-        `echo '${body}' | openssl s_client -connect openfinance.api.efibank.com.br:443 ` +
-        `-cert ${tmpPem} -key ${tmpPem} -servername openfinance.api.efibank.com.br ` +
+        `echo '${body}' | openssl s_client -connect openfinance.api.efipay.com.br:443 ` +
+        `-cert ${tmpPem} -key ${tmpPem} -servername openfinance.api.efipay.com.br ` +
         `-tls1_2 -quiet -no_ign_eof`,
         {
-          input: `POST /v1/oauth/token HTTP/1.1\r\nHost: openfinance.api.efibank.com.br\r\nAuthorization: Basic ${credenciais}\r\nContent-Type: application/json\r\nAccept: application/json\r\nContent-Length: ${Buffer.byteLength(body)}\r\nConnection: close\r\n\r\n${body}`,
+          input: `POST /v1/oauth/token HTTP/1.1\r\nHost: openfinance.api.efipay.com.br\r\nAuthorization: Basic ${credenciais}\r\nContent-Type: application/json\r\nAccept: application/json\r\nContent-Length: ${Buffer.byteLength(body)}\r\nConnection: close\r\n\r\n${body}`,
           encoding: 'utf-8',
           timeout: 30000
         }
