@@ -1744,6 +1744,33 @@ export class WebhooksAdminController {
   }
 
   /**
+   * POST /v1/admin/webhooks/efi-debug-consent
+   * Mostra o body que está sendo enviado pra criar consent
+   */
+  @Post('efi-debug-consent')
+  async efiDebugConsent(@Body() body: any) {
+    const cpf = body.cpf || '34198276870';
+    const idPart = body.idParticipante || '60701190';
+    
+    return {
+      willSend: {
+        data: {
+          pagador: {
+            idParticipante: idPart,
+            cpf: cpf,
+            nome: body.nome || 'Cliente NextGen'
+          },
+          permissions: body.permissions || ['PAYMENTS_INITIATE'],
+          expirationDateTime: new Date(Date.now() + 90*24*60*60*1000).toISOString()
+        },
+        redirectUri: 'https://app.nextgenassets.com.br/efi/callback'
+      },
+      path: '/v1/pagamentos-automaticos/adesao',
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  /**
    * GET /v1/admin/webhooks/efi-debug-config
    * Mostra a config EXATA do Efi OF (URLs, paths, envs)
    */
