@@ -260,17 +260,25 @@ export class EfiOFService {
     cpf: string;
     cnpj?: string;
     permissions: ('accounts.read' | 'transactions.read' | 'payments.initiate')[];
-    expirationDateTime?: string;  // ISO 8601
+    expirationDateTime?: string;
     redirectUrl?: string;
+    idParticipante?: string;  // ISPB do banco
   }): Promise<{ consentId: string; status: string; authUrl?: string }> {
     const token = await this.ensureToken();
     const httpsAgent = this.getHttpsAgent();
 
+    const doc = opts.cnpj || opts.cpf;
+    const rel = opts.cnpj ? 'CNPJ' : 'CPF';
+    const idPart = opts.idParticipante || '60701190'; // default Itaú
+
+    // Estrutura Efi OF PISP - baseada em testes empíricos
     const body = {
       data: {
-        pagador: opts.cnpj 
-          ? { document: { identification: opts.cnpj, rel: 'CNPJ' } }
-          : { document: { identification: opts.cpf, rel: 'CPF' } },
+        pagador: {
+          idParticipante: idPart,
+          [rel.toLowerCase()]: doc,
+          nome: opts.cnpj ? 'NextGen Assets LTDA' : 'Cliente NextGen'
+        },
         permissions: opts.permissions,
         expirationDateTime: opts.expirationDateTime || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString()
       },
@@ -279,7 +287,7 @@ export class EfiOFService {
 
     const res = await this.mTLSRequest({
       method: 'POST',
-      path: '/v1/pagamentos/pix',
+      path: '/v1/pagamentos-automaticos/adesao',  // PIX Automático adesão
       body,
       extraHeaders: { 'Authorization': `Bearer ${token}` }
     });
