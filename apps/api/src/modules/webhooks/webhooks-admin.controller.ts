@@ -2992,13 +2992,13 @@ export class WebhooksAdminController {
     
     // Atualiza no DB (best effort)
     try {
-      const prisma = new (require('@prisma/client').PrismaClient)();
-      await prisma.systemConfig.upsert({
+      const db = new (require('@prisma/client').PrismaClient)();
+      await db.systemConfig.upsert({
         where: { key: 'EFI_CERTIFICATE_BASE64' },
         create: { key: 'EFI_CERTIFICATE_BASE64', value: clean },
         update: { value: clean }
       });
-      await prisma.$disconnect();
+      await db.$disconnect();
     } catch (e: any) {
       // Tabela pode não existir, tudo bem
     }
