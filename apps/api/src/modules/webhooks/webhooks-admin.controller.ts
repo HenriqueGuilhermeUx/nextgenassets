@@ -1771,6 +1771,36 @@ export class WebhooksAdminController {
   }
 
   /**
+   * GET /v1/admin/webhooks/efi-of-service-content
+   * Mostra parte do conteúdo do service pra debug
+   */
+  @Get('efi-of-service-content')
+  async efiOfServiceContent() {
+    const fs = require('fs');
+    const path = require('path');
+    try {
+      // Tenta ler o JS compilado do dist
+      const distPath = path.join(__dirname, '..', 'efi-of', 'efi-of.service.js');
+      const distContent = fs.readFileSync(distPath, 'utf-8');
+      const lines = distContent.split('\n');
+      
+      // Procura pelas linhas sobre automatico
+      const relevantLines = lines.filter((l, i) => 
+        l.includes('automatico') || l.includes('valorFixo') || l.includes('intervalo: opts')
+      );
+      
+      return {
+        running: 'compiled JS',
+        relevantLines: relevantLines.slice(0, 10),
+        totalLines: lines.length,
+        timestamp: new Date().toISOString()
+      };
+    } catch (e: any) {
+      return { error: e.message };
+    }
+  }
+
+  /**
    * GET /v1/admin/webhooks/efi-of-version
    * Mostra a versão atual do service
    */
