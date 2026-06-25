@@ -1744,6 +1744,26 @@ export class WebhooksAdminController {
   }
 
   /**
+   * GET /v1/admin/webhooks/efi-debug-config
+   * Mostra a config EXATA do Efi OF (URLs, paths, envs)
+   */
+  @Get('efi-debug-config')
+  async efiDebugConfig() {
+    return {
+      apiUrl: process.env.EFI_OF_API_URL || 'default',
+      oauthUrl: process.env.EFI_OAUTH_URL || 'default',
+      defaultApiUrl: 'https://openfinance.api.efipay.com.br',
+      defaultOauthUrl: 'https://openfinance.api.efipay.com.br/v1/oauth/token',
+      hasClientId: !!process.env.EFI_CLIENT_ID,
+      hasSecret: !!process.env.EFI_CLIENT_SECRET,
+      hasCert: !!process.env.EFI_CERTIFICATE_BASE64,
+      certSha: process.env.EFI_CERTIFICATE_BASE64 
+        ? require('crypto').createHash('sha256').update(Buffer.from(process.env.EFI_CERTIFICATE_BASE64, 'base64')).digest('hex')
+        : null
+    };
+  }
+
+  /**
    * POST /v1/admin/webhooks/efi-of-consent
    * Cria consentimento de pagamento (cliente autoriza NextGen a iniciar PIX)
    */
