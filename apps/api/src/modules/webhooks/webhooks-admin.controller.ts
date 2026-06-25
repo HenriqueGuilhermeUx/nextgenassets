@@ -1800,13 +1800,37 @@ export class WebhooksAdminController {
       const { EfiOFService } = require('../efi-of/efi-of.service');
       const service = new EfiOFService();
       const result = await service.createConsent({
-        cpf: body.cpf || '34198276870',
+        cpf: body.cpf,
         cnpj: body.cnpj,
-        permissions: body.permissions || ['accounts.read', 'transactions.read', 'payments.initiate'],
-        expirationDateTime: body.expirationDateTime,
-        redirectUrl: body.redirectUrl
+        nome: body.nome,
+        idParticipante: body.idParticipante,
+        favorecido: body.favorecido,
+        valorFixo: body.valorFixo,
+        valorMinimo: body.valorMinimo,
+        valorMaximo: body.valorMaximo,
+        intervalo: body.intervalo,
+        dataInicio: body.dataInicio,
+        expiracao: body.expiracao,
+        descricao: body.descricao,
+        permiteRetentativa: body.permiteRetentativa
       });
       return { success: true, ...result };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * GET /v1/admin/webhooks/efi-adesao/:id
+   * Busca status de uma adesão criada
+   */
+  @Get('efi-adesao/:id')
+  async efiGetAdesao(@Param('id') id: string) {
+    try {
+      const { EfiOFService } = require('../efi-of/efi-of.service');
+      const service = new EfiOFService();
+      const result = await service.getAdesao(id);
+      return { success: true, data: result };
     } catch (err: any) {
       return { success: false, error: err.message };
     }

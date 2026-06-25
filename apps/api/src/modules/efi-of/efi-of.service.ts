@@ -257,48 +257,61 @@ export class EfiOFService {
    * POST /v1/consent
    */
   async createConsent(opts: {
-    cpf: string;
+    cpf?: string;
     cnpj?: string;
-    permissions: ('accounts.read' | 'transactions.read' | 'payments.initiate')[];
-    expirationDateTime?: string;
-    redirectUrl?: string;
-    idParticipante?: string;  // UUID do participante (NÃO ISPB)
-    ispbBanco?: string;       // ISPB do banco
-    conta?: string;
-    agencia?: string;
-    tipoConta?: 'CACC' | 'SVGS' | 'TRAN';
-  }): Promise<{ consentId: string; status: string; authUrl?: string }> {
+    nome?: string;
+    idParticipante: string;  // UUID do banco pagador
+    favorecido: {
+      nome: string;
+      documento: string;     // CPF ou CNPJ
+      codigoBanco: string;   // CNPJ do banco favorecido
+      agencia: string;
+      conta: string;
+      tipoConta?: 'TRAN' | 'CACC' | 'SVGS';
+    };
+    valorFixo?: string;
+    valorMinimo?: string;
+    valorMaximo?: string;
+    intervalo: 'DIARIO' | 'SEMANAL' | 'MENSAL' | 'TRIMESTRAL' | 'SEMESTRAL' | 'ANUAL';
+    dataInicio: string;     // YYYY-MM-DD
+    expiracao?: string;     // YYYY-MM-DD
+    descricao?: string;
+    permiteRetentativa?: boolean;
+  }): Promise<{ identificadorAdesao: string; redirectURI: string }> {
     const token = await this.ensureToken();
-    const httpsAgent = this.getHttpsAgent();
-
-    const doc = opts.cnpj || opts.cpf;
-    const idPart = opts.idParticipante || '68308291-ec0d-4398-83ce-68b6b1087e49'; // Itaú default
-    const ispb = opts.ispbBanco || '60701190'; // Itaú ISPB
     const idempotencyKey = require('crypto').randomUUID();
 
-    // Estrutura Efi OF PISP - descoberta via testes empíricos
-    // Ver: docs/integracao/EFI_OF_PAYLOADS.md
+    // Estrutura EXATA da doc oficial Efi:
+    // https://dev.efipay.com.br/docs/api-open-finance/pagamentos-automaticos
     const body = {
       pagador: {
-        idParticipante: idPart,
         cpf: opts.cpf,
-        nome: 'Cliente NextGen'
+        cnpj: opts.cnpj,
+        nome: opts.nome,
+        idParticipante: opts.idParticipante
       },
       favorecido: {
         contaBanco: {
-          conta: opts.conta || '12345',
-          agencia: opts.agencia || '0001',
-          nome: opts.cnpj ? 'NextGen Assets LTDA' : 'NextGen Assets',
-          documento: doc,
-          codigoBanco: ispb,
-          tipoConta: opts.tipoConta || 'CACC'
+          nome: opts.favorecido.nome,
+          documento: opts.favorecido.documento,
+          codigoBanco: opts.favorecido.codigoBanco,
+          agencia: opts.favorecido.agencia,
+          conta: opts.favorecido.conta,
+          tipoConta: opts.favorecido.tipoConta || 'TRAN'
         }
       },
       assinatura: {
+        expiracao: opts.expiracao || new Date(Date.now() + 365*24*60*60*1000).toISOString().split('T')[0],
+        descricao: opts.descricao || 'Pagamento NextGen Assets',
+        idProprio: `nextgen-${Date.now()}`,
         configuracao: {
           automatico: {
-            intervalo: 'MENSAL',
-            dataInicio: new Date(Date.now() + 7*24*60*60*1000).toISOString().split('T')[0]
+            valorFixo: opts.valorFixo || '10.00',
+            valorMinimo: opts.valorMinimo || opts.valorFixo || '10.00',
+            valorMaximo: opts.valorMaximo || opts.valorFixo || '10.00',
+            intervalo: opts.intervalo,
+            dataInicio: opts.dataInicio,
+            permiteRetentativa: opts.permiteRetentativa ?? false
           }
         }
       }
@@ -319,12 +332,31 @@ export class EfiOFService {
     }
 
     const data = res.data;
-    this.logger.log(`✅ Consent criado: ${data.data?.consentId}`);
+    this.logger.log(`✅ Adesão criada: ${data.identificadorAdesao}`);
     return {
-      consentId: data.data?.consentId,
-      status: data.data?.status,
-      authUrl: data.links?.self || data.data?.redirectUri
+      identificadorAdesao: data.identificadorAdesao,
+      redirectURI: data.redirectURI
     };
+  }
+
+  /**
+   * Busca status de uma adesão
+   * GET /v1/pagamentos-automaticos/adesao/{identificadorAdesao}
+   */
+  async getAdesao(identificadorAdesao: string): Promise<any> {
+    const token = await this.ensureToken();
+    
+    const res = await this.mTLSRequest({
+      method: 'GET',
+      path: `/v1/pagamentos-automaticos/adesao/${identificadorAdesao}`,
+      extraHeaders: { 'Authorization': `Bearer ${token}` }
+    });
+
+    if (res.status < 200 || res.status >= 300) {
+      throw new Error(`Efi getAdesao error: ${res.status} - ${res.text}`);
+    }
+
+    return res.data;
   }
 
   /**
