@@ -268,15 +268,11 @@ export class EfiOFService {
 
     const body = {
       data: {
-        loggedUser: opts.cnpj 
+        pagador: opts.cnpj 
           ? { document: { identification: opts.cnpj, rel: 'CNPJ' } }
           : { document: { identification: opts.cpf, rel: 'CPF' } },
-        businessEntity: opts.cnpj 
-          ? { document: { identification: opts.cnpj, rel: 'CNPJ' } }
-          : undefined,
         permissions: opts.permissions,
-        expirationDateTime: opts.expirationDateTime || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
-        transactionFromDateTime: new Date().toISOString()
+        expirationDateTime: opts.expirationDateTime || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString()
       },
       redirectUri: opts.redirectUrl || 'https://app.nextgenassets.com.br/efi/callback'
     };
