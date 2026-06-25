@@ -2990,13 +2990,15 @@ export class WebhooksAdminController {
     // Salva no DB / atualiza env
     process.env.EFI_CERTIFICATE_BASE64 = clean;
     
-    // Atualiza no DB também
+    // Atualiza no DB (best effort)
     try {
-      await this.prisma.systemConfig.upsert({
+      const prisma = new (require('@prisma/client').PrismaClient)();
+      await prisma.systemConfig.upsert({
         where: { key: 'EFI_CERTIFICATE_BASE64' },
         create: { key: 'EFI_CERTIFICATE_BASE64', value: clean },
         update: { value: clean }
       });
+      await prisma.$disconnect();
     } catch (e: any) {
       // Tabela pode não existir, tudo bem
     }
