@@ -1838,6 +1838,54 @@ export class WebhooksAdminController {
    * POST /v1/admin/webhooks/efi-of-consent
    * Cria consentimento de pagamento (cliente autoriza NextGen a iniciar PIX)
    */
+  @Post('efi-of-consent-debug')
+  async efiOfConsentDebug(@Body() body: any) {
+    const { EfiOFService } = require('../efi-of/efi-of.service');
+    const service = new EfiOFService();
+    
+    // Vou montar o body igual o service faz, pra debugar
+    const crypto = require('crypto');
+    const mockBody = {
+      pagador: {
+        cpf: body.cpf,
+        nome: body.nome,
+        idParticipante: body.idParticipante
+      },
+      favorecido: {
+        contaBanco: {
+          nome: body.favorecido?.nome,
+          documento: body.favorecido?.documento,
+          codigoBanco: body.favorecido?.codigoBanco,
+          agencia: body.favorecido?.agencia,
+          conta: body.favorecido?.conta,
+          tipoConta: body.favorecido?.tipoConta || 'TRAN'
+        }
+      },
+      assinatura: {
+        expiracao: '2027-12-31',
+        descricao: 'Teste NextGen',
+        idProprio: 'debug-' + Date.now(),
+        configuracao: {
+          automatico: {
+            valorFixo: body.valorFixo || '500.00',
+            valorMinimo: body.valorFixo || '500.00',
+            valorMaximo: body.valorFixo || '500.00',
+            intervalo: body.intervalo || 'MENSAL',
+            dataInicio: body.dataInicio || '2026-07-01',
+            permiteRetentativa: false
+          }
+        }
+      }
+    };
+    
+    return {
+      marker: 'ROCKET_TEST_FINAL',
+      willSend: mockBody,
+      path: '/v1/pagamentos-automaticos/adesao',
+      timestamp: new Date().toISOString()
+    };
+  }
+
   @Post('efi-of-consent')
   async efiOfConsent(@Body() body: any) {
     try {
