@@ -135,7 +135,9 @@ export class EfiOFService {
     const pfx = Buffer.from(this.cfg.certBase64, 'base64');
     
     const baseUrl = opts.useOAuthUrl ? this.cfg.oauthUrl : this.cfg.apiUrl;
-    const url = new URL(baseUrl + opts.path);
+    // Se baseUrl já tem path completo (ex: oauthUrl), não concatena path
+    const fullUrl = baseUrl.endsWith(opts.path) ? baseUrl : baseUrl + opts.path;
+    const url = new URL(fullUrl);
     
     // Carrega CA bundle Efi (embutido no código)
     let ca: Buffer | Buffer[] | undefined;
