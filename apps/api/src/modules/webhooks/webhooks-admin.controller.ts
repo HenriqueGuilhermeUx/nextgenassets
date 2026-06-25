@@ -592,7 +592,6 @@ export class WebhooksAdminController {
     }
   }
 
-
   /**
    * GET /v1/admin/webhooks/debug-logs
    * Mostra ultimos payloads recebidos
@@ -601,7 +600,6 @@ export class WebhooksAdminController {
   async debugLogs() {
     return { success: true, count: this.DEBUG_LOGS.length, logs: this.DEBUG_LOGS.slice().reverse() };
   }
-
 
   /**
    * GET /v1/admin/webhooks/trace
@@ -622,7 +620,6 @@ export class WebhooksAdminController {
     }
   }
 
-
   /**
    * GET /v1/admin/webhooks/list-users
    * Lista ConsumerUsers (debug)
@@ -639,7 +636,6 @@ export class WebhooksAdminController {
       return { success: false, error: err.message };
     }
   }
-
 
   /**
    * POST /v1/admin/webhooks/sync-pluggy
@@ -679,7 +675,6 @@ export class WebhooksAdminController {
       return { success: false, error: err.message };
     }
   }
-
 
   /**
    * POST /v1/admin/webhooks/pluggy-test
@@ -739,7 +734,6 @@ export class WebhooksAdminController {
     }
   }
 
-
   /**
    * POST /v1/admin/webhooks/pluggy-connect-token
    * Gera Connect Token Pluggy (chamado pelo Consumer UI)
@@ -781,7 +775,6 @@ export class WebhooksAdminController {
       return { success: false, error: err.message };
     }
   }
-
 
   /**
    * POST /v1/admin/webhooks/woovi-test
@@ -871,7 +864,6 @@ export class WebhooksAdminController {
     };
   }
 
-
   /**
    * POST /v1/admin/webhooks/woovi-register
    * Registra o webhook NextGen na Woovi
@@ -918,7 +910,6 @@ export class WebhooksAdminController {
       return { success: false, error: err.message };
     }
   }
-
 
   /**
    * POST /v1/admin/webhooks/woovi-simulate
@@ -993,7 +984,6 @@ export class WebhooksAdminController {
       return { success: false, error: err.message };
     }
   }
-
 
   /**
    * POST /v1/admin/webhooks/woovi-receiver
@@ -1075,7 +1065,6 @@ export class WebhooksAdminController {
     }
   }
 
-
   /**
    * POST /v1/admin/webhooks/select
    * Executa SELECT e retorna rows
@@ -1092,7 +1081,6 @@ export class WebhooksAdminController {
       return { success: false, error: err.message };
     }
   }
-
 
   /**
    * POST /v1/admin/webhooks/woovi-pixout
@@ -1121,7 +1109,6 @@ export class WebhooksAdminController {
       return { success: false, error: err.message };
     }
   }
-
 
   /**
    * POST /v1/admin/webhooks/woovi-withdraw-all
@@ -1250,7 +1237,6 @@ export class WebhooksAdminController {
     }
   }
 
-
   /**
    * POST /v1/admin/webhooks/woovi-cron-run
    * Roda o cron de auto-withdraw manualmente (pra teste)
@@ -1285,7 +1271,6 @@ export class WebhooksAdminController {
     };
   }
 
-
   /**
    * GET /v1/admin/webhooks/api-spec.json
    * OpenAPI 3.0 spec (pra Swagger UI)
@@ -1295,7 +1280,6 @@ export class WebhooksAdminController {
     // Retorna o spec OpenAPI inline (sem precisar de arquivo estático)
     return { openapi: '3.0.0', info: { title: 'NextGen Assets API', version: '1.0.0' }, servers: [{ url: 'https://api.nextgenassets.com.br' }] };
   }
-
 
   /**
    * GET /v1/admin/webhooks/pluggy-list
@@ -1342,7 +1326,6 @@ export class WebhooksAdminController {
       return { success: false, error: err.message };
     }
   }
-
 
   /**
    * GET /v1/admin/webhooks/klavi-status
@@ -1422,7 +1405,6 @@ export class WebhooksAdminController {
   async klaviSimulate(@Body() body: any) {
     return { received: true, simulated: true, body };
   }
-
 
   /**
    * POST /v1/admin/webhooks/gatilho-criar
@@ -1565,7 +1547,6 @@ export class WebhooksAdminController {
       return { success: false, error: err.message };
     }
   }
-
 
   /**
    * POST /v1/admin/webhooks/woovi-subscription-create
@@ -1710,7 +1691,6 @@ export class WebhooksAdminController {
     }
   }
 
-
   /**
    * GET /v1/admin/webhooks/efi-of-status
    * Status config Efi OF
@@ -1804,20 +1784,11 @@ export class WebhooksAdminController {
    * GET /v1/admin/webhooks/efi-of-version
    * Mostra a versão atual do service
    */
-  @Get('efi-marker-V3')
-  async efiMarker() {
-    return { marker: 'V3_DEPLOYED_' + Date.now() };
-  }
+  
 
-  @Get('efi-marker-V3')
-  async efiMarker() {
-    return { marker: 'V3_DEPLOYED_' + Date.now() };
-  }
+  
 
-  @Get('efi-marker-V3')
-  async efiMarker() {
-    return { marker: 'V3_DEPLOYED_' + Date.now() };
-  }
+  
 
   @Get('efi-of-version')
   async efiOfVersion() {
@@ -1933,7 +1904,6 @@ export class WebhooksAdminController {
     }
   }
 
-
   /**
    * GET /v1/admin/webhooks/efi-cert-info
    * Info do certificado Efi (validade, subject, etc)
@@ -1956,7 +1926,6 @@ export class WebhooksAdminController {
       return { success: false, error: err.message };
     }
   }
-
 
   /**
    * POST /v1/admin/webhooks/efi-of-test-both
@@ -2020,7 +1989,6 @@ export class WebhooksAdminController {
     
     return { success: true, results };
   }
-
 
   /**
    * POST /v1/admin/webhooks/efi-of-flow-completo
@@ -2129,7 +2097,6 @@ export class WebhooksAdminController {
     }
   }
 
-
   /**
    * GET /v1/admin/webhooks/efi-cert-decode
    * Decodifica o cert .p12 (validade, subject, issuer)
@@ -2187,7 +2154,6 @@ export class WebhooksAdminController {
     }
   }
 
-
   /**
    * POST /v1/admin/webhooks/efi-cert-test-passphrase
    * Tenta várias passphrases comuns
@@ -2226,7 +2192,6 @@ export class WebhooksAdminController {
       return { success: false, error: err.message };
     }
   }
-
 
   /**
    * POST /v1/admin/webhooks/efi-test-urls
@@ -2291,7 +2256,6 @@ export class WebhooksAdminController {
     return { success: true, results };
   }
 
-
   /**
    * GET /v1/admin/webhooks/efi-cert-full
    * Mostra cert completo do cliente em formato PEM
@@ -2330,7 +2294,6 @@ export class WebhooksAdminController {
     }
   }
 
-
   /**
    * GET /v1/admin/webhooks/efi-debug-tls
    * Mostra info detalhada do TLS agent usado
@@ -2363,7 +2326,6 @@ export class WebhooksAdminController {
     
     return debug;
   }
-
 
   /**
    * GET /v1/admin/webhooks/efi-chain-search
@@ -2420,10 +2382,6 @@ export class WebhooksAdminController {
     }
   }
 
-
-
-
-
   /**
    * GET /v1/admin/webhooks/efi-tcp-test
    * Testa conectividade TCP+SSL com a Efi SEM mTLS
@@ -2475,7 +2433,6 @@ export class WebhooksAdminController {
     return { success: true, results };
   }
 
-
   /**
    * POST /v1/admin/webhooks/efi-tcp-direct
    * Testa TLS direto via IP (bypass cloudflare)
@@ -2524,7 +2481,6 @@ export class WebhooksAdminController {
     
     return { success: true, results };
   }
-
 
   /**
    * POST /v1/admin/webhooks/efi-test-with-cert
@@ -2613,7 +2569,6 @@ export class WebhooksAdminController {
     }
   }
 
-
   /**
    * POST /v1/admin/webhooks/efi-cert-find-pass
    * Tenta várias senhas no cert atual
@@ -2652,7 +2607,6 @@ export class WebhooksAdminController {
       return { success: false, error: err.message };
     }
   }
-
 
   /**
    * POST /v1/admin/webhooks/efi-cert-try-passwords
@@ -2713,7 +2667,6 @@ export class WebhooksAdminController {
       return { success: false, error: err.message };
     }
   }
-
 
   /**
    * GET /v1/admin/webhooks/efi-test-with-passphrase
@@ -2796,7 +2749,6 @@ export class WebhooksAdminController {
       req.end();
     });
   }
-
 
   /**
    * POST /v1/admin/webhooks/efi-tls-configs
@@ -2881,7 +2833,6 @@ export class WebhooksAdminController {
     
     return { success: true, results };
   }
-
 
   /**
    * GET /v1/admin/webhooks/efi-convert-and-test
@@ -2971,7 +2922,6 @@ export class WebhooksAdminController {
     });
   }
 
-
   /**
    * GET /v1/admin/webhooks/efi-openssl-test
    * Testa mTLS usando OpenSSL direto (mais robusto)
@@ -3037,7 +2987,6 @@ export class WebhooksAdminController {
     }
   }
 
-
   /**
    * GET /v1/admin/webhooks/efi-cert-compare
    * Retorna base64 do cert no env pra comparar com o enviado
@@ -3068,7 +3017,6 @@ export class WebhooksAdminController {
     }
   }
 
-
   /**
    * GET /v1/admin/webhooks/efi-cert-get
    * Retorna o cert completo do env em base64
@@ -3090,7 +3038,6 @@ export class WebhooksAdminController {
       return { success: false, error: err.message };
     }
   }
-
 
   /**
    * POST /v1/admin/webhooks/efi-update-cert
