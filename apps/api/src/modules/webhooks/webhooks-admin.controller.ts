@@ -1804,6 +1804,11 @@ export class WebhooksAdminController {
    * GET /v1/admin/webhooks/efi-of-version
    * Mostra a versão atual do service
    */
+  @Get('efi-marker-V3')
+  async efiMarker() {
+    return { marker: 'V3_DEPLOYED_' + Date.now() };
+  }
+
   @Get('efi-of-version')
   async efiOfVersion() {
     const fs = require('fs');
