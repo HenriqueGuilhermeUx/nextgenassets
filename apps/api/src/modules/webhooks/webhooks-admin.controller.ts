@@ -1771,6 +1771,34 @@ export class WebhooksAdminController {
   }
 
   /**
+   * GET /v1/admin/webhooks/efi-of-version
+   * Mostra a versão atual do service
+   */
+  @Get('efi-of-version')
+  async efiOfVersion() {
+    const fs = require('fs');
+    const path = require('path');
+    try {
+      const servicePath = path.join(__dirname, '..', 'efi-of', 'efi-of.service.ts');
+      const serviceContent = fs.readFileSync(servicePath, 'utf-8');
+      // Detecta qual versão tá rodando
+      const hasNewPayload = serviceContent.includes('expiracao') && serviceContent.includes('idProprio');
+      const hasOldPayload = serviceContent.includes('configuracao: { automatico: { intervalo:');
+      const isNewDocPayload = serviceContent.includes("expiracao: opts.expiracao || new Date");
+      
+      return {
+        runningVersion: hasNewPayload ? 'NEW (doc oficial)' : (hasOldPayload ? 'OLD' : 'UNKNOWN'),
+        isNewDocPayload,
+        hasNewPayload,
+        hasOldPayload,
+        timestamp: new Date().toISOString()
+      };
+    } catch (e: any) {
+      return { error: e.message };
+    }
+  }
+
+  /**
    * GET /v1/admin/webhooks/efi-debug-config
    * Mostra a config EXATA do Efi OF (URLs, paths, envs)
    */
