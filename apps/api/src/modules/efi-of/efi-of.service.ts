@@ -32,6 +32,31 @@ export class EfiOFService {
     });
   }
 
+
+  /**
+   * GET /v1/config
+   * Verifica a config da app (cert valid, mTLS OK)
+   */
+  async getConfig(): Promise<any> {
+    const res = await this.mTLSRequest({
+      method: 'GET',
+      path: '/v1/config'
+    });
+    return res;
+  }
+
+  /**
+   * GET /v1/participantes
+   * Lista participantes Open Finance
+   */
+  async getParticipantes(): Promise<any> {
+    const res = await this.mTLSRequest({
+      method: 'GET',
+      path: '/v1/participantes'
+    });
+    return res;
+  }
+
   /**
    * Faz requisição HTTPS com mTLS (cert .p12)
    * @param method POST/GET
@@ -208,6 +233,31 @@ export class EfiOFService {
     });
   }
 
+
+  /**
+   * GET /v1/config
+   * Verifica a config da app (cert valid, mTLS OK)
+   */
+  async getConfig(): Promise<any> {
+    const res = await this.mTLSRequest({
+      method: 'GET',
+      path: '/v1/config'
+    });
+    return res;
+  }
+
+  /**
+   * GET /v1/participantes
+   * Lista participantes Open Finance
+   */
+  async getParticipantes(): Promise<any> {
+    const res = await this.mTLSRequest({
+      method: 'GET',
+      path: '/v1/participantes'
+    });
+    return res;
+  }
+
   /**
    * Gera access_token via OAuth2 client_credentials
    */
@@ -281,7 +331,7 @@ export class EfiOFService {
 
     const res = await this.mTLSRequest({
       method: 'POST',
-      path: '/v1/consent',
+      path: '/v1/pagamentos/pix',  // Path correto confirmado pelo suporte Efi
       body,
       extraHeaders: { 'Authorization': `Bearer ${token}` }
     });
@@ -334,7 +384,7 @@ export class EfiOFService {
 
     const res = await this.mTLSRequest({
       method: 'POST',
-      path: '/v1/payments',
+      path: '/v1/pagamentos/pix',  // Path correto confirmado pelo suporte Efi
       body,
       extraHeaders: {
         'Authorization': `Bearer ${token}`,
