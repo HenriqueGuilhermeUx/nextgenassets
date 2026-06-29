@@ -232,19 +232,11 @@ export class EfiOFDebugController {
 
     return this.cleanObject({
       redirectURL,
-      webhookURL,
-      receberSemChave: this.toBoolean(input.receberSemChave ?? process.env.EFI_OF_RECEBER_SEM_CHAVE ?? true)
+      webhookURL
     });
   }
 
   private cleanObject(obj: Record<string, any>) {
     return Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== undefined && value !== null && value !== ''));
-  }
-
-  private toBoolean(value: any) {
-    if (typeof value === 'boolean') return value;
-    if (typeof value === 'number') return value !== 0;
-    const text = String(value || '').toLowerCase().trim();
-    return ['true', '1', 'sim', 'yes', 'on'].includes(text);
   }
 }
