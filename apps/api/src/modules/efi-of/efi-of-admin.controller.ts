@@ -4,6 +4,7 @@
 //  GET  /v1/admin/efi-of/favored-check
 //  POST /v1/admin/efi-of/create-adhesion
 //  POST /v1/admin/efi-of/create-immediate-pix
+//  POST /v1/admin/efi-of/create-automatic-pix
 //  GET  /v1/admin/efi-of/adhesion/:identificadorAdesao
 // ============================================
 
@@ -38,18 +39,6 @@ export class EfiOFAdminController {
     };
   }
 
-  /**
-   * Cria adesão Open Finance/Pagamento Automático na Efí.
-   *
-   * Body mínimo:
-   * {
-   *   "cpf": "34198276870",
-   *   "nome": "Cliente Teste",
-   *   "idParticipante": "uuid-do-banco-pagador",
-   *   "intervalo": "MENSAL",
-   *   "dataInicio": "2026-07-05"
-   * }
-   */
   @Post('create-adhesion')
   async createAdhesion(@Body() body: any) {
     const favored = this.getFavoredFromEnv(body.favorecido);
@@ -261,14 +250,189 @@ export class EfiOFAdminController {
     }
   }
 
+  @Post('create-automatic-pix')
+  async createAutomaticPix(@Body() body: any) {
+    const missing: string[] = [];
+    if (!body.identificadorAdesao) missing.push('identificadorAdesao');
+    if (!body.valor) missing.push('valor');
+    if (missing.length) {
+      return {
+        success: false,
+        error: 'MISSING_FIELDS',
+        missing,
+        example: {
+          identificadorAdesao: 'urn:bancodobrasil:9488713544B14D0E9DD3C4A28A5D05CA',
+          valor: '0.01',
+          descricao: 'Teste Pix automático NextGen'
+        }
+      };
+    }
+
+    const token = await this.efiOF.ensureToken();
+    const valor = String(body.valor).replace(',', '.');
+    const idProprio = body.idProprio || `nextgen-auto-pix-${Date.now()}`;
+    const descricao = body.descricao || 'Teste Pix automático NextGen';
+    const identificadorAdesao = body.identificadorAdesao;
+    const variant = body.variant || 'flat';
+    const idempotencyKey = randomUUID();
+
+    const base = { identificadorAdesao, valor, idProprio, descricao };
+    const payload = this.buildAutomaticPixPayload(variant, base);
+
+    try {
+      const result = await (this.efiOF as any).mTLSRequest({
+        method: 'POST',
+        path: body.path || '/v1/pagamentos-automaticos/pix',
+        body: payload,
+        extraHeaders: {
+          Authorization: `Bearer ${token}`,
+          'x-idempotency-key': idempotencyKey
+        }
+      });
+
+      if (result.status >= 200 && result.status < 300) {
+        await this.logAutomaticPixSuccess(identificadorAdesao, result.data || result.text, { valor, idProprio, descricao, variant });
+      }
+
+      return {
+        success: result.status >= 200 && result.status < 300,
+        status: result.status,
+        variant,
+        message: result.status >= 200 && result.status < 300
+          ? 'Pix automático criado/enviado com sucesso.'
+          : 'Efí recusou o payload. Use a resposta para ajustar o próximo campo.',
+        sent: payload,
+        response: result.data || result.text,
+        text: result.text
+      };
+    } catch (err: any) {
+      return { success: false, error: err.message, variant, sent: payload };
+    }
+  }
+
   @Get('adhesion/:identificadorAdesao')
   async getAdhesion(@Param('identificadorAdesao') identificadorAdesao: string) {
     try {
       const data = await this.efiOF.getAdesao(identificadorAdesao);
-      return { success: true, data };
+      const localSync = await this.syncAdhesionStatus(identificadorAdesao, data);
+      return { success: true, data, localSync };
     } catch (err: any) {
       return { success: false, error: err.message };
     }
+  }
+
+  private buildAutomaticPixPayload(variant: string, base: any) {
+    if (variant === 'pagamentoObject') {
+      return {
+        identificadorAdesao: base.identificadorAdesao,
+        pagamento: {
+          valor: base.valor,
+          idProprio: base.idProprio,
+          descricao: base.descricao
+        }
+      };
+    }
+
+    if (variant === 'pixObject') {
+      return {
+        identificadorAdesao: base.identificadorAdesao,
+        pix: {
+          valor: base.valor,
+          idProprio: base.idProprio,
+          descricao: base.descricao
+        }
+      };
+    }
+
+    if (variant === 'assinaturaObject') {
+      return {
+        assinatura: {
+          identificadorAdesao: base.identificadorAdesao
+        },
+        valor: base.valor,
+        idProprio: base.idProprio,
+        descricao: base.descricao
+      };
+    }
+
+    return {
+      identificadorAdesao: base.identificadorAdesao,
+      valor: base.valor,
+      idProprio: base.idProprio,
+      descricao: base.descricao
+    };
+  }
+
+  private async syncAdhesionStatus(identificadorAdesao: string, efiData: any) {
+    const adesao = efiData?.data?.adesoes?.[0] || efiData?.adesoes?.[0] || efiData?.data || efiData;
+    const efiStatus = String(adesao?.status || '').toLowerCase();
+    const nextStatus = ['autorizado', 'ativa', 'ativo', 'active', 'authorized'].includes(efiStatus)
+      ? 'ACTIVE'
+      : ['rejeitado', 'cancelado', 'revogado', 'failed', 'rejected'].includes(efiStatus)
+        ? 'FAILED'
+        : undefined;
+
+    const consents = await prisma.consent.findMany({ where: { provider: 'efi-of' } });
+    const consent = consents.find((item: any) => {
+      const metadata = item.metadata as any;
+      return String(metadata?.efiIdentificadorAdesao || '') === identificadorAdesao;
+    });
+
+    if (!consent) {
+      return { updated: false, reason: 'LOCAL_CONSENT_NOT_FOUND', efiStatus };
+    }
+
+    if (!nextStatus) {
+      return { updated: false, reason: 'EFI_STATUS_NOT_MAPPED', consentId: consent.id, efiStatus };
+    }
+
+    const previousMetadata = (consent.metadata || {}) as any;
+    const updated = await prisma.consent.update({
+      where: { id: consent.id },
+      data: {
+        status: nextStatus as any,
+        metadata: {
+          ...previousMetadata,
+          efiStatus,
+          efiAdesaoData: adesao,
+          lastSyncedAt: new Date().toISOString()
+        } as any
+      }
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        partnerId: consent.partnerId,
+        userId: consent.userId,
+        actor: 'admin:efi-of',
+        action: 'EFI_OF_ADHESION_STATUS_SYNCED',
+        resource: 'consent',
+        resourceId: consent.id,
+        metadata: { identificadorAdesao, efiStatus, localStatus: nextStatus } as any
+      } as any
+    });
+
+    return { updated: true, consentId: updated.id, status: updated.status, efiStatus };
+  }
+
+  private async logAutomaticPixSuccess(identificadorAdesao: string, response: any, input: any) {
+    const consents = await prisma.consent.findMany({ where: { provider: 'efi-of' } });
+    const consent = consents.find((item: any) => {
+      const metadata = item.metadata as any;
+      return String(metadata?.efiIdentificadorAdesao || '') === identificadorAdesao;
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        partnerId: consent?.partnerId,
+        userId: consent?.userId,
+        actor: 'admin:efi-of',
+        action: 'EFI_OF_AUTOMATIC_PIX_CREATED',
+        resource: 'payment',
+        resourceId: response?.identificadorPagamento || response?.idPagamento || response?.id || input.idProprio,
+        metadata: { identificadorAdesao, input, response } as any
+      } as any
+    });
   }
 
   private validateAdhesionBody(body: any) {
