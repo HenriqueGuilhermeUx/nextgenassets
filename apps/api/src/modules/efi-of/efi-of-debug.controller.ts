@@ -142,7 +142,7 @@ export class EfiOFDebugController {
         status: result.status,
         data: result.data,
         text: result.text,
-        expectedDefault: this.buildDefaultConfig({})
+        expectedDefault: this.buildDefaultConfig({ variant: 'webhooksArray' })
       };
     } catch (err: any) {
       return { success: false, error: err.message };
@@ -163,12 +163,13 @@ export class EfiOFDebugController {
       return {
         success: result.status >= 200 && result.status < 300,
         status: result.status,
+        variant: body?.variant || body?.configVariant || 'webhooksArray',
         sent: payload,
         data: result.data,
         text: result.text,
         hint: result.status >= 200 && result.status < 300
           ? 'Configuração Open Finance criada/atualizada. Agora teste novamente a adesão.'
-          : 'Se a Efí rejeitar algum campo, cole essa resposta para ajustarmos o formato exato do payload.'
+          : 'Se a Efí rejeitar algum campo, teste outra variante no formulário ou cole essa resposta.'
       };
     } catch (err: any) {
       return { success: false, error: err.message };
@@ -229,13 +230,52 @@ export class EfiOFDebugController {
   private buildDefaultConfig(input: any) {
     const redirectURL = input.redirectURL || input.redirectUrl || process.env.EFI_OF_REDIRECT_URL || 'https://api.nextgenassets.com.br/v1/admin/efi-of/return';
     const webhookURL = input.webhookURL || input.webhookUrl || input.urlWebhook || process.env.EFI_OF_WEBHOOK_URL || 'https://api.nextgenassets.com.br/v1/webhooks/efi-of-public';
+    const variant = input.variant || input.configVariant || 'webhooksArray';
+    const type = input.type || input.webhookType || 'pagamento';
 
-    return this.cleanObject({
-      data: this.cleanObject({
+    if (variant === 'flat') {
+      return this.cleanObject({ redirectURL, webhookURL });
+    }
+
+    if (variant === 'flatType') {
+      return this.cleanObject({ redirectURL, webhookURL, type });
+    }
+
+    if (variant === 'webhookObject') {
+      return this.cleanObject({
         redirectURL,
-        webhookURL
-      })
-    });
+        webhookURL: this.cleanObject({ type, url: webhookURL })
+      });
+    }
+
+    if (variant === 'webhooksArray') {
+      return this.cleanObject({
+        redirectURL,
+        webhooks: [this.cleanObject({ type, url: webhookURL })]
+      });
+    }
+
+    if (variant === 'webhookURLsArray') {
+      return this.cleanObject({
+        redirectURL,
+        webhookURLs: [this.cleanObject({ type, url: webhookURL })]
+      });
+    }
+
+    if (variant === 'callbacksArray') {
+      return this.cleanObject({
+        redirectURL,
+        callbacks: [this.cleanObject({ type, url: webhookURL })]
+      });
+    }
+
+    if (variant === 'dataEnvelope') {
+      return this.cleanObject({
+        data: this.cleanObject({ redirectURL, webhookURL })
+      });
+    }
+
+    return this.cleanObject({ redirectURL, webhookURL });
   }
 
   private cleanObject(obj: Record<string, any>) {
