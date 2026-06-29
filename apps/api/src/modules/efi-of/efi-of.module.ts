@@ -5,6 +5,7 @@ import { EfiOFWebhookReceiverController } from './efi-of-webhook-receiver.contro
 import { EfiWebhookPublicController } from './efi-webhook-public.controller';
 import { EfiOFDebugController } from './efi-of-debug.controller';
 import { EfiOFAdminController } from './efi-of-admin.controller';
+import { SmartBillingController } from '../smart-billing/smart-billing.controller';
 
 @Module({
   providers: [EfiOFService],
@@ -13,7 +14,8 @@ import { EfiOFAdminController } from './efi-of-admin.controller';
     EfiOFWebhookReceiverController,
     EfiWebhookPublicController,
     EfiOFDebugController,
-    EfiOFAdminController
+    EfiOFAdminController,
+    SmartBillingController
   ],
   exports: [EfiOFService]
 })
