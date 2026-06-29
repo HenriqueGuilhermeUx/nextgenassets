@@ -3,11 +3,13 @@
 //  Rotas reais com prefixo global:
 //  GET  /v1/admin/efi-of/favored-check
 //  POST /v1/admin/efi-of/create-adhesion
+//  POST /v1/admin/efi-of/create-immediate-pix
 //  GET  /v1/admin/efi-of/adhesion/:identificadorAdesao
 // ============================================
 
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import { EfiOFService } from './efi-of.service';
 
 const prisma = new PrismaClient();
@@ -177,6 +179,88 @@ export class EfiOFAdminController {
     }
   }
 
+  @Post('create-immediate-pix')
+  async createImmediatePix(@Body() body: any) {
+    const favored = this.getFavoredFromEnv(body.favorecido);
+    if (!favored.ok) {
+      return {
+        success: false,
+        error: 'MISSING_FAVORED_ENV',
+        missing: favored.missing
+      };
+    }
+
+    const missing: string[] = [];
+    if (!body.cpf && !body.cnpj) missing.push('cpf ou cnpj do pagador');
+    if (!body.nome) missing.push('nome do pagador');
+    if (!body.idParticipante) missing.push('idParticipante do banco pagador');
+    if (!body.valor) missing.push('valor');
+    if (missing.length) {
+      return { success: false, error: 'MISSING_FIELDS', missing };
+    }
+
+    const valor = String(body.valor).replace(',', '.');
+    const token = await this.efiOF.ensureToken();
+    const idProprio = body.idProprio || `nextgen-pix-${Date.now()}`;
+    const idempotencyKey = randomUUID();
+
+    const payload = {
+      pagador: {
+        cpf: body.cpf ? this.onlyDigits(body.cpf) : undefined,
+        cnpj: body.cnpj ? this.onlyDigits(body.cnpj) : undefined,
+        nome: body.nome,
+        idParticipante: body.idParticipante
+      },
+      favorecido: {
+        contaBanco: {
+          nome: favored.value.nome,
+          documento: this.onlyDigits(favored.value.documento),
+          codigoBanco: favored.value.codigoBanco,
+          agencia: favored.value.agencia,
+          conta: favored.value.conta,
+          tipoConta: favored.value.tipoConta || 'TRAN'
+        }
+      },
+      valor,
+      idProprio,
+      descricao: body.descricao || 'Teste NextGen Assets - Pix imediato'
+    };
+
+    try {
+      const result = await (this.efiOF as any).mTLSRequest({
+        method: 'POST',
+        path: '/v1/pagamentos/pix',
+        body: payload,
+        extraHeaders: {
+          Authorization: `Bearer ${token}`,
+          'x-idempotency-key': idempotencyKey
+        }
+      });
+
+      return {
+        success: result.status >= 200 && result.status < 300,
+        status: result.status,
+        message: result.status >= 200 && result.status < 300
+          ? 'Pix imediato criado. Procure redirectURI/url na resposta para autorizar no banco.'
+          : 'Efí recusou o payload. A resposta abaixo mostra o próximo campo a ajustar.',
+        request: {
+          pagador: {
+            cpf: body.cpf ? this.maskDoc(body.cpf) : undefined,
+            cnpj: body.cnpj ? this.maskDoc(body.cnpj) : undefined,
+            nome: body.nome,
+            idParticipante: body.idParticipante
+          },
+          favorecido: this.maskFavored(favored.value),
+          valor,
+          idProprio
+        },
+        response: result.data || result.text
+      };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
   @Get('adhesion/:identificadorAdesao')
   async getAdhesion(@Param('identificadorAdesao') identificadorAdesao: string) {
     try {
@@ -277,5 +361,9 @@ export class EfiOFAdminController {
     const str = String(account);
     if (str.length <= 4) return '****';
     return `****${str.slice(-4)}`;
+  }
+
+  private onlyDigits(value?: string) {
+    return String(value || '').replace(/\D/g, '');
   }
 }
