@@ -231,8 +231,10 @@ export class EfiOFDebugController {
     const webhookURL = input.webhookURL || input.webhookUrl || input.urlWebhook || process.env.EFI_OF_WEBHOOK_URL || 'https://api.nextgenassets.com.br/v1/webhooks/efi-of-public';
 
     return this.cleanObject({
-      redirectURL,
-      webhookURL
+      data: this.cleanObject({
+        redirectURL,
+        webhookURL
+      })
     });
   }
 
