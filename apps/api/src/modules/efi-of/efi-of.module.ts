@@ -7,6 +7,7 @@ import { EfiOFDebugController } from './efi-of-debug.controller';
 import { EfiOFAdminController } from './efi-of-admin.controller';
 import { SmartBillingController } from '../smart-billing/smart-billing.controller';
 import { SmartBillingSettlementsController } from '../smart-billing/smart-billing-settlements.controller';
+import { EfiPixSplitController } from '../smart-billing/efi-pix-split.controller';
 
 @Module({
   providers: [EfiOFService],
@@ -17,7 +18,8 @@ import { SmartBillingSettlementsController } from '../smart-billing/smart-billin
     EfiOFDebugController,
     EfiOFAdminController,
     SmartBillingController,
-    SmartBillingSettlementsController
+    SmartBillingSettlementsController,
+    EfiPixSplitController
   ],
   exports: [EfiOFService]
 })
