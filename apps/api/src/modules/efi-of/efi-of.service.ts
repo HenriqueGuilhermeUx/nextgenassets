@@ -29,17 +29,9 @@ export class EfiOFService {
     return new https.Agent({
       pfx,
       passphrase: this.cfg.certPassphrase || '',
-      rejectUnauthorized: false  // evita ECONNRESET em alguns cenários
+      rejectUnauthorized: false
     });
   }
-
-  /**
-   * Faz requisição HTTPS com mTLS (cert .p12)
-   * @param method POST/GET
-   * @param path ex: '/v1/consent'
-   * @param body JSON object ou undefined
-   * @param extraHeaders headers extras
-   */
 
   /**
    * mTLS com mais controle de TLS (alternativo)
@@ -59,13 +51,13 @@ export class EfiOFService {
       const pfx = Buffer.from(this.cfg.certBase64, 'base64');
       const ca = loadEfiCaBundle(opts.hostname.includes('-h.'));
       const body = typeof opts.body === 'string' ? opts.body : JSON.stringify(opts.body);
-      
+
       const socket = tls.connect({
         host: opts.hostname,
         port: opts.port || 443,
-        pfx: pfx,
+        pfx,
         passphrase: this.cfg.certPassphrase || '',
-        ca: ca,
+        ca,
         rejectUnauthorized: false,
         secureOptions: require('constants').SSL_OP_LEGACY_SERVER_CONNECT || 0,
         ciphers: 'DEFAULT:@SECLEVEL=0',
@@ -82,11 +74,11 @@ export class EfiOFService {
             validTo: socket.getPeerCertificate().valid_to
           } : null
         };
-        
+
         if (!socket.authorized && !opts.hostname.includes('efi')) {
           this.logger.warn(`⚠️ TLS não autorizado: ${socket.authorizationError}`);
         }
-        
+
         const req = http.request({
           method: opts.method,
           hostname: opts.hostname,
@@ -113,12 +105,14 @@ export class EfiOFService {
         req.write(body);
         req.end();
       });
-      
+
       socket.on('error', (err: any) => resolve({ status: 0, error: err.message }));
-      socket.setTimeout(15000, () => { socket.destroy(); resolve({ status: 0, error: 'timeout' }); });
+      socket.setTimeout(15000, () => {
+        socket.destroy();
+        resolve({ status: 0, error: 'timeout' });
+      });
     });
   }
-
 
   private async mTLSRequest(opts: {
     method: 'POST' | 'GET' | 'PUT' | 'DELETE';
@@ -130,17 +124,14 @@ export class EfiOFService {
     if (!this.cfg.certBase64) {
       throw new Error('EFI_CERTIFICATE_BASE64 nao configurado');
     }
-    
-    // IMPORTANTE: passphrase DEVE ser string vazia explícita, não undefined
+
     const passphrase = (this.cfg.certPassphrase || '').toString();
     const pfx = Buffer.from(this.cfg.certBase64, 'base64');
-    
+
     const baseUrl = opts.useOAuthUrl ? this.cfg.oauthUrl : this.cfg.apiUrl;
-    // Se baseUrl já tem path completo (ex: oauthUrl), não concatena path
     const fullUrl = baseUrl.endsWith(opts.path) ? baseUrl : baseUrl + opts.path;
     const url = new URL(fullUrl);
-    
-    // Carrega CA bundle Efi (embutido no código)
+
     let ca: Buffer | Buffer[] | undefined;
     try {
       const isHomolog = url.hostname.includes('-h.');
@@ -149,12 +140,11 @@ export class EfiOFService {
     } catch (e: any) {
       this.logger.warn(`⚠️ Erro ao carregar CA bundle Efi: ${e.message}`);
     }
-    
-    // httpsAgent com keepAlive + timeout longo
+
     const agent = new https.Agent({
-      pfx: pfx,
-      passphrase: passphrase,  // STRING VAZIA explícita
-      ca: ca,
+      pfx,
+      passphrase,
+      ca,
       keepAlive: true,
       timeout: 60000,
       maxVersion: 'TLSv1.3',
@@ -163,7 +153,7 @@ export class EfiOFService {
       ciphers: 'DEFAULT:@SECLEVEL=0',
       rejectUnauthorized: false
     });
-    
+
     return new Promise((resolve, reject) => {
       const body = opts.body ? JSON.stringify(opts.body) : '';
       const reqOptions: https.RequestOptions = {
@@ -171,15 +161,15 @@ export class EfiOFService {
         hostname: url.hostname,
         port: url.port || 443,
         path: url.pathname + url.search,
-        agent: agent,
+        agent,
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json',  // OBRIGATÓRIO pra Efi
+          'Accept': 'application/json',
           'Content-Length': Buffer.byteLength(body),
           ...(opts.extraHeaders || {})
         }
       };
-      
+
       const req = https.request(reqOptions, (res) => {
         const chunks: Buffer[] = [];
         res.on('data', (chunk) => chunks.push(chunk));
@@ -195,25 +185,22 @@ export class EfiOFService {
           }
         });
       });
-      
+
       req.on('error', (err) => {
         this.logger.error(`❌ Efi request error: ${err.message}`);
         reject(err);
       });
-      
+
       req.setTimeout(60000, () => {
         req.destroy();
         reject(new Error('timeout 60s'));
       });
-      
+
       if (body) req.write(body);
       req.end();
     });
   }
 
-  /**
-   * Gera access_token via OAuth2 client_credentials
-   */
   async ensureToken(): Promise<string> {
     if (this.accessToken && Date.now() < this.tokenExpiresAt - 60_000) {
       return this.accessToken;
@@ -230,8 +217,6 @@ export class EfiOFService {
 
     const body = {
       grant_type: 'client_credentials'
-      // NÃO passar scope - Efi retorna erro 500 se mandar
-      // Os scopes vêm todos automaticamente (ver TESTE 1 abaixo)
     };
 
     const res = await this.mTLSRequest({
@@ -254,18 +239,17 @@ export class EfiOFService {
   }
 
   /**
-   * Cria consentimento de pagamento (cliente autoriza NextGen a iniciar PIX da conta dele)
-   * POST /v1/consent
+   * Cria adesão de pagamento automático Open Finance.
    */
   async createConsent(opts: {
     cpf?: string;
     cnpj?: string;
     nome?: string;
-    idParticipante: string;  // UUID do banco pagador
+    idParticipante: string;
     favorecido: {
       nome: string;
-      documento: string;     // CPF ou CNPJ
-      codigoBanco: string;   // CNPJ do banco favorecido
+      documento: string;
+      codigoBanco: string;
       agencia: string;
       conta: string;
       tipoConta?: 'TRAN' | 'CACC' | 'SVGS';
@@ -274,17 +258,14 @@ export class EfiOFService {
     valorMinimo?: string;
     valorMaximo?: string;
     intervalo: 'DIARIO' | 'SEMANAL' | 'MENSAL' | 'TRIMESTRAL' | 'SEMESTRAL' | 'ANUAL';
-    dataInicio: string;     // YYYY-MM-DD
-    expiracao?: string;     // YYYY-MM-DD
+    dataInicio: string;
+    expiracao?: string;
     descricao?: string;
     permiteRetentativa?: boolean;
   }): Promise<{ identificadorAdesao: string; redirectURI: string }> {
     const token = await this.ensureToken();
     const idempotencyKey = require('crypto').randomUUID();
 
-    // Estrutura testada e validada via testes empíricos:
-    // - Apenas "intervalo" + "dataInicio" + opcional "permiteRetentativa"
-    // - valorFixo/valorMinimo/valorMaximo da doc oficial são REJEITADOS pela API
     const body = {
       pagador: {
         cpf: opts.cpf,
@@ -303,7 +284,7 @@ export class EfiOFService {
         }
       },
       assinatura: {
-        expiracao: opts.expiracao || new Date(Date.now() + 365*24*60*60*1000).toISOString().split('T')[0],
+        expiracao: opts.expiracao || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         descricao: opts.descricao || 'Pagamento NextGen Assets',
         idProprio: `nextgen-${Date.now()}`,
         configuracao: {
@@ -320,7 +301,7 @@ export class EfiOFService {
       method: 'POST',
       path: '/v1/pagamentos-automaticos/adesao',
       body,
-      extraHeaders: { 
+      extraHeaders: {
         'Authorization': `Bearer ${token}`,
         'x-idempotency-key': idempotencyKey
       }
@@ -339,28 +320,50 @@ export class EfiOFService {
   }
 
   /**
-   * Busca status de uma adesão
-   * GET /v1/pagamentos-automaticos/adesao/{identificadorAdesao}
+   * Busca status de uma adesão. A Efí criou por POST /adesao, mas a consulta não usa path param.
+   * Esta função tenta as variações por query string e retorna qual funcionou.
    */
   async getAdesao(identificadorAdesao: string): Promise<any> {
     const token = await this.ensureToken();
-    
-    const res = await this.mTLSRequest({
-      method: 'GET',
-      path: `/v1/pagamentos-automaticos/adesao/${identificadorAdesao}`,
-      extraHeaders: { 'Authorization': `Bearer ${token}` }
-    });
+    const encoded = encodeURIComponent(identificadorAdesao);
+    const attempts = [
+      { name: 'query-identificadorAdesao', path: `/v1/pagamentos-automaticos/adesao?identificadorAdesao=${encoded}` },
+      { name: 'query-identificador', path: `/v1/pagamentos-automaticos/adesao?identificador=${encoded}` },
+      { name: 'query-recurringConsentId', path: `/v1/pagamentos-automaticos/adesao?recurringConsentId=${encoded}` },
+      { name: 'path-encoded-fallback', path: `/v1/pagamentos-automaticos/adesao/${encoded}` }
+    ];
 
-    if (res.status < 200 || res.status >= 300) {
-      throw new Error(`Efi getAdesao error: ${res.status} - ${res.text}`);
+    const results: any[] = [];
+    for (const attempt of attempts) {
+      const res = await this.mTLSRequest({
+        method: 'GET',
+        path: attempt.path,
+        extraHeaders: { 'Authorization': `Bearer ${token}` }
+      });
+
+      results.push({
+        name: attempt.name,
+        path: attempt.path,
+        status: res.status,
+        data: res.data,
+        text: res.text
+      });
+
+      if (res.status >= 200 && res.status < 300) {
+        return {
+          success: true,
+          matched: attempt.name,
+          data: res.data,
+          attempts: results
+        };
+      }
     }
 
-    return res.data;
+    throw new Error(`Efi getAdesao error: nenhuma variacao funcionou - ${JSON.stringify(results)}`);
   }
 
   /**
    * Inicia pagamento PIX via Open Finance (PISP)
-   * POST /v1/payments
    */
   async initiatePayment(opts: {
     consentId: string;
@@ -381,11 +384,7 @@ export class EfiOFService {
           currency: 'BRL',
           paymentDateTime: new Date().toISOString()
         },
-        creditorAccount: {
-          // Dados do destinatário (NextGen)
-          // Precisaria do ISPB + account + branch
-          // Vou usar pixKey como simplificação
-        },
+        creditorAccount: {},
         remittanceInformation: opts.description,
         idempotencyKey: opts.idempotencyKey || `pay-${Date.now()}-${Math.random().toString(36).substring(7)}`
       }
@@ -414,9 +413,6 @@ export class EfiOFService {
     };
   }
 
-  /**
-   * Testa conexão com a Efi
-   */
   async testConnection(): Promise<{ ok: boolean; token?: string; error?: string }> {
     try {
       const token = await this.refreshToken();
