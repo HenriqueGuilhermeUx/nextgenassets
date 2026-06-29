@@ -66,7 +66,7 @@ export class EfiOFAdminController {
         error: 'MISSING_FIELDS',
         missing,
         example: {
-          cpf: '34198276870',
+          cpf: '00000000000',
           nome: 'Cliente Teste',
           idParticipante: 'uuid-do-banco-pagador',
           intervalo: 'MENSAL',
@@ -172,11 +172,7 @@ export class EfiOFAdminController {
   async createImmediatePix(@Body() body: any) {
     const favored = this.getFavoredFromEnv(body.favorecido);
     if (!favored.ok) {
-      return {
-        success: false,
-        error: 'MISSING_FAVORED_ENV',
-        missing: favored.missing
-      };
+      return { success: false, error: 'MISSING_FAVORED_ENV', missing: favored.missing };
     }
 
     const missing: string[] = [];
@@ -184,9 +180,7 @@ export class EfiOFAdminController {
     if (!body.nome) missing.push('nome do pagador');
     if (!body.idParticipante) missing.push('idParticipante do banco pagador');
     if (!body.valor) missing.push('valor');
-    if (missing.length) {
-      return { success: false, error: 'MISSING_FIELDS', missing };
-    }
+    if (missing.length) return { success: false, error: 'MISSING_FIELDS', missing };
 
     const valor = String(body.valor).replace(',', '.');
     const token = await this.efiOF.ensureToken();
@@ -220,10 +214,7 @@ export class EfiOFAdminController {
         method: 'POST',
         path: '/v1/pagamentos/pix',
         body: payload,
-        extraHeaders: {
-          Authorization: `Bearer ${token}`,
-          'x-idempotency-key': idempotencyKey
-        }
+        extraHeaders: { Authorization: `Bearer ${token}`, 'x-idempotency-key': idempotencyKey }
       });
 
       return {
@@ -261,8 +252,9 @@ export class EfiOFAdminController {
         error: 'MISSING_FIELDS',
         missing,
         example: {
-          identificadorAdesao: 'urn:bancodobrasil:9488713544B14D0E9DD3C4A28A5D05CA',
+          identificadorAdesao: 'urn:banco:exemplo',
           valor: '0.01',
+          data: '2026-07-05',
           descricao: 'Teste Pix automático NextGen'
         }
       };
@@ -270,13 +262,14 @@ export class EfiOFAdminController {
 
     const token = await this.efiOF.ensureToken();
     const valor = String(body.valor).replace(',', '.');
+    const data = body.data || body.dataPagamento || body.paymentDate || '2026-07-05';
     const idProprio = body.idProprio || `nextgen-auto-pix-${Date.now()}`;
     const descricao = body.descricao || 'Teste Pix automático NextGen';
     const identificadorAdesao = body.identificadorAdesao;
-    const variant = body.variant || 'flat';
+    const variant = body.variant || 'pagamentoData';
     const idempotencyKey = randomUUID();
 
-    const base = { identificadorAdesao, valor, idProprio, descricao };
+    const base = { identificadorAdesao, valor, data, idProprio, descricao };
     const payload = this.buildAutomaticPixPayload(variant, base);
 
     try {
@@ -284,14 +277,11 @@ export class EfiOFAdminController {
         method: 'POST',
         path: body.path || '/v1/pagamentos-automaticos/pix',
         body: payload,
-        extraHeaders: {
-          Authorization: `Bearer ${token}`,
-          'x-idempotency-key': idempotencyKey
-        }
+        extraHeaders: { Authorization: `Bearer ${token}`, 'x-idempotency-key': idempotencyKey }
       });
 
       if (result.status >= 200 && result.status < 300) {
-        await this.logAutomaticPixSuccess(identificadorAdesao, result.data || result.text, { valor, idProprio, descricao, variant });
+        await this.logAutomaticPixSuccess(identificadorAdesao, result.data || result.text, { valor, data, idProprio, descricao, variant });
       }
 
       return {
@@ -322,44 +312,51 @@ export class EfiOFAdminController {
   }
 
   private buildAutomaticPixPayload(variant: string, base: any) {
+    if (variant === 'pagamentoData') {
+      return {
+        identificadorAdesao: base.identificadorAdesao,
+        pagamento: { data: base.data, valor: base.valor, idProprio: base.idProprio, descricao: base.descricao }
+      };
+    }
+
+    if (variant === 'pagamentoDataOnly') {
+      return {
+        identificadorAdesao: base.identificadorAdesao,
+        pagamento: { data: base.data, valor: base.valor }
+      };
+    }
+
+    if (variant === 'pagamentoDataComId') {
+      return {
+        identificadorAdesao: base.identificadorAdesao,
+        pagamento: { data: base.data, valor: base.valor, idProprio: base.idProprio }
+      };
+    }
+
     if (variant === 'pagamentoObject') {
       return {
         identificadorAdesao: base.identificadorAdesao,
-        pagamento: {
-          valor: base.valor,
-          idProprio: base.idProprio,
-          descricao: base.descricao
-        }
+        pagamento: { valor: base.valor, idProprio: base.idProprio, descricao: base.descricao }
       };
     }
 
     if (variant === 'pixObject') {
       return {
         identificadorAdesao: base.identificadorAdesao,
-        pix: {
-          valor: base.valor,
-          idProprio: base.idProprio,
-          descricao: base.descricao
-        }
+        pix: { data: base.data, valor: base.valor, idProprio: base.idProprio, descricao: base.descricao }
       };
     }
 
     if (variant === 'assinaturaObject') {
       return {
-        assinatura: {
-          identificadorAdesao: base.identificadorAdesao
-        },
-        valor: base.valor,
-        idProprio: base.idProprio,
-        descricao: base.descricao
+        assinatura: { identificadorAdesao: base.identificadorAdesao },
+        pagamento: { data: base.data, valor: base.valor, idProprio: base.idProprio, descricao: base.descricao }
       };
     }
 
     return {
       identificadorAdesao: base.identificadorAdesao,
-      valor: base.valor,
-      idProprio: base.idProprio,
-      descricao: base.descricao
+      pagamento: { data: base.data, valor: base.valor, idProprio: base.idProprio, descricao: base.descricao }
     };
   }
 
@@ -378,25 +375,15 @@ export class EfiOFAdminController {
       return String(metadata?.efiIdentificadorAdesao || '') === identificadorAdesao;
     });
 
-    if (!consent) {
-      return { updated: false, reason: 'LOCAL_CONSENT_NOT_FOUND', efiStatus };
-    }
-
-    if (!nextStatus) {
-      return { updated: false, reason: 'EFI_STATUS_NOT_MAPPED', consentId: consent.id, efiStatus };
-    }
+    if (!consent) return { updated: false, reason: 'LOCAL_CONSENT_NOT_FOUND', efiStatus };
+    if (!nextStatus) return { updated: false, reason: 'EFI_STATUS_NOT_MAPPED', consentId: consent.id, efiStatus };
 
     const previousMetadata = (consent.metadata || {}) as any;
     const updated = await prisma.consent.update({
       where: { id: consent.id },
       data: {
         status: nextStatus as any,
-        metadata: {
-          ...previousMetadata,
-          efiStatus,
-          efiAdesaoData: adesao,
-          lastSyncedAt: new Date().toISOString()
-        } as any
+        metadata: { ...previousMetadata, efiStatus, efiAdesaoData: adesao, lastSyncedAt: new Date().toISOString() } as any
       }
     });
 
@@ -467,14 +454,7 @@ export class EfiOFAdminController {
     return prisma.partner.upsert({
       where: { slug },
       update: {},
-      create: {
-        slug,
-        name: 'NextGen Assets',
-        type: 'FINTECH' as any,
-        config: {},
-        commissionRate: 0.03,
-        tier: 'STARTER' as any
-      } as any
+      create: { slug, name: 'NextGen Assets', type: 'FINTECH' as any, config: {}, commissionRate: 0.03, tier: 'STARTER' as any } as any
     });
   }
 
@@ -482,35 +462,16 @@ export class EfiOFAdminController {
     return prisma.consumerUser.upsert({
       where: { partnerId_externalUserId: { partnerId: opts.partnerId, externalUserId: opts.externalUserId } },
       update: { name: opts.name, email: opts.email, phone: opts.phone },
-      create: {
-        partnerId: opts.partnerId,
-        externalUserId: opts.externalUserId,
-        name: opts.name,
-        email: opts.email,
-        phone: opts.phone,
-        notifyChannels: ['IN_APP'] as any
-      } as any
+      create: { partnerId: opts.partnerId, externalUserId: opts.externalUserId, name: opts.name, email: opts.email, phone: opts.phone, notifyChannels: ['IN_APP'] as any } as any
     });
   }
 
   private maskFavored(fav: any) {
-    return {
-      nome: fav.nome,
-      documento: this.maskDoc(fav.documento),
-      codigoBanco: fav.codigoBanco,
-      agencia: fav.agencia,
-      conta: this.maskAccount(fav.conta),
-      tipoConta: fav.tipoConta
-    };
+    return { nome: fav.nome, documento: this.maskDoc(fav.documento), codigoBanco: fav.codigoBanco, agencia: fav.agencia, conta: this.maskAccount(fav.conta), tipoConta: fav.tipoConta };
   }
 
   private maskInput(body: any) {
-    return {
-      ...body,
-      cpf: body.cpf ? this.maskDoc(body.cpf) : undefined,
-      cnpj: body.cnpj ? this.maskDoc(body.cnpj) : undefined,
-      favorecido: body.favorecido ? this.maskFavored(body.favorecido) : undefined
-    };
+    return { ...body, cpf: body.cpf ? this.maskDoc(body.cpf) : undefined, cnpj: body.cnpj ? this.maskDoc(body.cnpj) : undefined, favorecido: body.favorecido ? this.maskFavored(body.favorecido) : undefined };
   }
 
   private maskDoc(doc?: string) {
