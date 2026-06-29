@@ -227,55 +227,31 @@ export class EfiOFDebugController {
     }
   }
 
-  private buildDefaultConfig(input: any) {
-    const redirectURL = input.redirectURL || input.redirectUrl || process.env.EFI_OF_REDIRECT_URL || 'https://api.nextgenassets.com.br/v1/admin/efi-of/return';
-    const webhookURL = input.webhookURL || input.webhookUrl || input.urlWebhook || process.env.EFI_OF_WEBHOOK_URL || 'https://api.nextgenassets.com.br/v1/webhooks/efi-of-public';
-    const variant = input.variant || input.configVariant || 'webhookURLArray';
-    const type = input.type || input.webhookType || 'pagamento';
+    private buildDefaultConfig(input: any) {
+    const redirectURL =
+      input.redirectURL ||
+      input.redirectUrl ||
+      process.env.EFI_OF_REDIRECT_URL ||
+      'https://api.nextgenassets.com.br/v1/admin/efi-of/return';
 
-    if (variant === 'webhookURLArray') {
-      return this.cleanObject({ redirectURL, webhookURL: [this.cleanObject({ type, url: webhookURL })] });
-    }
+    const webhookURL =
+      input.webhookURL ||
+      input.webhookUrl ||
+      input.urlWebhook ||
+      process.env.EFI_OF_WEBHOOK_URL ||
+      'https://api.nextgenassets.com.br/v1/webhooks/efi-of-public';
 
-    if (variant === 'webhookURLArrayUpper') {
-      return this.cleanObject({ redirectURL, webhookURL: [this.cleanObject({ type: String(type).toUpperCase(), url: webhookURL })] });
-    }
-
-    if (variant === 'webhookURLArrayUrlFirst') {
-      return this.cleanObject({ redirectURL, webhookURL: [this.cleanObject({ url: webhookURL, type })] });
-    }
-
-    if (variant === 'flat') {
-      return this.cleanObject({ redirectURL, webhookURL });
-    }
-
-    if (variant === 'flatType') {
-      return this.cleanObject({ redirectURL, webhookURL, type });
-    }
-
-    if (variant === 'webhookObject') {
-      return this.cleanObject({ redirectURL, webhookURL: this.cleanObject({ type, url: webhookURL }) });
-    }
-
-    if (variant === 'webhooksArray') {
-      return this.cleanObject({ redirectURL, webhooks: [this.cleanObject({ type, url: webhookURL })] });
-    }
-
-    if (variant === 'webhookURLsArray') {
-      return this.cleanObject({ redirectURL, webhookURLs: [this.cleanObject({ type, url: webhookURL })] });
-    }
-
-    if (variant === 'callbacksArray') {
-      return this.cleanObject({ redirectURL, callbacks: [this.cleanObject({ type, url: webhookURL })] });
-    }
-
-    if (variant === 'dataEnvelope') {
-      return this.cleanObject({ data: this.cleanObject({ redirectURL, webhookURL }) });
-    }
-
-    return this.cleanObject({ redirectURL, webhookURL });
+    return this.cleanObject({
+      redirectURL,
+      webhookURL,
+      webhookSecurity: this.cleanObject({
+        type: input.securityType || input.webhookSecurityType || 'mtls'
+      }),
+      processPayment: input.processPayment || 'sync',
+      generateTxIdForInic: true
+    });
   }
-
+  
   private cleanObject(obj: Record<string, any>) {
     return Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== undefined && value !== null && value !== ''));
   }
