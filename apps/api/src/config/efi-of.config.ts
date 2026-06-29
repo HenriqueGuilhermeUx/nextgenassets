@@ -24,8 +24,14 @@ export function buildEfiOFConfig(env: NodeJS.ProcessEnv = process.env): EfiOFCon
     oauthUrl: env.EFI_OAUTH_URL || 'https://openfinance.api.efipay.com.br/v1/oauth/token',
     clientId: env.EFI_CLIENT_ID || '',
     clientSecret: env.EFI_CLIENT_SECRET || '',
-    certBase64: env.EFI_CERTIFICATE_BASE64 || '',
-    certPassphrase: env.EFI_CERT_PASSPHRASE || '',
+    certBase64: (env.EFI_CERTIFICATE_BASE64 || env.EFI_P12_BASE64 || '').trim(),
+    certPassphrase: (
+      env.EFI_CERT_PASSPHRASE ||
+      env.EFI_CERT_PASSWORD ||
+      env.EFI_CERTIFICATE_PASSWORD ||
+      env.EFI_P12_PASSWORD ||
+      ''
+    ).trim(),
     enabled: env.EFI_OF_ENABLED !== 'false'
   };
 }
