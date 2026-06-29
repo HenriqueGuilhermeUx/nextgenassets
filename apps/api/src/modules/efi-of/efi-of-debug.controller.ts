@@ -6,6 +6,9 @@
 //  GET  /v1/admin/efi-of/test-token
 //  GET  /v1/admin/efi-of/participants
 //  GET  /v1/admin/efi-of/participants-efi
+//  GET  /v1/admin/efi-of/config
+//  POST /v1/admin/efi-of/config
+//  GET  /v1/admin/efi-of/return
 //  POST /v1/admin/efi-of/test-token
 //  POST /v1/admin/efi-of/test-consent
 // ============================================
@@ -37,7 +40,8 @@ export class EfiOFDebugController {
         efiPublic: '/v1/webhooks/efi-public',
         efiPublicPix: '/v1/webhooks/efi-public/pix',
         efiOpenFinance: '/v1/webhooks/efi-of-public',
-        efiOpenFinancePing: '/v1/webhooks/efi-of/ping'
+        efiOpenFinancePing: '/v1/webhooks/efi-of/ping',
+        efiOpenFinanceReturn: '/v1/admin/efi-of/return'
       }
     };
   }
@@ -124,6 +128,62 @@ export class EfiOFDebugController {
     return { success: true, message: 'Procure o identificador aceito em pagador.idParticipante.', results };
   }
 
+  @Get('config')
+  async getOpenFinanceConfig() {
+    try {
+      const token = await this.efiOF.ensureToken();
+      const result = await (this.efiOF as any).mTLSRequest({
+        method: 'GET',
+        path: '/v1/config',
+        extraHeaders: { Authorization: `Bearer ${token}` }
+      });
+      return {
+        success: result.status >= 200 && result.status < 300,
+        status: result.status,
+        data: result.data,
+        text: result.text,
+        expectedDefault: this.buildDefaultConfig({})
+      };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  @Post('config')
+  async putOpenFinanceConfig(@Body() body: any) {
+    try {
+      const token = await this.efiOF.ensureToken();
+      const payload = this.buildDefaultConfig(body || {});
+      const result = await (this.efiOF as any).mTLSRequest({
+        method: 'PUT',
+        path: '/v1/config',
+        body: payload,
+        extraHeaders: { Authorization: `Bearer ${token}` }
+      });
+      return {
+        success: result.status >= 200 && result.status < 300,
+        status: result.status,
+        sent: payload,
+        data: result.data,
+        text: result.text,
+        hint: result.status >= 200 && result.status < 300
+          ? 'Configuração Open Finance criada/atualizada. Agora teste novamente a adesão.'
+          : 'Se a Efí rejeitar algum campo, cole essa resposta para ajustarmos o formato exato do payload.'
+      };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  @Get('return')
+  returnFromOpenFinance(@Query() query: any) {
+    return {
+      success: true,
+      message: 'Retorno recebido da jornada Open Finance. Guarde os parametros abaixo.',
+      query
+    };
+  }
+
   @Post('test-token')
   async testToken() {
     return this.efiOF.testConnection();
@@ -164,5 +224,27 @@ export class EfiOFDebugController {
     } catch (err: any) {
       return { success: false, error: err.message };
     }
+  }
+
+  private buildDefaultConfig(input: any) {
+    const redirectURL = input.redirectURL || input.redirectUrl || process.env.EFI_OF_REDIRECT_URL || 'https://api.nextgenassets.com.br/v1/admin/efi-of/return';
+    const webhookURL = input.webhookURL || input.webhookUrl || input.urlWebhook || process.env.EFI_OF_WEBHOOK_URL || 'https://api.nextgenassets.com.br/v1/webhooks/efi-of-public';
+
+    return this.cleanObject({
+      redirectURL,
+      webhookURL,
+      receberSemChave: this.toBoolean(input.receberSemChave ?? process.env.EFI_OF_RECEBER_SEM_CHAVE ?? true)
+    });
+  }
+
+  private cleanObject(obj: Record<string, any>) {
+    return Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== undefined && value !== null && value !== ''));
+  }
+
+  private toBoolean(value: any) {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value !== 0;
+    const text = String(value || '').toLowerCase().trim();
+    return ['true', '1', 'sim', 'yes', 'on'].includes(text);
   }
 }
