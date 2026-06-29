@@ -4,11 +4,13 @@
 //  GET  /v1/admin/efi-of/health
 //  GET  /v1/admin/efi-of/cert-check
 //  GET  /v1/admin/efi-of/test-token
+//  GET  /v1/admin/efi-of/participants
+//  GET  /v1/admin/efi-of/participants-efi
 //  POST /v1/admin/efi-of/test-token
 //  POST /v1/admin/efi-of/test-consent
 // ============================================
 
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { createHash } from 'crypto';
 import * as tls from 'tls';
 import { EfiOFService } from './efi-of.service';
@@ -84,6 +86,42 @@ export class EfiOFDebugController {
   @Get('test-token')
   async testTokenBrowser() {
     return this.efiOF.testConnection();
+  }
+
+  @Get('participants')
+  async participants(@Query('nome') nome?: string) {
+    try {
+      const token = await this.efiOF.ensureToken();
+      const query = nome ? `?nome=${encodeURIComponent(nome)}` : '';
+      const result = await (this.efiOF as any).mTLSRequest({
+        method: 'GET',
+        path: `/v1/participantes${query}`,
+        extraHeaders: { Authorization: `Bearer ${token}` }
+      });
+      return { success: result.status >= 200 && result.status < 300, status: result.status, data: result.data, text: result.text };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  @Get('participants-efi')
+  async participantsEfi() {
+    const nomes = ['efi', 'efipay', 'efi s.a', 'instituicao de pagamento'];
+    const results: any[] = [];
+    for (const nome of nomes) {
+      try {
+        const token = await this.efiOF.ensureToken();
+        const result = await (this.efiOF as any).mTLSRequest({
+          method: 'GET',
+          path: `/v1/participantes?nome=${encodeURIComponent(nome)}`,
+          extraHeaders: { Authorization: `Bearer ${token}` }
+        });
+        results.push({ nome, ok: result.status >= 200 && result.status < 300, status: result.status, data: result.data, text: result.text });
+      } catch (err: any) {
+        results.push({ nome, ok: false, error: err.message });
+      }
+    }
+    return { success: true, message: 'Procure o identificador aceito em pagador.idParticipante.', results };
   }
 
   @Post('test-token')
