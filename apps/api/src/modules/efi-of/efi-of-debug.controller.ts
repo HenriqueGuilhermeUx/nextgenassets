@@ -142,7 +142,7 @@ export class EfiOFDebugController {
         status: result.status,
         data: result.data,
         text: result.text,
-        expectedDefault: this.buildDefaultConfig({ variant: 'webhookURLArray' })
+        expectedDefault: this.buildDefaultConfig({ securityType: 'hmac' })
       };
     } catch (err: any) {
       return { success: false, error: err.message };
@@ -163,7 +163,7 @@ export class EfiOFDebugController {
       return {
         success: result.status >= 200 && result.status < 300,
         status: result.status,
-        variant: body?.variant || body?.configVariant || 'webhookURLArray',
+        variant: body?.variant || body?.configVariant || 'official-hmac',
         sent: payload,
         data: result.data,
         text: result.text,
@@ -227,7 +227,7 @@ export class EfiOFDebugController {
     }
   }
 
-    private buildDefaultConfig(input: any) {
+  private buildDefaultConfig(input: any) {
     const redirectURL =
       input.redirectURL ||
       input.redirectUrl ||
@@ -241,17 +241,28 @@ export class EfiOFDebugController {
       process.env.EFI_OF_WEBHOOK_URL ||
       'https://api.nextgenassets.com.br/v1/webhooks/efi-of-public';
 
+    const securityType = input.securityType || input.webhookSecurityType || 'hmac';
+    const securityHash =
+      input.securityHash ||
+      input.webhookSecurityHash ||
+      input.hash ||
+      input.hmacHash ||
+      process.env.EFI_OF_WEBHOOK_HASH ||
+      process.env.EFI_OF_HMAC_HASH ||
+      '2f7b1d4c8e9a0b3c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d';
+
     return this.cleanObject({
       redirectURL,
       webhookURL,
       webhookSecurity: this.cleanObject({
-        type: input.securityType || input.webhookSecurityType || 'mtls'
+        type: securityType,
+        hash: securityHash
       }),
       processPayment: input.processPayment || 'sync',
       generateTxIdForInic: true
     });
   }
-  
+
   private cleanObject(obj: Record<string, any>) {
     return Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== undefined && value !== null && value !== ''));
   }
