@@ -5,6 +5,7 @@
 //  POST /v1/admin/efi-of/create-adhesion
 //  POST /v1/admin/efi-of/create-immediate-pix
 //  POST /v1/admin/efi-of/create-automatic-pix
+//  GET  /v1/admin/efi-of/automatic-pix/:endToEndId
 //  GET  /v1/admin/efi-of/adhesion/:identificadorAdesao
 // ============================================
 
@@ -254,22 +255,19 @@ export class EfiOFAdminController {
         example: {
           identificadorAdesao: 'urn:banco:exemplo',
           valor: '0.01',
-          data: '2026-07-05',
-          descricao: 'Teste Pix automático NextGen'
+          data: '2026-07-05'
         }
       };
     }
 
     const token = await this.efiOF.ensureToken();
     const valor = String(body.valor).replace(',', '.');
-    const data = body.data || body.dataPagamento || body.paymentDate || '2026-07-05';
-    const idProprio = body.idProprio || `nextgen-auto-pix-${Date.now()}`;
-    const descricao = body.descricao || 'Teste Pix automático NextGen';
+    const data = body.data || body.dataPagamento || body.paymentDate || new Date().toISOString().split('T')[0];
     const identificadorAdesao = body.identificadorAdesao;
-    const variant = body.variant || 'pagamentoData';
+    const variant = body.variant || 'pagamentoDataOnly';
     const idempotencyKey = randomUUID();
 
-    const base = { identificadorAdesao, valor, data, idProprio, descricao };
+    const base = { identificadorAdesao, valor, data };
     const payload = this.buildAutomaticPixPayload(variant, base);
 
     try {
@@ -280,8 +278,15 @@ export class EfiOFAdminController {
         extraHeaders: { Authorization: `Bearer ${token}`, 'x-idempotency-key': idempotencyKey }
       });
 
+      let transaction: any = null;
       if (result.status >= 200 && result.status < 300) {
-        await this.logAutomaticPixSuccess(identificadorAdesao, result.data || result.text, { valor, data, idProprio, descricao, variant });
+        transaction = await this.persistAutomaticPix(identificadorAdesao, result.data || result.text, {
+          valor,
+          data,
+          variant,
+          sent: payload,
+          idempotencyKey
+        });
       }
 
       return {
@@ -291,6 +296,7 @@ export class EfiOFAdminController {
         message: result.status >= 200 && result.status < 300
           ? 'Pix automático criado/enviado com sucesso.'
           : 'Efí recusou o payload. Use a resposta para ajustar o próximo campo.',
+        transaction,
         sent: payload,
         response: result.data || result.text,
         text: result.text
@@ -298,6 +304,39 @@ export class EfiOFAdminController {
     } catch (err: any) {
       return { success: false, error: err.message, variant, sent: payload };
     }
+  }
+
+  @Get('automatic-pix/:endToEndId')
+  async getAutomaticPix(@Param('endToEndId') endToEndId: string) {
+    const tx = await prisma.transaction.findFirst({
+      where: { endToEndId },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    if (!tx) {
+      return {
+        success: false,
+        error: 'AUTOMATIC_PIX_NOT_FOUND',
+        message: 'Nenhum Pix automático local foi encontrado com esse endToEndId.'
+      };
+    }
+
+    const raw = tx.rawData as any;
+    return {
+      success: true,
+      payment: {
+        id: tx.id,
+        endToEndId: tx.endToEndId,
+        status: raw?.efiResponse?.status || raw?.status || 'unknown',
+        amountBrl: String(tx.amountBrl),
+        data: raw?.efiResponse?.data || raw?.data,
+        type: tx.type,
+        description: tx.description,
+        transactedAt: tx.transactedAt,
+        createdAt: tx.createdAt
+      },
+      rawData: tx.rawData
+    };
   }
 
   @Get('adhesion/:identificadorAdesao')
@@ -315,7 +354,7 @@ export class EfiOFAdminController {
     if (variant === 'pagamentoData') {
       return {
         identificadorAdesao: base.identificadorAdesao,
-        pagamento: { data: base.data, valor: base.valor, idProprio: base.idProprio, descricao: base.descricao }
+        pagamento: { data: base.data, valor: base.valor }
       };
     }
 
@@ -326,37 +365,84 @@ export class EfiOFAdminController {
       };
     }
 
-    if (variant === 'pagamentoDataComId') {
+    if (variant === 'pagamentoNestedValue') {
       return {
         identificadorAdesao: base.identificadorAdesao,
-        pagamento: { data: base.data, valor: base.valor, idProprio: base.idProprio }
-      };
-    }
-
-    if (variant === 'pagamentoObject') {
-      return {
-        identificadorAdesao: base.identificadorAdesao,
-        pagamento: { valor: base.valor, idProprio: base.idProprio, descricao: base.descricao }
-      };
-    }
-
-    if (variant === 'pixObject') {
-      return {
-        identificadorAdesao: base.identificadorAdesao,
-        pix: { data: base.data, valor: base.valor, idProprio: base.idProprio, descricao: base.descricao }
-      };
-    }
-
-    if (variant === 'assinaturaObject') {
-      return {
-        assinatura: { identificadorAdesao: base.identificadorAdesao },
-        pagamento: { data: base.data, valor: base.valor, idProprio: base.idProprio, descricao: base.descricao }
+        pagamento: { data: base.data, valor: { original: base.valor } }
       };
     }
 
     return {
       identificadorAdesao: base.identificadorAdesao,
-      pagamento: { data: base.data, valor: base.valor, idProprio: base.idProprio, descricao: base.descricao }
+      pagamento: { data: base.data, valor: base.valor }
+    };
+  }
+
+  private async persistAutomaticPix(identificadorAdesao: string, efiResponse: any, input: any) {
+    const consent = await this.findConsentByAdhesionId(identificadorAdesao);
+    const endToEndId = efiResponse?.endToEndId || null;
+    const amount = String(input.valor || '0').replace(',', '.');
+    const paymentDate = efiResponse?.data || input.data || new Date().toISOString().split('T')[0];
+
+    if (!consent) {
+      await prisma.auditLog.create({
+        data: {
+          actor: 'admin:efi-of',
+          action: 'EFI_OF_AUTOMATIC_PIX_CREATED_NO_LOCAL_CONSENT',
+          resource: 'payment',
+          resourceId: endToEndId || `automatic-pix-${Date.now()}`,
+          metadata: { identificadorAdesao, input, efiResponse } as any
+        } as any
+      });
+      return { saved: false, reason: 'LOCAL_CONSENT_NOT_FOUND', endToEndId };
+    }
+
+    const existing = endToEndId
+      ? await prisma.transaction.findFirst({ where: { endToEndId } })
+      : null;
+
+    const data = {
+      userId: consent.userId,
+      partnerId: consent.partnerId,
+      type: 'PIX_OUT' as any,
+      amountBrl: amount as any,
+      description: 'Pix automático Open Finance Efí',
+      endToEndId,
+      isProcessed: false,
+      rawData: {
+        provider: 'efi-of',
+        flow: 'automatic-pix',
+        identificadorAdesao,
+        input,
+        efiResponse,
+        status: efiResponse?.status || 'unknown'
+      } as any,
+      transactedAt: new Date(`${paymentDate}T12:00:00.000Z`)
+    };
+
+    const transaction = existing
+      ? await prisma.transaction.update({ where: { id: existing.id }, data })
+      : await prisma.transaction.create({ data });
+
+    await prisma.auditLog.create({
+      data: {
+        partnerId: consent.partnerId,
+        userId: consent.userId,
+        actor: 'admin:efi-of',
+        action: 'EFI_OF_AUTOMATIC_PIX_CREATED',
+        resource: 'transaction',
+        resourceId: transaction.id,
+        metadata: { identificadorAdesao, endToEndId, input, efiResponse } as any
+      } as any
+    });
+
+    return {
+      saved: true,
+      transactionId: transaction.id,
+      endToEndId: transaction.endToEndId,
+      status: (transaction.rawData as any)?.status || efiResponse?.status,
+      amountBrl: String(transaction.amountBrl),
+      transactedAt: transaction.transactedAt
     };
   }
 
@@ -369,12 +455,7 @@ export class EfiOFAdminController {
         ? 'FAILED'
         : undefined;
 
-    const consents = await prisma.consent.findMany({ where: { provider: 'efi-of' } });
-    const consent = consents.find((item: any) => {
-      const metadata = item.metadata as any;
-      return String(metadata?.efiIdentificadorAdesao || '') === identificadorAdesao;
-    });
-
+    const consent = await this.findConsentByAdhesionId(identificadorAdesao);
     if (!consent) return { updated: false, reason: 'LOCAL_CONSENT_NOT_FOUND', efiStatus };
     if (!nextStatus) return { updated: false, reason: 'EFI_STATUS_NOT_MAPPED', consentId: consent.id, efiStatus };
 
@@ -402,23 +483,11 @@ export class EfiOFAdminController {
     return { updated: true, consentId: updated.id, status: updated.status, efiStatus };
   }
 
-  private async logAutomaticPixSuccess(identificadorAdesao: string, response: any, input: any) {
+  private async findConsentByAdhesionId(identificadorAdesao: string) {
     const consents = await prisma.consent.findMany({ where: { provider: 'efi-of' } });
-    const consent = consents.find((item: any) => {
+    return consents.find((item: any) => {
       const metadata = item.metadata as any;
       return String(metadata?.efiIdentificadorAdesao || '') === identificadorAdesao;
-    });
-
-    await prisma.auditLog.create({
-      data: {
-        partnerId: consent?.partnerId,
-        userId: consent?.userId,
-        actor: 'admin:efi-of',
-        action: 'EFI_OF_AUTOMATIC_PIX_CREATED',
-        resource: 'payment',
-        resourceId: response?.identificadorPagamento || response?.idPagamento || response?.id || input.idProprio,
-        metadata: { identificadorAdesao, input, response } as any
-      } as any
     });
   }
 
