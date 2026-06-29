@@ -142,7 +142,7 @@ export class EfiOFDebugController {
         status: result.status,
         data: result.data,
         text: result.text,
-        expectedDefault: this.buildDefaultConfig({ variant: 'webhooksArray' })
+        expectedDefault: this.buildDefaultConfig({ variant: 'webhookURLArray' })
       };
     } catch (err: any) {
       return { success: false, error: err.message };
@@ -163,7 +163,7 @@ export class EfiOFDebugController {
       return {
         success: result.status >= 200 && result.status < 300,
         status: result.status,
-        variant: body?.variant || body?.configVariant || 'webhooksArray',
+        variant: body?.variant || body?.configVariant || 'webhookURLArray',
         sent: payload,
         data: result.data,
         text: result.text,
@@ -230,8 +230,20 @@ export class EfiOFDebugController {
   private buildDefaultConfig(input: any) {
     const redirectURL = input.redirectURL || input.redirectUrl || process.env.EFI_OF_REDIRECT_URL || 'https://api.nextgenassets.com.br/v1/admin/efi-of/return';
     const webhookURL = input.webhookURL || input.webhookUrl || input.urlWebhook || process.env.EFI_OF_WEBHOOK_URL || 'https://api.nextgenassets.com.br/v1/webhooks/efi-of-public';
-    const variant = input.variant || input.configVariant || 'webhooksArray';
+    const variant = input.variant || input.configVariant || 'webhookURLArray';
     const type = input.type || input.webhookType || 'pagamento';
+
+    if (variant === 'webhookURLArray') {
+      return this.cleanObject({ redirectURL, webhookURL: [this.cleanObject({ type, url: webhookURL })] });
+    }
+
+    if (variant === 'webhookURLArrayUpper') {
+      return this.cleanObject({ redirectURL, webhookURL: [this.cleanObject({ type: String(type).toUpperCase(), url: webhookURL })] });
+    }
+
+    if (variant === 'webhookURLArrayUrlFirst') {
+      return this.cleanObject({ redirectURL, webhookURL: [this.cleanObject({ url: webhookURL, type })] });
+    }
 
     if (variant === 'flat') {
       return this.cleanObject({ redirectURL, webhookURL });
@@ -242,37 +254,23 @@ export class EfiOFDebugController {
     }
 
     if (variant === 'webhookObject') {
-      return this.cleanObject({
-        redirectURL,
-        webhookURL: this.cleanObject({ type, url: webhookURL })
-      });
+      return this.cleanObject({ redirectURL, webhookURL: this.cleanObject({ type, url: webhookURL }) });
     }
 
     if (variant === 'webhooksArray') {
-      return this.cleanObject({
-        redirectURL,
-        webhooks: [this.cleanObject({ type, url: webhookURL })]
-      });
+      return this.cleanObject({ redirectURL, webhooks: [this.cleanObject({ type, url: webhookURL })] });
     }
 
     if (variant === 'webhookURLsArray') {
-      return this.cleanObject({
-        redirectURL,
-        webhookURLs: [this.cleanObject({ type, url: webhookURL })]
-      });
+      return this.cleanObject({ redirectURL, webhookURLs: [this.cleanObject({ type, url: webhookURL })] });
     }
 
     if (variant === 'callbacksArray') {
-      return this.cleanObject({
-        redirectURL,
-        callbacks: [this.cleanObject({ type, url: webhookURL })]
-      });
+      return this.cleanObject({ redirectURL, callbacks: [this.cleanObject({ type, url: webhookURL })] });
     }
 
     if (variant === 'dataEnvelope') {
-      return this.cleanObject({
-        data: this.cleanObject({ redirectURL, webhookURL })
-      });
+      return this.cleanObject({ data: this.cleanObject({ redirectURL, webhookURL }) });
     }
 
     return this.cleanObject({ redirectURL, webhookURL });
