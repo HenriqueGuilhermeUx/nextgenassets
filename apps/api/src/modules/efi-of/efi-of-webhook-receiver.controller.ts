@@ -29,7 +29,7 @@ export class EfiOFWebhookReceiverController {
   }
   
   @Post()
-  async handle(@Body() body: any, @Req() req: Request) {
+  async handle(@Body() body: any = {}, @Req() req: Request) {
     const event = body.event || body.type || body.evento || 'unknown';
     const data = body.data || body;
     logger.log(`📥 Efi OF webhook: ${event}`);
@@ -140,10 +140,25 @@ export class EfiOFWebhookReceiverController {
         });
       }
       
-      return { received: true, event };
+      return {
+        success: true,
+        received: true,
+        service: 'efi-of-public-webhook',
+        type: event,
+        event,
+        ts: Date.now()
+      };
     } catch (err: any) {
       logger.error(`Erro: ${err.message}`);
-      return { received: true, error: err.message };
+      return {
+        success: true,
+        received: true,
+        service: 'efi-of-public-webhook',
+        type: 'webhook-error-handled',
+        event,
+        error: err.message,
+        ts: Date.now()
+      };
     } finally {
       await prisma.$disconnect();
     }
