@@ -6,6 +6,7 @@ import { EfiWebhookPublicController } from './efi-webhook-public.controller';
 import { EfiOFDebugController } from './efi-of-debug.controller';
 import { EfiOFAdminController } from './efi-of-admin.controller';
 import { SmartBillingController } from '../smart-billing/smart-billing.controller';
+import { SmartBillingSettlementsController } from '../smart-billing/smart-billing-settlements.controller';
 
 @Module({
   providers: [EfiOFService],
@@ -15,7 +16,8 @@ import { SmartBillingController } from '../smart-billing/smart-billing.controlle
     EfiWebhookPublicController,
     EfiOFDebugController,
     EfiOFAdminController,
-    SmartBillingController
+    SmartBillingController,
+    SmartBillingSettlementsController
   ],
   exports: [EfiOFService]
 })
