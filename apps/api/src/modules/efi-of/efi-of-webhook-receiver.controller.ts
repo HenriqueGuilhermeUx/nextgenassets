@@ -5,7 +5,7 @@
 //  Rota real com prefixo global: /v1/webhooks/efi-of-public
 // ============================================
 
-import { Controller, Post, Body, Logger, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Logger, Req, Query } from '@nestjs/common';
 import { Request } from 'express';
 import { PrismaClient } from '@prisma/client';
 
@@ -14,6 +14,19 @@ const prisma = new PrismaClient();
 
 @Controller('webhooks/efi-of-public')
 export class EfiOFWebhookReceiverController {
+
+  @Get()
+  health(@Query() query: any) {
+    return {
+      success: true,
+      received: true,
+      service: 'efi-of-public-webhook',
+      type: 'webhook-validation',
+      event: 'webhook.validation',
+      query,
+      ts: Date.now()
+    };
+  }
   
   @Post()
   async handle(@Body() body: any, @Req() req: Request) {
