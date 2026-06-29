@@ -2,6 +2,7 @@
 //  EFI OPEN FINANCE DEBUG CONTROLLER
 //  Rotas reais com prefixo global:
 //  GET  /v1/admin/efi-of/health
+//  GET  /v1/admin/efi-of/test-token
 //  POST /v1/admin/efi-of/test-token
 //  POST /v1/admin/efi-of/test-consent
 // ============================================
@@ -34,6 +35,11 @@ export class EfiOFDebugController {
         efiOpenFinancePing: '/v1/webhooks/efi-of/ping'
       }
     };
+  }
+
+  @Get('test-token')
+  async testTokenBrowser() {
+    return this.efiOF.testConnection();
   }
 
   @Post('test-token')
