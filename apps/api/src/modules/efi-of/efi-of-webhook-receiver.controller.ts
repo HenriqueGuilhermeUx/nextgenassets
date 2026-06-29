@@ -2,6 +2,7 @@
 //  EFI OPEN FINANCE WEBHOOK RECEIVER
 //  Recebe: consent.authorized, consent.rejected, payment.completed
 //  Salva no DB + trigga gatilhos
+//  Rota real com prefixo global: /v1/webhooks/efi-of-public
 // ============================================
 
 import { Controller, Post, Body, Logger, Req } from '@nestjs/common';
@@ -11,7 +12,7 @@ import { PrismaClient } from '@prisma/client';
 const logger = new Logger('EfiOFWebhookReceiver');
 const prisma = new PrismaClient();
 
-@Controller('v1/webhooks/efi-of-public')
+@Controller('webhooks/efi-of-public')
 export class EfiOFWebhookReceiverController {
   
   @Post()
@@ -25,7 +26,7 @@ export class EfiOFWebhookReceiverController {
       if (event.includes('consent.authorized') || event.includes('consent.granted')) {
         // Cliente autorizou! Salva consent ACTIVE
         const cpf = data.loggedUser?.document?.identification || data.cpf;
-        const consentId = data.consentId;
+        const consentId = data.consentId || data.identificadorAdesao;
         
         if (cpf && consentId) {
           const user = await prisma.consumerUser.findFirst({
@@ -47,15 +48,17 @@ export class EfiOFWebhookReceiverController {
               JSON.stringify({ efiConsentId: consentId, status: 'authorized', event })
             );
             logger.log(`✅ Consent ACTIVE salvo: efi-of-${consentId}`);
+          } else {
+            logger.warn(`⚠️ ConsumerUser não encontrado para CPF/externalUserId=${cpf}`);
           }
         }
       }
       
       if (event.includes('payment.completed') || event.includes('payment.paid')) {
         // Pagamento PIX completado via OF
-        const paymentId = data.paymentId;
+        const paymentId = data.paymentId || data.identificadorPagamento;
         const endToEndId = data.endToEndId;
-        const amount = data.payment?.amount || data.amount;
+        const amount = data.payment?.amount || data.amount || data.valor;
         logger.log(`💸 Payment completed: ${paymentId} R$ ${amount}`);
         
         // Loga audit
@@ -63,14 +66,15 @@ export class EfiOFWebhookReceiverController {
           data: {
             action: 'PAYMENT_INITIATED_OF',
             resource: 'payment',
-            resourceId: paymentId,
+            resourceId: paymentId || `efi-of-payment-${Date.now()}`,
             actor: 'webhook:efi-of',
             metadata: {
               provider: 'efi-of',
               paymentId,
               endToEndId,
               amount: amount ? parseFloat(amount) : null,
-              event
+              event,
+              raw: body
             } as any
           } as any
         });
