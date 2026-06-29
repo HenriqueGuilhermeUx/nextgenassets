@@ -1,7 +1,7 @@
 // ============================================
 //  EFI WEBHOOK PUBLIC (mTLS)
 //  Recebe webhooks Efi (Pix, Pix Automático, Open Finance)
-//  Path: /v1/webhooks/efi-public?ignorar=
+//  Rota real com prefixo global: /v1/webhooks/efi-public?ignorar=
 //  Suporta ambos: webhook PIX + webhook OF
 // ============================================
 
@@ -12,7 +12,7 @@ import { PrismaClient } from '@prisma/client';
 const logger = new Logger('EfiWebhookPublic');
 const prisma = new PrismaClient();
 
-@Controller('v1/webhooks/efi-public')
+@Controller('webhooks/efi-public')
 export class EfiWebhookPublicController {
   
   // Aceita POST em vários paths (Efi manda em /pix, /rec, /cobr)
@@ -31,7 +31,7 @@ export class EfiWebhookPublicController {
             data: {
               action: 'EFI_PIX_RECEIVED',
               resource: 'pix',
-              resourceId: pix.txid,
+              resourceId: pix.txid || pix.endToEndId || `pix-${Date.now()}`,
               actor: 'webhook:efi',
               metadata: {
                 provider: 'efi',
@@ -53,7 +53,7 @@ export class EfiWebhookPublicController {
           data: {
             action: `EFI_OF_${body.event.toUpperCase()}`,
             resource: 'open-finance',
-            resourceId: body.data?.consentId || body.data?.paymentId,
+            resourceId: body.data?.consentId || body.data?.paymentId || body.data?.identificadorAdesao || `efi-of-${Date.now()}`,
             actor: 'webhook:efi-of',
             metadata: body.data as any
           } as any
