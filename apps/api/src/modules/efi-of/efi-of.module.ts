@@ -10,6 +10,7 @@ import { SmartBillingSettlementsController } from '../smart-billing/smart-billin
 import { EfiPixSplitController } from '../smart-billing/efi-pix-split.controller';
 import { EfiPixSplitPayloadController } from '../smart-billing/efi-pix-split-payload.controller';
 import { ManualSettlementController } from '../smart-billing/manual-settlement.controller';
+import { PaymentRouterController } from '../smart-billing/payment-router.controller';
 
 @Module({
   providers: [EfiOFService],
@@ -23,7 +24,8 @@ import { ManualSettlementController } from '../smart-billing/manual-settlement.c
     SmartBillingSettlementsController,
     EfiPixSplitController,
     EfiPixSplitPayloadController,
-    ManualSettlementController
+    ManualSettlementController,
+    PaymentRouterController
   ],
   exports: [EfiOFService]
 })
