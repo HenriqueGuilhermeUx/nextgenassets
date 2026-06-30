@@ -31,7 +31,7 @@ function GlobalFooter() {
             💬 WhatsApp
           </a>
           <a
-            href="mailto:dev@nextgenassets.com.br?subject=Contato%20NextGen%20Assets"
+            href="mailto:henriquecampos66@gmail.com?subject=Contato%20NextGen%20Assets"
             className="rounded-xl border border-blue-300/30 bg-blue-300/10 px-4 py-3 text-sm font-bold text-blue-100 hover:bg-blue-300/20"
           >
             ✉️ E-mail
