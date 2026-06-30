@@ -21,20 +21,24 @@ function GlobalFooter() {
           <div className="mt-1 text-sm text-white/50">Cobrança inteligente, Pix, lembretes e repasses para negócios recorrentes.</div>
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex flex-row items-center gap-3">
           <a
             href="https://wa.me/5511947984328?text=Quero%20falar%20com%20a%20NextGen%20Assets"
             target="_blank"
             rel="noreferrer"
-            className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm font-bold text-emerald-200 hover:bg-emerald-400/20"
+            aria-label="Falar pelo WhatsApp"
+            title="WhatsApp"
+            className="flex h-12 w-12 items-center justify-center rounded-full border border-emerald-400/30 bg-emerald-400/10 text-xl text-emerald-200 hover:bg-emerald-400/20"
           >
-            💬 WhatsApp
+            💬
           </a>
           <a
             href="mailto:henriquecampos66@gmail.com?subject=Contato%20NextGen%20Assets"
-            className="rounded-xl border border-blue-300/30 bg-blue-300/10 px-4 py-3 text-sm font-bold text-blue-100 hover:bg-blue-300/20"
+            aria-label="Enviar e-mail"
+            title="E-mail"
+            className="flex h-12 w-12 items-center justify-center rounded-full border border-blue-300/30 bg-blue-300/10 text-xl text-blue-100 hover:bg-blue-300/20"
           >
-            ✉️ E-mail
+            ✉️
           </a>
         </div>
       </div>
