@@ -30,7 +30,7 @@ export default function PainelEmpresaPage() {
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
-  async function callApi(path: string, options?: RequestInit) {
+  async function callApi(path: string, options?: RequestInit, showResult = true) {
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE}${path}`, {
@@ -38,11 +38,11 @@ export default function PainelEmpresaPage() {
         headers: { 'Content-Type': 'application/json', ...(options?.headers || {}) }
       });
       const data = await res.json();
-      setResult(data);
+      if (showResult) setResult(data);
       return data;
     } catch (err: any) {
       const data = { success: false, error: err.message };
-      setResult(data);
+      if (showResult) setResult(data);
       return data;
     } finally {
       setLoading(false);
@@ -51,12 +51,12 @@ export default function PainelEmpresaPage() {
 
   async function loadAll() {
     const slug = encodeURIComponent(partnerSlug);
-    const d = await callApi(`/company-billing/dashboard?partnerSlug=${slug}`);
-    const c = await callApi(`/company-billing/customers?partnerSlug=${slug}`);
-    const ch = await callApi(`/company-billing/charges?partnerSlug=${slug}`);
-    const r = await callApi(`/company-billing/reminders/due?partnerSlug=${slug}`);
-    const n = await callApi(`/company-billing/notifications/pending?partnerSlug=${slug}`);
-    const nl = await callApi(`/company-billing/notifications/logs?partnerSlug=${slug}&limit=50`);
+    const d = await callApi(`/company-billing/dashboard?partnerSlug=${slug}`, undefined, false);
+    const c = await callApi(`/company-billing/customers?partnerSlug=${slug}`, undefined, false);
+    const ch = await callApi(`/company-billing/charges?partnerSlug=${slug}`, undefined, false);
+    const r = await callApi(`/company-billing/reminders/due?partnerSlug=${slug}`, undefined, false);
+    const n = await callApi(`/company-billing/notifications/pending?partnerSlug=${slug}`, undefined, false);
+    const nl = await callApi(`/company-billing/notifications/logs?partnerSlug=${slug}&limit=50`, undefined, false);
     setDashboard(d);
     setCustomers(c);
     setCharges(ch);
@@ -66,10 +66,11 @@ export default function PainelEmpresaPage() {
   }
 
   async function createCustomer() {
-    await callApi('/company-billing/customers', {
+    const response = await callApi('/company-billing/customers', {
       method: 'POST',
       body: JSON.stringify({ partnerSlug, ...customer })
     });
+    setResult(response);
     await loadAll();
   }
 
@@ -90,6 +91,8 @@ export default function PainelEmpresaPage() {
         })
       });
       setResult({ chargeCreated: created, notificationsScheduled: scheduled });
+    } else {
+      setResult(created);
     }
 
     await loadAll();
@@ -113,7 +116,7 @@ export default function PainelEmpresaPage() {
         message: `Olá, ${customer.name.split(' ')[0] || 'cliente'}. Este é um teste de comunicação automática da NextGen para pagamentos, lembretes e recebimentos.`
       })
     });
-    setResult(response);
+    setResult({ action: 'email-test', response });
     await loadAll();
   }
 
@@ -203,10 +206,10 @@ export default function PainelEmpresaPage() {
       <section className="px-6 pb-16">
         <div className="mx-auto max-w-7xl rounded-3xl border border-white/10 bg-white/10 p-6">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-black">Resposta da API</h2>
+            <h2 className="text-xl font-black">Resposta da última ação</h2>
             {loading && <span className="text-sm text-emerald-300">Carregando...</span>}
           </div>
-          <pre className="max-h-96 overflow-auto rounded-2xl bg-slate-950 p-4 text-xs text-emerald-200">{JSON.stringify(result || { info: 'Nenhuma ação ainda.' }, null, 2)}</pre>
+          <pre className="max-h-96 overflow-auto rounded-2xl bg-slate-950 p-4 text-xs text-emerald-200">{JSON.stringify(result || { info: 'Nenhuma ação ainda. O carregamento do dashboard não sobrescreve mais este campo.' }, null, 2)}</pre>
         </div>
       </section>
     </main>
