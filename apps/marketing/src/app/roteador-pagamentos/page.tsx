@@ -1,10 +1,130 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 
 const API_BASE = 'https://api.nextgenassets.com.br/v1';
 
 export default function RoteadorPagamentosPage() {
+  const searchParams = useSearchParams();
+  const chargeId = searchParams.get('id');
+
+  if (chargeId) {
+    return <PublicChargeView chargeId={chargeId} />;
+  }
+
+  return <PaymentRouterAdmin />;
+}
+
+function PublicChargeView({ chargeId }: { chargeId: string }) {
+  const [charge, setCharge] = useState<any>(null);
+  const [result, setResult] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState('');
+
+  const pixText = useMemo(() => {
+    if (!charge) return '';
+    return `NextGen Recebimentos | ${charge.title || 'Recebimento'} | ${money(charge.amountBrl)} | ID ${charge.id}`;
+  }, [charge]);
+
+  async function loadCharge() {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/company-billing/charges?partnerSlug=nextgen-assets`, { cache: 'no-store' });
+      const data = await res.json();
+      const found = (data?.charges || []).find((item: any) => item.id === chargeId);
+      setCharge(found || null);
+      setResult(found ? { success: true, charge: found } : { success: false, error: 'NOT_FOUND' });
+    } catch (error: any) {
+      setResult({ success: false, error: error.message });
+      setCharge(null);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function copy(text: string, label: string) {
+    await navigator.clipboard.writeText(text);
+    setCopied(label);
+    setTimeout(() => setCopied(''), 2500);
+  }
+
+  useEffect(() => {
+    loadCharge();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chargeId]);
+
+  const status = String(charge?.status || 'PENDING').toUpperCase();
+  const isPaid = status === 'PAID';
+  const isOverdue = charge?.dueDate ? new Date(`${String(charge.dueDate).slice(0, 10)}T23:59:59`) < new Date() && !isPaid : false;
+  const statusLabel = isPaid ? 'PAGO' : isOverdue ? 'VENCIDO' : 'PENDENTE';
+
+  return (
+    <main className="min-h-screen bg-slate-950 px-6 py-8 text-white">
+      <div className="mx-auto max-w-3xl">
+        <a href="/" className="text-sm font-bold text-emerald-300">← NextGen Assets</a>
+
+        <section className="mt-8 rounded-[2rem] border border-white/10 bg-white/10 p-6 shadow-2xl md:p-8">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div>
+              <div className="text-sm font-bold uppercase tracking-wide text-emerald-300">Link de recebimento</div>
+              <h1 className="mt-3 text-3xl font-black md:text-5xl">Pagar recebimento</h1>
+              <p className="mt-3 text-white/60">Ambiente seguro de recebimentos NextGen.</p>
+            </div>
+            <StatusBadge status={statusLabel} />
+          </div>
+
+          {loading && <div className="mt-8 rounded-2xl bg-slate-950 p-5 text-white/60">Carregando recebimento...</div>}
+
+          {!loading && !charge && (
+            <div className="mt-8 rounded-2xl border border-red-400/30 bg-red-400/10 p-5 text-red-100">
+              <div className="font-black">Recebimento não encontrado</div>
+              <p className="mt-2 text-sm">Confira o link ou solicite um novo envio para a empresa.</p>
+              <pre className="mt-4 overflow-auto rounded-xl bg-slate-950 p-3 text-xs text-red-100">{JSON.stringify(result, null, 2)}</pre>
+            </div>
+          )}
+
+          {!loading && charge && (
+            <div className="mt-8 space-y-6">
+              <div className="rounded-3xl bg-slate-950 p-6">
+                <div className="text-sm font-bold uppercase text-white/40">Valor</div>
+                <div className="mt-2 text-5xl font-black text-emerald-300">{money(charge.amountBrl)}</div>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <Info label="Cliente" value={charge.customerName || 'Cliente'} />
+                  <Info label="Vencimento" value={dateBR(charge.dueDate)} />
+                  <Info label="Título" value={charge.title || 'Recebimento'} />
+                  <Info label="Código" value={charge.id} />
+                </div>
+              </div>
+
+              <div className="rounded-3xl border border-emerald-400/20 bg-emerald-400/10 p-6">
+                <h2 className="text-2xl font-black">Dados para pagamento</h2>
+                <p className="mt-2 text-sm leading-6 text-white/70">
+                  O Pix real será integrado na próxima etapa. Por enquanto, este link já organiza o recebimento, status, vencimento e comunicação automática.
+                </p>
+                <pre className="mt-4 overflow-auto rounded-2xl bg-slate-950 p-4 text-sm text-emerald-200">{pixText}</pre>
+                <button onClick={() => copy(pixText, 'dados')} className="mt-4 w-full rounded-xl bg-emerald-400 px-4 py-3 font-black text-slate-950 hover:bg-emerald-300">
+                  {copied === 'dados' ? 'Copiado!' : 'Copiar dados'}
+                </button>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <button onClick={() => copy(window.location.href, 'link')} className="rounded-xl border border-white/10 px-4 py-3 font-bold hover:bg-white/10">
+                  {copied === 'link' ? 'Link copiado!' : 'Copiar link'}
+                </button>
+                <a href="/painel-empresa" className="rounded-xl border border-blue-300/30 bg-blue-300/10 px-4 py-3 text-center font-bold text-blue-100 hover:bg-blue-300/20">
+                  Painel empresa
+                </a>
+              </div>
+            </div>
+          )}
+        </section>
+      </div>
+    </main>
+  );
+}
+
+function PaymentRouterAdmin() {
   const [form, setForm] = useState({
     valueCents: '10000',
     partnerPixKey: '',
@@ -140,4 +260,23 @@ function Metric({ title, value, text }: { title: string; value: string; text: st
 
 function Panel({ title, children }: { title: string; children: any }) {
   return <div className="rounded-3xl border border-white/10 bg-white/10 p-6"><h2 className="text-xl font-black">{title}</h2><div className="mt-4">{children}</div></div>;
+}
+
+function Info({ label, value }: { label: string; value: any }) {
+  return <div className="rounded-2xl bg-white/5 p-4"><div className="text-xs font-bold uppercase text-white/40">{label}</div><div className="mt-1 break-words font-bold text-white/90">{String(value || '-')}</div></div>;
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const tone = status === 'PAGO' ? 'bg-emerald-400 text-slate-950' : status === 'VENCIDO' ? 'bg-red-400 text-white' : 'bg-yellow-300 text-slate-950';
+  return <div className={`rounded-full px-4 py-2 text-sm font-black ${tone}`}>{status}</div>;
+}
+
+function money(value: any) {
+  const n = Number(value || 0);
+  return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function dateBR(value: any) {
+  if (!value) return '-';
+  return new Date(`${String(value).slice(0, 10)}T12:00:00.000Z`).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 }
