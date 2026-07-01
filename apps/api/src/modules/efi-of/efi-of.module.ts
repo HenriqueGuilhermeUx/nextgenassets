@@ -11,6 +11,7 @@ import { EfiPixSplitController } from '../smart-billing/efi-pix-split.controller
 import { EfiPixSplitPayloadController } from '../smart-billing/efi-pix-split-payload.controller';
 import { ManualSettlementController } from '../smart-billing/manual-settlement.controller';
 import { PaymentRouterController } from '../smart-billing/payment-router.controller';
+import { SmartBillingNotificationsController } from '../smart-billing/smart-billing-notifications.controller';
 
 @Module({
   providers: [EfiOFService],
@@ -25,7 +26,8 @@ import { PaymentRouterController } from '../smart-billing/payment-router.control
     EfiPixSplitController,
     EfiPixSplitPayloadController,
     ManualSettlementController,
-    PaymentRouterController
+    PaymentRouterController,
+    SmartBillingNotificationsController
   ],
   exports: [EfiOFService]
 })
