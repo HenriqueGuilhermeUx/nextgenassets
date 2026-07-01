@@ -12,14 +12,14 @@ export default function PainelEmpresaPage() {
     phone: '',
     email: '',
     unit: '001',
-    segment: 'condominio'
+    segment: 'servicos'
   });
   const [charge, setCharge] = useState({
     externalCustomerId: 'cliente-001',
     amount: '100.00',
     dueDate: '2026-07-05',
-    title: 'Mensalidade teste',
-    description: 'Pagamento teste'
+    title: 'Pagamento teste',
+    description: 'Serviço / mensalidade / pedido'
   });
   const [dashboard, setDashboard] = useState<any>(null);
   const [customers, setCustomers] = useState<any>(null);
@@ -70,7 +70,7 @@ export default function PainelEmpresaPage() {
       method: 'POST',
       body: JSON.stringify({ partnerSlug, ...customer })
     });
-    setResult(response);
+    setResult({ action: 'create-customer', response });
     await loadAll();
   }
 
@@ -90,30 +90,39 @@ export default function PainelEmpresaPage() {
           source: 'painel-empresa'
         })
       });
-      setResult({ chargeCreated: created, notificationsScheduled: scheduled });
+      setResult({ action: 'create-charge-and-schedule-notifications', chargeCreated: created, notificationsScheduled: scheduled });
     } else {
-      setResult(created);
+      setResult({ action: 'create-charge', response: created });
     }
 
     await loadAll();
   }
 
-  async function runNotifications(dryRun: boolean) {
-    const response = await callApi('/company-billing/notifications/run-due', {
+  async function simulatePending() {
+    const response = await callApi('/company-billing/notifications/email/process-pending', {
       method: 'POST',
-      body: JSON.stringify({ partnerSlug, dryRun, limit: 100 })
+      body: JSON.stringify({ partnerSlug, dryRun: true, limit: 50 })
     });
-    setResult(response);
+    setResult({ action: 'simulate-email-pending', response });
     await loadAll();
   }
 
-  async function sendEmailMock() {
+  async function sendPendingEmails() {
+    const response = await callApi('/company-billing/notifications/email/process-pending', {
+      method: 'POST',
+      body: JSON.stringify({ partnerSlug, dryRun: false, limit: 50 })
+    });
+    setResult({ action: 'send-email-pending', response });
+    await loadAll();
+  }
+
+  async function sendEmailTest() {
     const response = await callApi('/company-billing/notifications/email/send-test', {
       method: 'POST',
       body: JSON.stringify({
         to: customer.email || 'teste@nextgenassets.com.br',
-        subject: 'Aviso de pagamento NextGen',
-        message: `Olá, ${customer.name.split(' ')[0] || 'cliente'}. Este é um teste de comunicação automática da NextGen para pagamentos, lembretes e recebimentos.`
+        subject: 'Teste NextGen',
+        message: `Olá, ${customer.name.split(' ')[0] || 'cliente'}. Este é um teste de comunicação automática da NextGen.`
       })
     });
     setResult({ action: 'email-test', response });
@@ -134,18 +143,27 @@ export default function PainelEmpresaPage() {
         <div className="mx-auto flex max-w-7xl flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div>
             <a href="/" className="text-sm font-bold text-emerald-300">← NextGen Assets</a>
-            <h1 className="mt-3 text-4xl font-black md:text-5xl">Painel Empresa</h1>
-            <p className="mt-2 text-white/60">Recebimentos, pagamentos, comunicação automática, lembretes e conciliação.</p>
+            <h1 className="mt-3 text-4xl font-black md:text-5xl">Operação de Recebimentos</h1>
+            <p className="mt-2 max-w-3xl text-white/60">Cadastre clientes, gere cobranças, envie lembretes automáticos e acompanhe tudo em um fluxo simples.</p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
             <label className="text-xs font-bold uppercase text-white/50">Empresa / Partner Slug</label>
             <input value={partnerSlug} onChange={(e) => setPartnerSlug(e.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none" />
-            <button onClick={loadAll} className="mt-3 w-full rounded-xl bg-emerald-400 px-4 py-3 font-bold text-slate-950 hover:bg-emerald-300">Atualizar painel</button>
+            <button onClick={loadAll} className="mt-3 w-full rounded-xl bg-emerald-400 px-4 py-3 font-bold text-slate-950 hover:bg-emerald-300">Atualizar operação</button>
           </div>
         </div>
       </section>
 
       <section className="px-6 py-8">
+        <div className="mx-auto grid max-w-7xl gap-4 md:grid-cols-4">
+          <Step title="1. Cliente" text="Cadastre nome, e-mail e WhatsApp." />
+          <Step title="2. Recebimento" text="Crie valor, vencimento e descrição." />
+          <Step title="3. Notificação" text="A régua é agendada automaticamente." />
+          <Step title="4. Automação" text="Cron envia os e-mails pendentes sozinho." />
+        </div>
+      </section>
+
+      <section className="px-6 pb-8">
         <div className="mx-auto grid max-w-7xl gap-4 md:grid-cols-3 lg:grid-cols-6">
           <Metric title="Total a receber" value={money(dashboard?.dashboard?.totalAmount)} />
           <Metric title="Recebido" value={money(dashboard?.dashboard?.paidAmount)} />
@@ -158,33 +176,50 @@ export default function PainelEmpresaPage() {
 
       <section className="px-6 pb-12">
         <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[1fr_1fr_0.9fr]">
-          <Card title="1. Cadastrar cliente">
+          <Card title="Cadastrar cliente">
+            <Helper>Use para criar ou atualizar a base de clientes que receberá cobranças e avisos.</Helper>
             <Field label="Nome" value={customer.name} onChange={(v) => setCustomer({ ...customer, name: v })} />
-            <Field label="Código interno / unidade" value={customer.externalCustomerId} onChange={(v) => setCustomer({ ...customer, externalCustomerId: v })} />
+            <Field label="Código interno / unidade" value={customer.externalCustomerId} onChange={(v) => { setCustomer({ ...customer, externalCustomerId: v }); setCharge({ ...charge, externalCustomerId: v }); }} />
             <Field label="WhatsApp" value={customer.phone} onChange={(v) => setCustomer({ ...customer, phone: v })} />
             <Field label="E-mail" value={customer.email} onChange={(v) => setCustomer({ ...customer, email: v })} />
             <Field label="Segmento" value={customer.segment} onChange={(v) => setCustomer({ ...customer, segment: v })} />
-            <button onClick={createCustomer} className="mt-4 w-full rounded-xl bg-emerald-400 px-4 py-3 font-bold text-slate-950 hover:bg-emerald-300">Criar cliente</button>
+            <button onClick={createCustomer} className="mt-4 w-full rounded-xl bg-emerald-400 px-4 py-3 font-bold text-slate-950 hover:bg-emerald-300">Salvar cliente</button>
           </Card>
 
-          <Card title="2. Criar recebimento">
+          <Card title="Gerar recebimento">
+            <Helper>Cria o pagamento e agenda a régua de mensagens automaticamente.</Helper>
             <Field label="Código do cliente" value={charge.externalCustomerId} onChange={(v) => setCharge({ ...charge, externalCustomerId: v })} />
             <Field label="Título" value={charge.title} onChange={(v) => setCharge({ ...charge, title: v })} />
             <Field label="Descrição" value={charge.description} onChange={(v) => setCharge({ ...charge, description: v })} />
             <Field label="Valor" value={charge.amount} onChange={(v) => setCharge({ ...charge, amount: v })} />
             <Field label="Vencimento" value={charge.dueDate} onChange={(v) => setCharge({ ...charge, dueDate: v })} />
-            <button onClick={createCharge} className="mt-4 w-full rounded-xl bg-blue-400 px-4 py-3 font-bold text-slate-950 hover:bg-blue-300">Criar recebimento + notificações</button>
+            <button onClick={createCharge} className="mt-4 w-full rounded-xl bg-blue-400 px-4 py-3 font-bold text-slate-950 hover:bg-blue-300">Criar recebimento + agendar avisos</button>
           </Card>
 
-          <Card title="3. Comunicação automática">
-            <p className="rounded-2xl bg-slate-950 p-4 text-sm leading-6 text-white/70">
-              A NextGen agenda avisos por WhatsApp/e-mail antes do vencimento, no dia do pagamento e após pendência. Enquanto o Resend/WhatsApp real não estão plugados, tudo fica registrado em modo log/mock.
-            </p>
-            <button onClick={() => runNotifications(true)} className="mt-4 w-full rounded-xl border border-white/10 px-4 py-3 font-bold text-white hover:bg-white/10">Simular avisos vencidos</button>
-            <button onClick={() => runNotifications(false)} className="mt-3 w-full rounded-xl bg-indigo-400 px-4 py-3 font-bold text-slate-950 hover:bg-indigo-300">Processar avisos pendentes</button>
-            <button onClick={sendEmailMock} className="mt-3 w-full rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 font-bold text-emerald-100 hover:bg-emerald-400/20">Testar e-mail</button>
-            <a href="/notificacoes" className="mt-3 block w-full rounded-xl border border-blue-300/30 bg-blue-300/10 px-4 py-3 text-center font-bold text-blue-100 hover:bg-blue-300/20">Abrir central de notificações</a>
+          <Card title="Notificar e automatizar">
+            <Helper>Envie agora ou deixe o cron processar automaticamente os e-mails pendentes.</Helper>
+            <button onClick={simulatePending} className="mt-4 w-full rounded-xl border border-white/10 px-4 py-3 font-bold text-white hover:bg-white/10">Ver e-mails pendentes</button>
+            <button onClick={sendPendingEmails} className="mt-3 w-full rounded-xl bg-indigo-400 px-4 py-3 font-bold text-slate-950 hover:bg-indigo-300">Enviar e-mails pendentes</button>
+            <button onClick={sendEmailTest} className="mt-3 w-full rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 font-bold text-emerald-100 hover:bg-emerald-400/20">Testar e-mail</button>
+            <a href="/notificacoes" className="mt-3 block w-full rounded-xl border border-blue-300/30 bg-blue-300/10 px-4 py-3 text-center font-bold text-blue-100 hover:bg-blue-300/20">Central de notificações</a>
           </Card>
+        </div>
+      </section>
+
+      <section className="px-6 pb-12">
+        <div className="mx-auto max-w-7xl rounded-3xl border border-emerald-400/20 bg-emerald-400/10 p-6">
+          <div className="grid gap-6 lg:grid-cols-[1fr_1.3fr] lg:items-center">
+            <div>
+              <div className="text-sm font-bold uppercase text-emerald-200">Automação por cron</div>
+              <h2 className="mt-2 text-2xl font-black">Deixe a NextGen enviar sozinha</h2>
+              <p className="mt-2 text-sm leading-6 text-white/70">Configure uma chamada periódica para o endpoint de cron. Ele busca e-mails pendentes vencidos, envia pelo Resend e atualiza status/logs.</p>
+            </div>
+            <div className="rounded-2xl bg-slate-950 p-4 text-xs text-emerald-200">
+              <div className="font-bold text-white">Endpoint do cron</div>
+              <pre className="mt-2 overflow-auto">GET https://api.nextgenassets.com.br/v1/company-billing/notifications/email/cron?partnerSlug=nextgen-assets&amp;limit=50&amp;secret=SUA_CHAVE</pre>
+              <div className="mt-3 text-white/50">Variável obrigatória no Render: NEXTGEN_CRON_SECRET</div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -209,7 +244,7 @@ export default function PainelEmpresaPage() {
             <h2 className="text-xl font-black">Resposta da última ação</h2>
             {loading && <span className="text-sm text-emerald-300">Carregando...</span>}
           </div>
-          <pre className="max-h-96 overflow-auto rounded-2xl bg-slate-950 p-4 text-xs text-emerald-200">{JSON.stringify(result || { info: 'Nenhuma ação ainda. O carregamento do dashboard não sobrescreve mais este campo.' }, null, 2)}</pre>
+          <pre className="max-h-96 overflow-auto rounded-2xl bg-slate-950 p-4 text-xs text-emerald-200">{JSON.stringify(result || { info: 'Nenhuma ação ainda. Use o fluxo acima para cadastrar cliente, gerar recebimento ou enviar notificações.' }, null, 2)}</pre>
         </div>
       </section>
     </main>
@@ -220,6 +255,10 @@ function Card({ title, children }: { title: string; children: ReactNode }) {
   return <div className="rounded-3xl border border-white/10 bg-white/10 p-6"><h2 className="mb-4 text-2xl font-black">{title}</h2><div className="space-y-3">{children}</div></div>;
 }
 
+function Helper({ children }: { children: ReactNode }) {
+  return <p className="rounded-2xl bg-slate-950 p-4 text-sm leading-6 text-white/60">{children}</p>;
+}
+
 function Field({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return <label className="block"><span className="text-xs font-bold uppercase text-white/50">{label}</span><input value={value} onChange={(e) => onChange(e.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none focus:border-emerald-300" /></label>;
 }
@@ -227,6 +266,10 @@ function Field({ label, value, onChange }: { label: string; value: string; onCha
 function Metric({ title, value, highlight }: { title: string; value: string; highlight?: 'blue' }) {
   const color = highlight === 'blue' ? 'text-blue-300' : 'text-emerald-300';
   return <div className="rounded-3xl border border-white/10 bg-white/10 p-5"><div className="text-xs font-bold uppercase text-white/50">{title}</div><div className={`mt-3 text-2xl font-black ${color}`}>{value}</div></div>;
+}
+
+function Step({ title, text }: { title: string; text: string }) {
+  return <div className="rounded-3xl border border-white/10 bg-white/10 p-5"><div className="text-lg font-black text-emerald-300">{title}</div><p className="mt-2 text-sm leading-6 text-white/60">{text}</p></div>;
 }
 
 function ListCard({ title, items }: { title: string; items: any[] }) {
