@@ -1,4 +1,4 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { randomUUID } from 'crypto';
 
@@ -34,6 +34,42 @@ export class SmartBillingEmailNotificationsController {
 
     const delivery = await this.sendWithResend({ to, subject, message });
     return delivery;
+  }
+
+  @Get('cron')
+  async cron(@Query() query: any) {
+    const expectedSecret = process.env.NEXTGEN_CRON_SECRET;
+    const receivedSecret = query.secret;
+
+    if (!expectedSecret) {
+      return {
+        success: false,
+        error: 'MISSING_NEXTGEN_CRON_SECRET',
+        message: 'Configure NEXTGEN_CRON_SECRET no Render antes de ativar o cron público.'
+      };
+    }
+
+    if (receivedSecret !== expectedSecret) {
+      return {
+        success: false,
+        error: 'INVALID_CRON_SECRET',
+        message: 'Chave de cron inválida.'
+      };
+    }
+
+    const result = await this.processPending({
+      partnerSlug: query.partnerSlug || 'nextgen-assets',
+      dryRun: query.dryRun === 'true',
+      limit: Number(query.limit) || 50
+    });
+
+    return {
+      success: true,
+      cron: true,
+      service: 'nextgen-email-pending-cron',
+      triggeredAt: new Date().toISOString(),
+      result
+    };
   }
 
   @Post('process-pending')
