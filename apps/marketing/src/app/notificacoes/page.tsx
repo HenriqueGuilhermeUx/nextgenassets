@@ -119,12 +119,21 @@ export default function NotificacoesPage() {
     await refresh();
   }
 
-  async function runDue(dryRun: boolean) {
+  async function simulateAllDue() {
     const response = await api('/company-billing/notifications/run-due', {
       method: 'POST',
-      body: JSON.stringify({ partnerSlug, dryRun })
+      body: JSON.stringify({ partnerSlug, dryRun: true })
     });
-    setResult({ action: dryRun ? 'simulate-due' : 'process-due', response });
+    setResult({ action: 'simulate-all-due', response });
+    await refresh();
+  }
+
+  async function processPendingEmails(dryRun = false) {
+    const response = await api('/company-billing/notifications/email/process-pending', {
+      method: 'POST',
+      body: JSON.stringify({ partnerSlug, dryRun, limit: 50 })
+    });
+    setResult({ action: dryRun ? 'simulate-email-pending' : 'send-email-pending', response });
     await refresh();
   }
 
@@ -194,8 +203,8 @@ export default function NotificacoesPage() {
               <Input label="Vencimento" value={dueDate} onChange={setDueDate} />
               <Input label="Link Pix" value={paymentLink} onChange={setPaymentLink} />
               <button onClick={schedule} className="w-full rounded-xl bg-emerald-400 px-4 py-3 font-black text-slate-950">Agendar notificações</button>
-              <button onClick={() => runDue(true)} className="w-full rounded-xl border border-white/10 px-4 py-3 font-bold">Simular envio</button>
-              <button onClick={() => runDue(false)} className="w-full rounded-xl bg-blue-400 px-4 py-3 font-black text-slate-950">Processar pendentes</button>
+              <button onClick={simulateAllDue} className="w-full rounded-xl border border-white/10 px-4 py-3 font-bold">Simular pendentes</button>
+              <button onClick={() => processPendingEmails(false)} className="w-full rounded-xl bg-blue-400 px-4 py-3 font-black text-slate-950">Enviar e-mails pendentes</button>
               <button onClick={refresh} className="w-full rounded-xl bg-slate-800 px-4 py-3 font-bold">Atualizar</button>
             </div>
           </section>
