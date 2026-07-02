@@ -1,13 +1,29 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
 
 const API_BASE = 'https://api.nextgenassets.com.br/v1';
 
 export default function RoteadorPagamentosPage() {
-  const searchParams = useSearchParams();
-  const chargeId = searchParams.get('id');
+  const [chargeId, setChargeId] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setChargeId(params.get('id'));
+    setReady(true);
+  }, []);
+
+  if (!ready) {
+    return (
+      <main className="min-h-screen bg-slate-950 px-6 py-8 text-white">
+        <div className="mx-auto max-w-3xl rounded-3xl border border-white/10 bg-white/10 p-8">
+          <div className="text-sm font-bold text-emerald-300">NextGen Assets</div>
+          <h1 className="mt-4 text-4xl font-black">Carregando...</h1>
+        </div>
+      </main>
+    );
+  }
 
   if (chargeId) {
     return <PublicChargeView chargeId={chargeId} />;
