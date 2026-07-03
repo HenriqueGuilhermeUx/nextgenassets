@@ -17,6 +17,7 @@ export class WooviSubaccountsController {
       apiUrl: process.env.WOOVI_API_URL || 'https://api.woovi.com',
       routes: [
         'POST /v1/company-billing/woovi-subaccounts/create',
+        'POST /v1/company-billing/woovi-subaccounts/create-charge',
         'GET /v1/company-billing/woovi-subaccounts?partnerSlug=nextgen-assets',
         'POST /v1/company-billing/woovi-subaccounts/withdraw'
       ]
@@ -54,6 +55,90 @@ export class WooviSubaccountsController {
       success: result.ok,
       message: result.ok ? 'Subconta Woovi criada/vinculada.' : 'Erro ao criar subconta Woovi.',
       subaccount: this.toCamel(rows[0]),
+      woovi: { status: result.status, response: result.data || result.text }
+    };
+  }
+
+  @Post('create-charge')
+  async createCharge(@Body() body: any) {
+    await this.ensureTables();
+    const chargeId = body.chargeId || body.smartChargeId;
+    if (!chargeId) return { success: false, error: 'MISSING_CHARGE_ID' };
+
+    const chargeRows = await prisma.$queryRaw<any[]>`
+      SELECT c.*, cu.name AS customer_name, cu.email AS customer_email, cu.phone AS customer_phone
+      FROM smart_billing_charges c
+      JOIN smart_billing_customers cu ON cu.id = c.customer_id
+      WHERE c.id = ${chargeId}
+      LIMIT 1
+    `;
+    if (!chargeRows.length) return { success: false, error: 'CHARGE_NOT_FOUND' };
+    const charge = chargeRows[0];
+
+    const subPixKey = body.pixKey || body.subaccountPixKey || body.partnerPixKey || await this.findSavedSubaccount(charge.partner_id, charge.customer_id);
+    if (!subPixKey) {
+      return { success: false, error: 'MISSING_SUBACCOUNT_PIX_KEY', message: 'Informe pixKey/subaccountPixKey ou crie subconta para este cliente.' };
+    }
+
+    const totalCents = Math.round(Number(charge.amount_brl || 0) * 100);
+    const nextgenRate = Number(body.nextgenRate ?? body.commissionRate ?? 0.03);
+    const nextgenCents = Math.max(0, Math.floor(totalCents * nextgenRate));
+    const partnerCents = Math.max(0, totalCents - nextgenCents);
+    const correlationID = body.correlationID || `ng-${charge.id.replace(/[^a-zA-Z0-9]/g, '').slice(0, 26)}`;
+
+    const payload = {
+      correlationID,
+      value: totalCents,
+      comment: body.comment || charge.title || 'NextGen Recebimento Inteligente',
+      customer: {
+        name: charge.customer_name,
+        email: charge.customer_email || undefined,
+        phone: charge.customer_phone || undefined
+      },
+      splits: [{ pixKey: subPixKey, value: partnerCents, splitType: 'SPLIT_SUB_ACCOUNT' }],
+      expiresIn: Number(body.expiresIn || 86400)
+    };
+
+    const result = await this.woovi('POST', '/api/v1/charge', payload);
+    const payment = this.extractPayment(result.data);
+    const link = payment.paymentLink || charge.payment_link;
+    const rawMerge = JSON.stringify({
+      wooviSubaccountCharge: {
+        correlationID,
+        splitType: 'SPLIT_SUB_ACCOUNT',
+        totalCents,
+        partnerCents,
+        nextgenCents,
+        paymentLink: payment.paymentLink || null,
+        createdAt: new Date().toISOString()
+      }
+    });
+
+    await prisma.$executeRawUnsafe(
+      `UPDATE smart_billing_charges
+       SET provider = 'woovi', provider_ref = $1, payment_method = 'PIX_WOOVI', payment_link = COALESCE($2, payment_link),
+           pix_payload = $3::jsonb, raw_data = COALESCE(raw_data, '{}'::jsonb) || $4::jsonb, updated_at = now()
+       WHERE id = $5`,
+      correlationID,
+      link || null,
+      JSON.stringify(result.data || result.text || {}),
+      rawMerge,
+      charge.id
+    );
+
+    await this.updateMessages(charge.id, link);
+
+    return {
+      success: result.ok,
+      message: result.ok ? 'Cobrança Woovi criada com split para subconta.' : 'Erro ao criar cobrança Woovi.',
+      chargeId: charge.id,
+      correlationID,
+      split: {
+        total: this.formatBrl(totalCents),
+        partner: this.formatBrl(partnerCents),
+        nextgen: this.formatBrl(nextgenCents)
+      },
+      payment,
       woovi: { status: result.status, response: result.data || result.text }
     };
   }
@@ -131,6 +216,35 @@ export class WooviSubaccountsController {
     return rows[0]?.id || null;
   }
 
+  private async findSavedSubaccount(partnerId: string, customerId: string) {
+    const rows = await prisma.$queryRaw<any[]>`
+      SELECT provider_subaccount_id
+      FROM smart_billing_woovi_subaccounts
+      WHERE partner_id = ${partnerId} AND customer_id = ${customerId} AND status = 'ACTIVE'
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+    return rows[0]?.provider_subaccount_id || null;
+  }
+
+  private async updateMessages(chargeId: string, link?: string | null) {
+    if (!link) return;
+    try {
+      await prisma.$executeRawUnsafe(`UPDATE smart_billing_notifications SET message = regexp_replace(message, 'https://[^ ]+', $1, 'g'), updated_at = now() WHERE charge_id = $2 AND status = 'PENDING'`, link, chargeId);
+      await prisma.$executeRawUnsafe(`UPDATE smart_billing_reminders SET message = regexp_replace(message, 'https://[^ ]+', $1, 'g'), updated_at = now() WHERE charge_id = $2 AND status = 'PENDING'`, link, chargeId);
+    } catch {}
+  }
+
+  private extractPayment(data: any) {
+    const root = data?.charge || data?.data?.charge || data?.data || data || {};
+    return {
+      providerChargeId: root.id || root.identifier || root.globalID || data?.id || null,
+      paymentLink: root.paymentLinkUrl || root.paymentLink || root.checkoutUrl || root.url || data?.paymentLink || null,
+      brCode: root.brCode || root.pixCode || root.qrCode || data?.brCode || null,
+      qrCodeImage: root.qrCodeImage || root.qrCodeImageUrl || data?.qrCodeImage || null
+    };
+  }
+
   private async getOrCreatePartner(slug: string) {
     return prisma.partner.upsert({
       where: { slug },
@@ -143,9 +257,7 @@ export class WooviSubaccountsController {
     if (Array.isArray(value)) return value.map((item) => this.mask(item));
     if (!value || typeof value !== 'object') return value;
     const out: any = {};
-    for (const [key, val] of Object.entries(value)) {
-      out[key] = key.toLowerCase().includes('pix') ? this.maskText(String(val || '')) : this.mask(val);
-    }
+    for (const [key, val] of Object.entries(value)) out[key] = key.toLowerCase().includes('pix') ? this.maskText(String(val || '')) : this.mask(val);
     return out;
   }
 
@@ -154,6 +266,10 @@ export class WooviSubaccountsController {
     if (!str) return '';
     if (str.length <= 6) return '******';
     return `${str.slice(0, 3)}******${str.slice(-3)}`;
+  }
+
+  private formatBrl(cents: number) {
+    return (Number(cents || 0) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   }
 
   private toCamel(row: any) {
