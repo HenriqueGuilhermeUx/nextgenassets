@@ -14,6 +14,7 @@ export class WooviSubaccountsController {
       service: 'nextgen-receiving-account-engine',
       status: 'ready',
       hasProviderKey: !!process.env.WOOVI_APP_ID,
+      expectedProviderFeeCents: Number(process.env.WOOVI_EXPECTED_FEE_CENTS || 200),
       routes: [
         'POST /v1/company-billing/woovi-subaccounts/create',
         'POST /v1/company-billing/woovi-subaccounts/create-charge',
@@ -112,7 +113,23 @@ export class WooviSubaccountsController {
     const totalCents = Math.round(Number(charge.amount_brl || 0) * 100);
     const nextgenRate = Number(body.nextgenRate ?? body.commissionRate ?? 0.03);
     const nextgenCents = Math.max(0, Math.floor(totalCents * nextgenRate));
-    const partnerCents = Math.max(0, totalCents - nextgenCents);
+    const providerFeeReserveCents = this.resolveProviderFeeReserveCents(body, totalCents);
+    const partnerCents = Math.max(0, totalCents - nextgenCents - providerFeeReserveCents);
+
+    if (partnerCents <= 0) {
+      return {
+        success: false,
+        error: 'SPLIT_TOO_SMALL',
+        message: 'Valor muito baixo para cobrir taxa estimada e split da subconta.',
+        split: {
+          total: this.formatBrl(totalCents),
+          merchant: this.formatBrl(partnerCents),
+          platform: this.formatBrl(nextgenCents),
+          providerFeeReserve: this.formatBrl(providerFeeReserveCents)
+        }
+      };
+    }
+
     const correlationID = body.correlationID || `ng-${charge.id.replace(/[^a-zA-Z0-9]/g, '').slice(0, 26)}`;
 
     const payload: any = {
@@ -136,6 +153,7 @@ export class WooviSubaccountsController {
         totalCents,
         merchantCents: partnerCents,
         platformCents: nextgenCents,
+        providerFeeReserveCents,
         customerSent: !!customer,
         paymentLink: payment.paymentLink || null,
         createdAt: new Date().toISOString()
@@ -164,7 +182,8 @@ export class WooviSubaccountsController {
       split: {
         total: this.formatBrl(totalCents),
         merchant: this.formatBrl(partnerCents),
-        platform: this.formatBrl(nextgenCents)
+        platform: this.formatBrl(nextgenCents),
+        providerFeeReserve: this.formatBrl(providerFeeReserveCents)
       },
       payment,
       provider: { status: result.status, response: result.data || result.text }
@@ -276,6 +295,14 @@ export class WooviSubaccountsController {
     } catch {}
   }
 
+  private resolveProviderFeeReserveCents(body: any, totalCents: number) {
+    const explicit = body.providerFeeReserveCents ?? body.estimatedProviderFeeCents ?? body.providerFeeCents;
+    if (explicit !== undefined && explicit !== null && explicit !== '') return Math.max(0, Math.round(Number(explicit)));
+    const env = Number(process.env.WOOVI_EXPECTED_FEE_CENTS || 200);
+    const percentReserve = Math.ceil(totalCents * Number(process.env.WOOVI_EXPECTED_FEE_RATE || 0));
+    return Math.max(0, Math.round(Math.max(env, percentReserve)));
+  }
+
   private buildProviderCustomer(charge: any) {
     const taxID = this.onlyDigits(charge.customer_document);
     const email = String(charge.customer_email || '').trim();
@@ -311,7 +338,7 @@ export class WooviSubaccountsController {
     if (Array.isArray(value)) return value.map((item) => this.mask(item));
     if (!value || typeof value !== 'object') return value;
     const out: any = {};
-    for (const [key, val] of Object.entries(value)) out[key.toLowerCase().includes('pix') ? key : key] = key.toLowerCase().includes('pix') ? this.maskText(String(val || '')) : this.mask(val);
+    for (const [key, val] of Object.entries(value)) out[key] = key.toLowerCase().includes('pix') ? this.maskText(String(val || '')) : this.mask(val);
     return out;
   }
 
