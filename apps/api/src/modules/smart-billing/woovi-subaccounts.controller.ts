@@ -95,7 +95,7 @@ export class WooviSubaccountsController {
     if (!chargeId) return { success: false, error: 'MISSING_CHARGE_ID' };
 
     const chargeRows = await prisma.$queryRaw<any[]>`
-      SELECT c.*, cu.name AS customer_name, cu.email AS customer_email, cu.phone AS customer_phone
+      SELECT c.*, cu.name AS customer_name, cu.document AS customer_document, cu.email AS customer_email, cu.phone AS customer_phone
       FROM smart_billing_charges c
       JOIN smart_billing_customers cu ON cu.id = c.customer_id
       WHERE c.id = ${chargeId}
@@ -106,7 +106,7 @@ export class WooviSubaccountsController {
 
     const receivingPixKey = body.pixKey || body.subaccountPixKey || body.partnerPixKey || await this.findMerchantReceivingPixKey(charge.partner_id);
     if (!receivingPixKey) {
-      return { success: false, error: 'MISSING_RECEIVING_PIX_KEY', message: 'Cadastre a chave Pix de repasse da Conta NextGen antes de gerar a cobrança.' };
+      return { success: false, error: 'MISSING_RECEIVING_PIX_KEY', message: 'Cadastre a chave Pix da subconta antes de gerar a cobrança.' };
     }
 
     const totalCents = Math.round(Number(charge.amount_brl || 0) * 100);
@@ -115,18 +115,16 @@ export class WooviSubaccountsController {
     const partnerCents = Math.max(0, totalCents - nextgenCents);
     const correlationID = body.correlationID || `ng-${charge.id.replace(/[^a-zA-Z0-9]/g, '').slice(0, 26)}`;
 
-    const payload = {
+    const payload: any = {
       correlationID,
       value: totalCents,
       comment: body.comment || charge.title || 'NextGen Recebimento Inteligente',
-      customer: {
-        name: charge.customer_name,
-        email: charge.customer_email || undefined,
-        phone: charge.customer_phone || undefined
-      },
       splits: [{ pixKey: receivingPixKey, value: partnerCents, splitType: 'SPLIT_SUB_ACCOUNT' }],
       expiresIn: Number(body.expiresIn || 86400)
     };
+
+    const customer = this.buildProviderCustomer(charge);
+    if (customer) payload.customer = customer;
 
     const result = await this.woovi('POST', '/api/v1/charge', payload);
     const payment = this.extractPayment(result.data);
@@ -138,6 +136,7 @@ export class WooviSubaccountsController {
         totalCents,
         merchantCents: partnerCents,
         platformCents: nextgenCents,
+        customerSent: !!customer,
         paymentLink: payment.paymentLink || null,
         createdAt: new Date().toISOString()
       }
@@ -159,7 +158,7 @@ export class WooviSubaccountsController {
 
     return {
       success: result.ok,
-      message: result.ok ? 'Pix criado com repasse configurado.' : 'Erro ao criar Pix.',
+      message: result.ok ? 'Pix criado com split para subconta.' : 'Erro ao criar Pix.',
       chargeId: charge.id,
       correlationID,
       split: {
@@ -277,6 +276,19 @@ export class WooviSubaccountsController {
     } catch {}
   }
 
+  private buildProviderCustomer(charge: any) {
+    const taxID = this.onlyDigits(charge.customer_document);
+    const email = String(charge.customer_email || '').trim();
+    const phone = String(charge.customer_phone || '').trim();
+    if (!taxID && !email && !phone) return null;
+
+    const customer: any = { name: charge.customer_name || 'Cliente' };
+    if (taxID) customer.taxID = taxID;
+    if (email) customer.email = email;
+    if (phone) customer.phone = phone;
+    return customer;
+  }
+
   private extractPayment(data: any) {
     const root = data?.charge || data?.data?.charge || data?.data || data || {};
     return {
@@ -299,7 +311,7 @@ export class WooviSubaccountsController {
     if (Array.isArray(value)) return value.map((item) => this.mask(item));
     if (!value || typeof value !== 'object') return value;
     const out: any = {};
-    for (const [key, val] of Object.entries(value)) out[key] = key.toLowerCase().includes('pix') ? this.maskText(String(val || '')) : this.mask(val);
+    for (const [key, val] of Object.entries(value)) out[key.toLowerCase().includes('pix') ? key : key] = key.toLowerCase().includes('pix') ? this.maskText(String(val || '')) : this.mask(val);
     return out;
   }
 
@@ -312,6 +324,10 @@ export class WooviSubaccountsController {
 
   private formatBrl(cents: number) {
     return (Number(cents || 0) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  private onlyDigits(value: any) {
+    return String(value || '').replace(/\D/g, '') || null;
   }
 
   private toSafeCamel(row: any) {
