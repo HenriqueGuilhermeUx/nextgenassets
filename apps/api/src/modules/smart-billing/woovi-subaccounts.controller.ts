@@ -37,24 +37,24 @@ export class WooviSubaccountsController {
     const customerId = await this.resolveCustomerId(partner.id, body.customerId, body.externalCustomerId);
     const payload = { name, pixKey };
     const result = await this.woovi('POST', '/api/v1/subaccount', payload);
-    const providerSubaccountId = result.data?.subAccount?.id || result.data?.subaccount?.id || result.data?.id || result.data?.subAccount?.pixKey || pixKey;
+    const providerSubaccountId = result.data?.subAccount?.id || result.data?.subaccount?.id || result.data?.id || null;
     const status = result.ok ? 'ACTIVE' : 'ERROR';
 
     const localId = `wsa_${randomUUID().replace(/-/g, '')}`;
-    const rawData = JSON.stringify({ request: this.mask(payload), response: result.data || result.text, status: result.status });
+    const rawData = JSON.stringify({ request: this.mask(payload), response: result.data || result.text, status: result.status, providerSubaccountId });
 
     const rows = await prisma.$queryRaw<any[]>`
       INSERT INTO smart_billing_woovi_subaccounts (
-        id, partner_id, customer_id, provider_subaccount_id, name, pix_key_masked, status, raw_data
+        id, partner_id, customer_id, provider_subaccount_id, pix_key, name, pix_key_masked, status, raw_data
       ) VALUES (
-        ${localId}, ${partner.id}, ${customerId || null}, ${providerSubaccountId || null}, ${name}, ${this.maskText(pixKey)}, ${status}, ${rawData}::jsonb
+        ${localId}, ${partner.id}, ${customerId || null}, ${providerSubaccountId || null}, ${pixKey}, ${name}, ${this.maskText(pixKey)}, ${status}, ${rawData}::jsonb
       ) RETURNING *
     `;
 
     return {
       success: result.ok,
       message: result.ok ? 'Subconta Woovi criada/vinculada.' : 'Erro ao criar subconta Woovi.',
-      subaccount: this.toCamel(rows[0]),
+      subaccount: this.toSafeCamel(rows[0]),
       woovi: { status: result.status, response: result.data || result.text }
     };
   }
@@ -75,9 +75,9 @@ export class WooviSubaccountsController {
     if (!chargeRows.length) return { success: false, error: 'CHARGE_NOT_FOUND' };
     const charge = chargeRows[0];
 
-    const subPixKey = body.pixKey || body.subaccountPixKey || body.partnerPixKey || await this.findSavedSubaccount(charge.partner_id, charge.customer_id);
+    const subPixKey = body.pixKey || body.subaccountPixKey || body.partnerPixKey || await this.findSavedPixKey(charge.partner_id, charge.customer_id);
     if (!subPixKey) {
-      return { success: false, error: 'MISSING_SUBACCOUNT_PIX_KEY', message: 'Informe pixKey/subaccountPixKey ou crie subconta para este cliente.' };
+      return { success: false, error: 'MISSING_SUBACCOUNT_PIX_KEY', message: 'Cadastre a chave Pix de recebimento do cliente antes de gerar o Pix Woovi.' };
     }
 
     const totalCents = Math.round(Number(charge.amount_brl || 0) * 100);
@@ -153,13 +153,13 @@ export class WooviSubaccountsController {
       ORDER BY created_at DESC
       LIMIT 200
     `;
-    return { success: true, count: rows.length, subaccounts: rows.map((row) => this.toCamel(row)) };
+    return { success: true, count: rows.length, subaccounts: rows.map((row) => this.toSafeCamel(row)) };
   }
 
   @Post('withdraw')
   async withdraw(@Body() body: any) {
     await this.ensureTables();
-    const pixKey = body.pixKey || body.chavePix || body.providerSubaccountId;
+    const pixKey = body.pixKey || body.chavePix || await this.findSavedPixKeyByLocalId(body.subaccountId);
     if (!pixKey) return { success: false, error: 'MISSING_PIX_KEY' };
 
     const result = await this.woovi('POST', `/api/v1/subaccount/${encodeURIComponent(pixKey)}/withdraw`, {});
@@ -193,6 +193,7 @@ export class WooviSubaccountsController {
         partner_id text NOT NULL,
         customer_id text,
         provider_subaccount_id text,
+        pix_key text,
         name text NOT NULL,
         pix_key_masked text NOT NULL,
         status text NOT NULL DEFAULT 'PENDING',
@@ -201,6 +202,7 @@ export class WooviSubaccountsController {
         updated_at timestamptz NOT NULL DEFAULT now()
       )
     `);
+    await prisma.$executeRawUnsafe(`ALTER TABLE smart_billing_woovi_subaccounts ADD COLUMN IF NOT EXISTS pix_key text`);
     await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_wsa_partner_status ON smart_billing_woovi_subaccounts(partner_id, status)`);
     await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_wsa_customer ON smart_billing_woovi_subaccounts(customer_id)`);
   }
@@ -216,15 +218,26 @@ export class WooviSubaccountsController {
     return rows[0]?.id || null;
   }
 
-  private async findSavedSubaccount(partnerId: string, customerId: string) {
+  private async findSavedPixKey(partnerId: string, customerId: string) {
     const rows = await prisma.$queryRaw<any[]>`
-      SELECT provider_subaccount_id
+      SELECT pix_key, provider_subaccount_id
       FROM smart_billing_woovi_subaccounts
       WHERE partner_id = ${partnerId} AND customer_id = ${customerId} AND status = 'ACTIVE'
       ORDER BY created_at DESC
       LIMIT 1
     `;
-    return rows[0]?.provider_subaccount_id || null;
+    return rows[0]?.pix_key || rows[0]?.provider_subaccount_id || null;
+  }
+
+  private async findSavedPixKeyByLocalId(subaccountId?: string) {
+    if (!subaccountId) return null;
+    const rows = await prisma.$queryRaw<any[]>`
+      SELECT pix_key, provider_subaccount_id
+      FROM smart_billing_woovi_subaccounts
+      WHERE id = ${subaccountId}
+      LIMIT 1
+    `;
+    return rows[0]?.pix_key || rows[0]?.provider_subaccount_id || null;
   }
 
   private async updateMessages(chargeId: string, link?: string | null) {
@@ -270,6 +283,12 @@ export class WooviSubaccountsController {
 
   private formatBrl(cents: number) {
     return (Number(cents || 0) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  private toSafeCamel(row: any) {
+    const out = this.toCamel(row);
+    if (out?.pixKey) out.pixKey = this.maskText(out.pixKey);
+    return out;
   }
 
   private toCamel(row: any) {
