@@ -62,12 +62,16 @@ export class ManualSettlementController {
       ) RETURNING *
     `;
 
+    if (body.received === true && body.chargeId) {
+      await this.markSmartChargePaid(body.chargeId, body.providerReference || body.paymentReference || body.endToEndId || id, 'manual-settlement-create');
+    }
+
     await this.audit('MANUAL_SETTLEMENT_CREATED', id, { partnerId: partner.id, grossCents, partnerNetCents, status });
 
     return {
       success: true,
       message: status === 'REPASS_PENDING'
-        ? 'Recebimento registrado. Repasse manual pendente.'
+        ? 'Recebimento registrado. Cobrança marcada como paga e repasse manual pendente.'
         : 'Repasse manual previsto criado. Marque como recebido quando o dinheiro cair.',
       settlement: this.toCamel(rows[0]),
       brl: this.moneyBlock(rows[0])
@@ -145,8 +149,13 @@ export class ManualSettlementController {
       RETURNING *
     `;
     if (!rows.length) return { success: false, error: 'NOT_FOUND' };
+
+    if (rows[0].charge_id) {
+      await this.markSmartChargePaid(rows[0].charge_id, body.providerReference || body.paymentReference || body.endToEndId || id, 'manual-settlement-mark-received');
+    }
+
     await this.audit('MANUAL_SETTLEMENT_RECEIVED', id, { providerReference: body.providerReference || body.paymentReference || body.endToEndId || null });
-    return { success: true, message: 'Recebimento confirmado. Repasse manual pendente.', settlement: this.toCamel(rows[0]), brl: this.moneyBlock(rows[0]) };
+    return { success: true, message: 'Recebimento confirmado. Cobrança marcada como paga e repasse manual pendente.', settlement: this.toCamel(rows[0]), brl: this.moneyBlock(rows[0]) };
   }
 
   @Post(':id/mark-repassed')
@@ -181,6 +190,17 @@ export class ManualSettlementController {
     if (!rows.length) return { success: false, error: 'NOT_FOUND' };
     await this.audit('MANUAL_SETTLEMENT_CANCELED', id, { reason: body.reason || null });
     return { success: true, message: 'Repasse cancelado.', settlement: this.toCamel(rows[0]) };
+  }
+
+  private async markSmartChargePaid(chargeId: string, reference: string, source: string) {
+    const rawMerge = JSON.stringify({ manualSettlement: { reference, source, markedAt: new Date().toISOString() } });
+    await prisma.$executeRawUnsafe(
+      `UPDATE smart_billing_charges
+       SET status = 'PAID', paid_at = COALESCE(paid_at, now()), raw_data = COALESCE(raw_data, '{}'::jsonb) || $1::jsonb, updated_at = now()
+       WHERE id = $2`,
+      rawMerge,
+      chargeId
+    );
   }
 
   private async ensureTables() {
