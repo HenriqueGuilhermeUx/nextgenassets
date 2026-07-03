@@ -11,10 +11,9 @@ export class WooviSubaccountsController {
     await this.ensureTables();
     return {
       success: true,
-      service: 'nextgen-woovi-subaccounts',
+      service: 'nextgen-receiving-account-engine',
       status: 'ready',
-      hasWooviAppId: !!process.env.WOOVI_APP_ID,
-      apiUrl: process.env.WOOVI_API_URL || 'https://api.woovi.com',
+      hasProviderKey: !!process.env.WOOVI_APP_ID,
       routes: [
         'POST /v1/company-billing/woovi-subaccounts/create',
         'POST /v1/company-billing/woovi-subaccounts/create-charge',
@@ -29,8 +28,8 @@ export class WooviSubaccountsController {
     await this.ensureTables();
     const partner = await this.getOrCreatePartner(body.partnerSlug || 'nextgen-assets');
 
-    const name = body.name || body.companyName || body.customerName;
-    const pixKey = body.pixKey || body.chavePix;
+    const name = body.name || body.companyName || body.customerName || partner.name;
+    const pixKey = body.pixKey || body.chavePix || body.receivingPixKey;
     if (!name) return { success: false, error: 'MISSING_NAME' };
     if (!pixKey) return { success: false, error: 'MISSING_PIX_KEY' };
 
@@ -39,10 +38,39 @@ export class WooviSubaccountsController {
     const result = await this.woovi('POST', '/api/v1/subaccount', payload);
     const providerSubaccountId = result.data?.subAccount?.id || result.data?.subaccount?.id || result.data?.id || null;
     const status = result.ok ? 'ACTIVE' : 'ERROR';
+    const rawData = JSON.stringify({ request: this.mask(payload), response: result.data || result.text, status: result.status, providerSubaccountId, scope: customerId ? 'payer-specific' : 'merchant-receiving-account' });
+
+    const existing = await prisma.$queryRaw<any[]>`
+      SELECT * FROM smart_billing_woovi_subaccounts
+      WHERE partner_id = ${partner.id}
+        AND customer_id IS NOT DISTINCT FROM ${customerId || null}
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+
+    if (existing.length) {
+      const updated = await prisma.$queryRaw<any[]>`
+        UPDATE smart_billing_woovi_subaccounts
+        SET provider_subaccount_id = ${providerSubaccountId || existing[0].provider_subaccount_id},
+            pix_key = ${pixKey},
+            name = ${name},
+            pix_key_masked = ${this.maskText(pixKey)},
+            status = ${status},
+            raw_data = COALESCE(raw_data, '{}'::jsonb) || ${rawData}::jsonb,
+            updated_at = now()
+        WHERE id = ${existing[0].id}
+        RETURNING *
+      `;
+      return {
+        success: result.ok,
+        action: 'updated',
+        message: result.ok ? 'Conta de recebimento preparada.' : 'Conta salva localmente, mas houve erro no provedor.',
+        receivingAccount: this.toSafeCamel(updated[0]),
+        provider: { status: result.status, response: result.data || result.text }
+      };
+    }
 
     const localId = `wsa_${randomUUID().replace(/-/g, '')}`;
-    const rawData = JSON.stringify({ request: this.mask(payload), response: result.data || result.text, status: result.status, providerSubaccountId });
-
     const rows = await prisma.$queryRaw<any[]>`
       INSERT INTO smart_billing_woovi_subaccounts (
         id, partner_id, customer_id, provider_subaccount_id, pix_key, name, pix_key_masked, status, raw_data
@@ -53,9 +81,10 @@ export class WooviSubaccountsController {
 
     return {
       success: result.ok,
-      message: result.ok ? 'Subconta Woovi criada/vinculada.' : 'Erro ao criar subconta Woovi.',
-      subaccount: this.toSafeCamel(rows[0]),
-      woovi: { status: result.status, response: result.data || result.text }
+      action: 'created',
+      message: result.ok ? 'Conta de recebimento preparada.' : 'Erro ao preparar conta de recebimento.',
+      receivingAccount: this.toSafeCamel(rows[0]),
+      provider: { status: result.status, response: result.data || result.text }
     };
   }
 
@@ -75,9 +104,9 @@ export class WooviSubaccountsController {
     if (!chargeRows.length) return { success: false, error: 'CHARGE_NOT_FOUND' };
     const charge = chargeRows[0];
 
-    const subPixKey = body.pixKey || body.subaccountPixKey || body.partnerPixKey || await this.findSavedPixKey(charge.partner_id, charge.customer_id);
-    if (!subPixKey) {
-      return { success: false, error: 'MISSING_SUBACCOUNT_PIX_KEY', message: 'Cadastre a chave Pix de recebimento do cliente antes de gerar o Pix Woovi.' };
+    const receivingPixKey = body.pixKey || body.subaccountPixKey || body.partnerPixKey || await this.findMerchantReceivingPixKey(charge.partner_id);
+    if (!receivingPixKey) {
+      return { success: false, error: 'MISSING_RECEIVING_PIX_KEY', message: 'Cadastre a chave Pix de repasse da Conta NextGen antes de gerar a cobrança.' };
     }
 
     const totalCents = Math.round(Number(charge.amount_brl || 0) * 100);
@@ -95,7 +124,7 @@ export class WooviSubaccountsController {
         email: charge.customer_email || undefined,
         phone: charge.customer_phone || undefined
       },
-      splits: [{ pixKey: subPixKey, value: partnerCents, splitType: 'SPLIT_SUB_ACCOUNT' }],
+      splits: [{ pixKey: receivingPixKey, value: partnerCents, splitType: 'SPLIT_SUB_ACCOUNT' }],
       expiresIn: Number(body.expiresIn || 86400)
     };
 
@@ -103,12 +132,12 @@ export class WooviSubaccountsController {
     const payment = this.extractPayment(result.data);
     const link = payment.paymentLink || charge.payment_link;
     const rawMerge = JSON.stringify({
-      wooviSubaccountCharge: {
+      paymentProvider: {
         correlationID,
         splitType: 'SPLIT_SUB_ACCOUNT',
         totalCents,
-        partnerCents,
-        nextgenCents,
+        merchantCents: partnerCents,
+        platformCents: nextgenCents,
         paymentLink: payment.paymentLink || null,
         createdAt: new Date().toISOString()
       }
@@ -116,7 +145,7 @@ export class WooviSubaccountsController {
 
     await prisma.$executeRawUnsafe(
       `UPDATE smart_billing_charges
-       SET provider = 'woovi', provider_ref = $1, payment_method = 'PIX_WOOVI', payment_link = COALESCE($2, payment_link),
+       SET provider = 'woovi', provider_ref = $1, payment_method = 'PIX_PROVIDER', payment_link = COALESCE($2, payment_link),
            pix_payload = $3::jsonb, raw_data = COALESCE(raw_data, '{}'::jsonb) || $4::jsonb, updated_at = now()
        WHERE id = $5`,
       correlationID,
@@ -130,16 +159,16 @@ export class WooviSubaccountsController {
 
     return {
       success: result.ok,
-      message: result.ok ? 'Cobrança Woovi criada com split para subconta.' : 'Erro ao criar cobrança Woovi.',
+      message: result.ok ? 'Pix criado com repasse configurado.' : 'Erro ao criar Pix.',
       chargeId: charge.id,
       correlationID,
       split: {
         total: this.formatBrl(totalCents),
-        partner: this.formatBrl(partnerCents),
-        nextgen: this.formatBrl(nextgenCents)
+        merchant: this.formatBrl(partnerCents),
+        platform: this.formatBrl(nextgenCents)
       },
       payment,
-      woovi: { status: result.status, response: result.data || result.text }
+      provider: { status: result.status, response: result.data || result.text }
     };
   }
 
@@ -153,20 +182,20 @@ export class WooviSubaccountsController {
       ORDER BY created_at DESC
       LIMIT 200
     `;
-    return { success: true, count: rows.length, subaccounts: rows.map((row) => this.toSafeCamel(row)) };
+    return { success: true, count: rows.length, receivingAccounts: rows.map((row) => this.toSafeCamel(row)) };
   }
 
   @Post('withdraw')
   async withdraw(@Body() body: any) {
     await this.ensureTables();
-    const pixKey = body.pixKey || body.chavePix || await this.findSavedPixKeyByLocalId(body.subaccountId);
+    const pixKey = body.pixKey || body.chavePix || await this.findMerchantReceivingPixKeyByLocalId(body.subaccountId);
     if (!pixKey) return { success: false, error: 'MISSING_PIX_KEY' };
 
     const result = await this.woovi('POST', `/api/v1/subaccount/${encodeURIComponent(pixKey)}/withdraw`, {});
     return {
       success: result.ok,
-      message: result.ok ? 'Saque da subconta solicitado.' : 'Erro ao solicitar saque da subconta.',
-      woovi: { status: result.status, response: result.data || result.text }
+      message: result.ok ? 'Repasse solicitado.' : 'Erro ao solicitar repasse.',
+      provider: { status: result.status, response: result.data || result.text }
     };
   }
 
@@ -218,18 +247,18 @@ export class WooviSubaccountsController {
     return rows[0]?.id || null;
   }
 
-  private async findSavedPixKey(partnerId: string, customerId: string) {
+  private async findMerchantReceivingPixKey(partnerId: string) {
     const rows = await prisma.$queryRaw<any[]>`
       SELECT pix_key, provider_subaccount_id
       FROM smart_billing_woovi_subaccounts
-      WHERE partner_id = ${partnerId} AND customer_id = ${customerId} AND status = 'ACTIVE'
+      WHERE partner_id = ${partnerId} AND customer_id IS NULL AND status = 'ACTIVE'
       ORDER BY created_at DESC
       LIMIT 1
     `;
     return rows[0]?.pix_key || rows[0]?.provider_subaccount_id || null;
   }
 
-  private async findSavedPixKeyByLocalId(subaccountId?: string) {
+  private async findMerchantReceivingPixKeyByLocalId(subaccountId?: string) {
     if (!subaccountId) return null;
     const rows = await prisma.$queryRaw<any[]>`
       SELECT pix_key, provider_subaccount_id
