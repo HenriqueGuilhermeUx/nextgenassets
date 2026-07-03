@@ -15,6 +15,7 @@ import { SmartBillingNotificationsController } from '../smart-billing/smart-bill
 import { SmartBillingEmailNotificationsController } from '../smart-billing/smart-billing-email-notifications.controller';
 import { SmartBillingRecurrencesController } from '../smart-billing/smart-billing-recurrences.controller';
 import { WooviSubaccountsController } from '../smart-billing/woovi-subaccounts.controller';
+import { SmartBillingBulkController } from '../smart-billing/smart-billing-bulk.controller';
 
 @Module({
   providers: [EfiOFService],
@@ -33,7 +34,8 @@ import { WooviSubaccountsController } from '../smart-billing/woovi-subaccounts.c
     SmartBillingNotificationsController,
     SmartBillingEmailNotificationsController,
     SmartBillingRecurrencesController,
-    WooviSubaccountsController
+    WooviSubaccountsController,
+    SmartBillingBulkController
   ],
   exports: [EfiOFService]
 })
