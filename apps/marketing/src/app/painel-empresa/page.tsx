@@ -273,7 +273,33 @@ function Step({ title, text }: { title: string; text: string }) {
 }
 
 function ListCard({ title, items }: { title: string; items: any[] }) {
-  return <div className="rounded-3xl border border-white/10 bg-white/10 p-6"><h2 className="mb-4 text-xl font-black">{title}</h2><div className="max-h-96 space-y-3 overflow-auto">{items.length ? items.slice(0, 10).map((item, index) => <div key={item.id || index} className="rounded-2xl bg-slate-950 p-4"><div className="font-bold">{item.name || item.title || item.type || item.customerName || 'Registro'}</div><div className="mt-1 text-xs text-white/50">{item.status || item.externalCustomerId || item.stepKey || item.channel || item.createdAt}</div>{item.message && <div className="mt-3 text-sm text-white/60">{item.message}</div>}</div>) : <div className="rounded-2xl bg-slate-950 p-4 text-sm text-white/50">Nenhum registro ainda.</div>}</div></div>;
+  const isReceivables = title === 'Recebimentos';
+
+  async function copyLink(item: any) {
+    const link = item.paymentLink || `https://nextgenassets.com.br/roteador-pagamentos?id=${item.id}`;
+    await navigator.clipboard.writeText(link);
+    alert('Link copiado.');
+  }
+
+  async function quickReceive(item: any) {
+    await fetch(`${API_BASE}/company-billing/manual-settlements`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        partnerSlug: 'nextgen-assets',
+        chargeId: item.id,
+        amount: Number(item.amountBrl || 0),
+        recipientName: item.customerName || 'Empresa cliente',
+        provider: 'panel-action',
+        providerReference: `panel-${item.id}-${Date.now()}`,
+        description: item.title || 'Recebimento confirmado no painel',
+        received: true
+      })
+    });
+    window.location.reload();
+  }
+
+  return <div className="rounded-3xl border border-white/10 bg-white/10 p-6"><h2 className="mb-4 text-xl font-black">{title}</h2><div className="max-h-96 space-y-3 overflow-auto">{items.length ? items.slice(0, 10).map((item, index) => <div key={item.id || index} className="rounded-2xl bg-slate-950 p-4"><div className="font-bold">{item.name || item.title || item.type || item.customerName || 'Registro'}</div><div className="mt-1 text-xs text-white/50">{item.status || item.externalCustomerId || item.stepKey || item.channel || item.createdAt}</div>{item.message && <div className="mt-3 text-sm text-white/60">{item.message}</div>}{isReceivables && <div className="mt-3 grid gap-2 md:grid-cols-2"><button onClick={() => copyLink(item)} className="rounded-xl border border-white/10 px-3 py-2 text-sm font-bold hover:bg-white/10">Copiar link</button><button disabled={String(item.status).toUpperCase() === 'PAID'} onClick={() => quickReceive(item)} className="rounded-xl bg-emerald-400 px-3 py-2 text-sm font-black text-slate-950 disabled:opacity-50">{String(item.status).toUpperCase() === 'PAID' ? 'Recebido' : 'Confirmar recebido'}</button></div>}</div>) : <div className="rounded-2xl bg-slate-950 p-4 text-sm text-white/50">Nenhum registro ainda.</div>}</div></div>;
 }
 
 function money(value: any) {
