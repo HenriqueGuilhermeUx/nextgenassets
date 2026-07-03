@@ -158,8 +158,8 @@ export default function PainelEmpresaPage() {
         <div className="mx-auto grid max-w-7xl gap-4 md:grid-cols-4">
           <Step title="1. Cliente" text="Cadastre nome, e-mail e WhatsApp." />
           <Step title="2. Recebimento" text="Crie valor, vencimento e descrição." />
-          <Step title="3. Notificação" text="A régua é agendada automaticamente." />
-          <Step title="4. Automação" text="Cron envia os e-mails pendentes sozinho." />
+          <Step title="3. Pix Woovi" text="Gere o Pix real com split para subconta." />
+          <Step title="4. Automação" text="Cron envia e-mails e acompanha pendências." />
         </div>
       </section>
 
@@ -210,14 +210,13 @@ export default function PainelEmpresaPage() {
         <div className="mx-auto max-w-7xl rounded-3xl border border-emerald-400/20 bg-emerald-400/10 p-6">
           <div className="grid gap-6 lg:grid-cols-[1fr_1.3fr] lg:items-center">
             <div>
-              <div className="text-sm font-bold uppercase text-emerald-200">Automação por cron</div>
-              <h2 className="mt-2 text-2xl font-black">Deixe a NextGen enviar sozinha</h2>
-              <p className="mt-2 text-sm leading-6 text-white/70">Configure uma chamada periódica para o endpoint de cron. Ele busca e-mails pendentes vencidos, envia pelo Resend e atualiza status/logs.</p>
+              <div className="text-sm font-bold uppercase text-emerald-200">Fluxo Woovi</div>
+              <h2 className="mt-2 text-2xl font-black">Gere Pix real com split para subconta</h2>
+              <p className="mt-2 text-sm leading-6 text-white/70">Na lista de Recebimentos, clique em Gerar Pix Woovi, cole a chave Pix/subconta do cliente e a NextGen cria a cobrança na Woovi com SPLIT_SUB_ACCOUNT.</p>
             </div>
             <div className="rounded-2xl bg-slate-950 p-4 text-xs text-emerald-200">
-              <div className="font-bold text-white">Endpoint do cron</div>
-              <pre className="mt-2 overflow-auto">GET https://api.nextgenassets.com.br/v1/company-billing/notifications/email/cron?partnerSlug=nextgen-assets&amp;limit=50&amp;secret=SUA_CHAVE</pre>
-              <div className="mt-3 text-white/50">Variável obrigatória no Render: NEXTGEN_CRON_SECRET</div>
+              <div className="font-bold text-white">Depois do pagamento</div>
+              <pre className="mt-2 overflow-auto">Cliente paga Pix{`\n`}Valor do cliente vai para subconta{`\n`}Taxa NextGen fica na conta principal{`\n`}Conciliação marca como recebido</pre>
             </div>
           </div>
         </div>
@@ -299,7 +298,29 @@ function ListCard({ title, items }: { title: string; items: any[] }) {
     window.location.reload();
   }
 
-  return <div className="rounded-3xl border border-white/10 bg-white/10 p-6"><h2 className="mb-4 text-xl font-black">{title}</h2><div className="max-h-96 space-y-3 overflow-auto">{items.length ? items.slice(0, 10).map((item, index) => <div key={item.id || index} className="rounded-2xl bg-slate-950 p-4"><div className="font-bold">{item.name || item.title || item.type || item.customerName || 'Registro'}</div><div className="mt-1 text-xs text-white/50">{item.status || item.externalCustomerId || item.stepKey || item.channel || item.createdAt}</div>{item.message && <div className="mt-3 text-sm text-white/60">{item.message}</div>}{isReceivables && <div className="mt-3 grid gap-2 md:grid-cols-2"><button onClick={() => copyLink(item)} className="rounded-xl border border-white/10 px-3 py-2 text-sm font-bold hover:bg-white/10">Copiar link</button><button disabled={String(item.status).toUpperCase() === 'PAID'} onClick={() => quickReceive(item)} className="rounded-xl bg-emerald-400 px-3 py-2 text-sm font-black text-slate-950 disabled:opacity-50">{String(item.status).toUpperCase() === 'PAID' ? 'Recebido' : 'Confirmar recebido'}</button></div>}</div>) : <div className="rounded-2xl bg-slate-950 p-4 text-sm text-white/50">Nenhum registro ainda.</div>}</div></div>;
+  async function createWooviPix(item: any) {
+    const pixKey = window.prompt('Cole a chave Pix/subconta Woovi do cliente/empresa:');
+    if (!pixKey) return;
+
+    const response = await fetch(`${API_BASE}/company-billing/woovi-subaccounts/create-charge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chargeId: item.id, pixKey, nextgenRate: 0.03 })
+    });
+    const data = await response.json();
+
+    if (data?.success) {
+      const link = data?.payment?.paymentLink || data?.payment?.brCode || '';
+      if (link) await navigator.clipboard.writeText(link);
+      alert(link ? 'Pix Woovi criado e link/código copiado.' : 'Pix Woovi criado. Confira a resposta no painel após atualizar.');
+      window.location.reload();
+      return;
+    }
+
+    alert(`Erro ao gerar Pix Woovi: ${data?.error || data?.message || 'verifique a resposta da API'}`);
+  }
+
+  return <div className="rounded-3xl border border-white/10 bg-white/10 p-6"><h2 className="mb-4 text-xl font-black">{title}</h2><div className="max-h-96 space-y-3 overflow-auto">{items.length ? items.slice(0, 10).map((item, index) => <div key={item.id || index} className="rounded-2xl bg-slate-950 p-4"><div className="font-bold">{item.name || item.title || item.type || item.customerName || 'Registro'}</div><div className="mt-1 text-xs text-white/50">{item.status || item.externalCustomerId || item.stepKey || item.channel || item.createdAt}</div>{item.message && <div className="mt-3 text-sm text-white/60">{item.message}</div>}{isReceivables && <div className="mt-3 grid gap-2"><button onClick={() => createWooviPix(item)} className="rounded-xl bg-blue-400 px-3 py-2 text-sm font-black text-slate-950 hover:bg-blue-300">Gerar Pix Woovi</button><div className="grid gap-2 md:grid-cols-2"><button onClick={() => copyLink(item)} className="rounded-xl border border-white/10 px-3 py-2 text-sm font-bold hover:bg-white/10">Copiar link</button><button disabled={String(item.status).toUpperCase() === 'PAID'} onClick={() => quickReceive(item)} className="rounded-xl bg-emerald-400 px-3 py-2 text-sm font-black text-slate-950 disabled:opacity-50">{String(item.status).toUpperCase() === 'PAID' ? 'Recebido' : 'Confirmar recebido'}</button></div></div>}</div>) : <div className="rounded-2xl bg-slate-950 p-4 text-sm text-white/50">Nenhum registro ainda.</div>}</div></div>;
 }
 
 function money(value: any) {
