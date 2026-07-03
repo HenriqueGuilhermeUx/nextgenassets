@@ -1,7 +1,7 @@
 const plans = [
-  ['Starter', 'R$ 49/mês', 'até 50 cobranças/mês', ['Conta NextGen', 'Pix e link', 'Clientes pagadores', 'E-mail automático']],
-  ['Growth', 'R$ 99/mês', 'até 200 cobranças/mês', ['Importação de planilha', 'Recorrência', 'Régua de cobrança', 'Relatórios']],
-  ['Pro', 'R$ 199/mês', 'até 1.000 cobranças/mês', ['WhatsApp conectado', 'Múltiplos usuários', 'Repasses', 'Conciliação']],
+  ['Starter', 'R$ 79/mês', 'até 50 recebimentos/mês', ['Conta NextGen', 'Pix e link', 'Clientes pagadores', 'E-mail automático']],
+  ['Growth', 'R$ 149/mês', 'até 200 recebimentos/mês', ['Importação de planilha', 'Recorrência', 'Régua de cobrança', 'Relatórios']],
+  ['Pro', 'R$ 299/mês', 'até 1.000 recebimentos/mês', ['WhatsApp conectado', 'Múltiplos usuários', 'Repasses', 'Conciliação']],
   ['Enterprise', 'Sob consulta', 'alto volume', ['API', 'White label', 'SLA', 'Implantação assistida']]
 ];
 
@@ -11,7 +11,7 @@ export default function PlanosPage() {
       <div className="mx-auto max-w-7xl">
         <a href="/" className="text-sm font-bold text-emerald-300">← NextGen Assets</a>
         <h1 className="mt-6 text-5xl font-black">Planos NextGen</h1>
-        <p className="mt-4 max-w-3xl text-xl leading-8 text-white/60">Assinatura mensal por perfil de operação, com franquia de cobranças e recursos progressivos.</p>
+        <p className="mt-4 max-w-3xl text-xl leading-8 text-white/60">Assinatura mensal por perfil de operação, com recebimentos incluídos e recursos progressivos.</p>
 
         <div className="mt-10 grid gap-6 lg:grid-cols-4">
           {plans.map(([name, price, volume, features]: any) => (
@@ -29,8 +29,13 @@ export default function PlanosPage() {
 
         <section className="mt-10 rounded-3xl border border-blue-400/20 bg-blue-400/10 p-8">
           <h2 className="text-3xl font-black">Modelo sugerido</h2>
-          <p className="mt-4 text-white/60">Assinatura mensal com limite de uso. No início, vender simples. Depois, adicionar excedente apenas para alto volume.</p>
-          <div className="mt-5 rounded-2xl bg-slate-950 p-5 text-sm text-emerald-200">Plano mensal + franquia + recursos premium</div>
+          <p className="mt-4 text-white/60">Plano mensal com recebimentos incluídos. Para alto volume, adicionamos excedente simples ou plano sob medida.</p>
+          <div className="mt-5 rounded-2xl bg-slate-950 p-5 text-sm text-emerald-200">Assinatura + recebimentos incluídos + recursos premium</div>
+        </section>
+
+        <section className="mt-8 rounded-3xl border border-white/10 bg-white/10 p-8">
+          <h2 className="text-3xl font-black">Observação comercial</h2>
+          <p className="mt-4 text-white/60">A NextGen não precisa parecer tarifa bancária. O cliente compra uma operação de recebimentos: base, cobrança, lembrete, Pix, acompanhamento e repasse.</p>
         </section>
       </div>
     </main>
