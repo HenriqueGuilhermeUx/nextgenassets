@@ -13,6 +13,7 @@ import { ManualSettlementController } from '../smart-billing/manual-settlement.c
 import { PaymentRouterController } from '../smart-billing/payment-router.controller';
 import { SmartBillingNotificationsController } from '../smart-billing/smart-billing-notifications.controller';
 import { SmartBillingEmailNotificationsController } from '../smart-billing/smart-billing-email-notifications.controller';
+import { SmartBillingRecurrencesController } from '../smart-billing/smart-billing-recurrences.controller';
 
 @Module({
   providers: [EfiOFService],
@@ -29,7 +30,8 @@ import { SmartBillingEmailNotificationsController } from '../smart-billing/smart
     ManualSettlementController,
     PaymentRouterController,
     SmartBillingNotificationsController,
-    SmartBillingEmailNotificationsController
+    SmartBillingEmailNotificationsController,
+    SmartBillingRecurrencesController
   ],
   exports: [EfiOFService]
 })
