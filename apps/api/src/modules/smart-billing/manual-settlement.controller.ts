@@ -4,6 +4,7 @@
 //  POST /v1/company-billing/manual-settlements
 //  GET  /v1/company-billing/manual-settlements/pending
 //  GET  /v1/company-billing/manual-settlements/summary
+//  POST /v1/company-billing/manual-settlements/provider-confirm
 //  POST /v1/company-billing/manual-settlements/:id/mark-received
 //  POST /v1/company-billing/manual-settlements/:id/mark-repassed
 //  POST /v1/company-billing/manual-settlements/:id/cancel
@@ -22,7 +23,7 @@ export class ManualSettlementController {
     await this.ensureTables();
     const partner = await this.getOrCreatePartner(body.partnerSlug || 'nextgen-assets', body.partnerName);
 
-    const grossCents = this.toCents(body.grossCents ?? body.valueCents ?? body.amountCents ?? body.value ?? body.amount);
+    const grossCents = this.moneyInputToCents(body.grossCents ?? body.valueCents ?? body.amountCents, body.value ?? body.amount);
     if (grossCents < 100) {
       return { success: false, error: 'MIN_VALUE', message: 'Valor minimo recomendado: R$ 1,00.' };
     }
@@ -133,6 +134,64 @@ export class ManualSettlementController {
         repassed: this.formatBrl(s.repassed_cents)
       }
     };
+  }
+
+  @Post('provider-confirm')
+  async providerConfirm(@Query('token') token: string, @Body() body: any) {
+    await this.ensureTables();
+
+    const expected = process.env.NEXTGEN_PROVIDER_CONFIRM_TOKEN || process.env.NEXTGEN_WOOVI_WEBHOOK_SECRET;
+    if (!expected) return { success: false, error: 'MISSING_PROVIDER_CONFIRM_TOKEN' };
+    if (token !== expected) return { success: false, error: 'INVALID_PROVIDER_CONFIRM_TOKEN' };
+
+    const paid = body.paid === true || this.textLooksPaid(body);
+    if (!paid) {
+      return { success: true, action: 'ignored_not_paid', paid: false };
+    }
+
+    const chargeId = body.chargeId || body.smartChargeId;
+    const providerReference = body.providerReference || body.endToEndId || body.transactionId || body.correlationId || `provider-${Date.now()}`;
+
+    let charge: any = null;
+    if (chargeId) {
+      const rows = await prisma.$queryRaw<any[]>`SELECT * FROM smart_billing_charges WHERE id = ${chargeId} LIMIT 1`;
+      charge = rows[0] || null;
+    }
+    if (!charge && body.correlationId) {
+      const rows = await prisma.$queryRaw<any[]>`SELECT * FROM smart_billing_charges WHERE provider_ref = ${body.correlationId} LIMIT 1`;
+      charge = rows[0] || null;
+    }
+
+    if (!charge) return { success: false, error: 'CHARGE_NOT_FOUND' };
+
+    await this.markSmartChargePaid(charge.id, providerReference, 'provider-confirm');
+
+    const grossCents = Math.round(Number(charge.amount_brl || 0) * 100);
+    const exists = await prisma.$queryRaw<any[]>`SELECT * FROM smart_billing_manual_settlements WHERE charge_id = ${charge.id} LIMIT 1`;
+    let settlement: any = exists[0] || null;
+
+    if (!settlement) {
+      const nextgenRate = Number(body.nextgenRate ?? 0.03);
+      const providerFeeCents = Math.max(0, Math.round(Number(body.providerFeeCents ?? 0)));
+      const nextgenCents = Math.min(grossCents, Math.floor(grossCents * nextgenRate));
+      const partnerNetCents = Math.max(0, grossCents - nextgenCents - providerFeeCents);
+      const id = `mst_${randomUUID().replace(/-/g, '')}`;
+      const rawData = JSON.stringify({ source: 'provider-confirm', providerReference, input: this.sanitizeInput(body) });
+
+      const inserted = await prisma.$queryRaw<any[]>`
+        INSERT INTO smart_billing_manual_settlements (
+          id, partner_id, charge_id, source_provider, gross_cents, nextgen_cents, provider_fee_cents,
+          partner_net_cents, status, recipient_name, recipient_ref_masked, description, provider_reference, raw_data, received_at
+        ) VALUES (
+          ${id}, ${charge.partner_id}, ${charge.id}, ${body.provider || 'provider'}, ${grossCents}, ${nextgenCents}, ${providerFeeCents},
+          ${partnerNetCents}, 'REPASS_PENDING', ${body.recipientName || null}, ${this.maskRef(body.recipientRef || '') || null},
+          ${body.description || charge.title || null}, ${providerReference}, ${rawData}::jsonb, now()
+        ) RETURNING *
+      `;
+      settlement = inserted[0];
+    }
+
+    return { success: true, action: 'charge_marked_paid', chargeId: charge.id, providerReference, settlement: this.toCamel(settlement), brl: this.moneyBlock(settlement) };
   }
 
   @Post(':id/mark-received')
@@ -249,6 +308,15 @@ export class ManualSettlementController {
     }
   }
 
+  private moneyInputToCents(centsInput: any, brlInput: any): number {
+    if (centsInput !== undefined && centsInput !== null && centsInput !== '') return this.toCents(centsInput);
+    if (brlInput === undefined || brlInput === null || brlInput === '') return 0;
+    if (typeof brlInput === 'number') return Math.round(brlInput * 100);
+    const text = String(brlInput).trim().replace('R$', '').replace(/\./g, '').replace(',', '.');
+    const n = Number(text);
+    return Number.isFinite(n) ? Math.round(n * 100) : 0;
+  }
+
   private toCents(value: any): number {
     if (value === undefined || value === null || value === '') return 0;
     if (typeof value === 'number') return Math.round(value);
@@ -259,8 +327,14 @@ export class ManualSettlementController {
     return Math.round(asNumber);
   }
 
+  private textLooksPaid(body: any) {
+    const text = JSON.stringify(body || {}).toLowerCase();
+    return text.includes('paid') || text.includes('pago') || text.includes('confirmed') || text.includes('completed') || text.includes('liquidado');
+  }
+
   private sanitizeInput(body: any) {
     const clone = { ...body };
+    delete clone.token;
     if (clone.recipientPixKey) clone.recipientPixKey = this.maskRef(clone.recipientPixKey);
     if (clone.recipientAccount) clone.recipientAccount = this.maskRef(clone.recipientAccount);
     if (clone.recipientRef) clone.recipientRef = this.maskRef(clone.recipientRef);
