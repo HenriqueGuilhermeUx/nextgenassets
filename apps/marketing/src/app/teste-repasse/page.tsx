@@ -11,7 +11,7 @@ export default function TesteRepassePage() {
   const [amount, setAmount] = useState('1.00');
   const [payer, setPayer] = useState({ name: 'Pagador Teste', externalCustomerId: 'pagador-teste-001', email: '', phone: '' });
   const [charge, setCharge] = useState<any>(null);
-  const [result, setResult] = useState<any>({ passo: 'Informe a chave Pix de repasse e comece pelo pagador.' });
+  const [result, setResult] = useState<any>({ passo: 'Informe a chave Pix da subconta e comece pelo pagador.' });
   const [loading, setLoading] = useState(false);
 
   async function post(path: string, body: any) {
@@ -50,7 +50,7 @@ export default function TesteRepassePage() {
 
   async function generatePix() {
     if (!receivingPixKey.trim()) {
-      setResult({ success: false, error: 'Informe a chave Pix de repasse.' });
+      setResult({ success: false, error: 'Informe a chave Pix da subconta.' });
       return;
     }
     if (!charge?.id) {
@@ -60,8 +60,7 @@ export default function TesteRepassePage() {
 
     const data = await post('/company-billing/woovi-subaccounts/create-charge', {
       chargeId: charge.id,
-      partnerPixKey: receivingPixKey.trim(),
-      nextgenRate: 0.03
+      partnerPixKey: receivingPixKey.trim()
     });
 
     const link = data?.payment?.paymentLink || data?.payment?.brCode || '';
@@ -71,7 +70,7 @@ export default function TesteRepassePage() {
 
   async function requestPayout() {
     if (!receivingPixKey.trim()) {
-      setResult({ success: false, error: 'Informe a chave Pix de repasse.' });
+      setResult({ success: false, error: 'Informe a chave Pix da subconta.' });
       return;
     }
     const data = await post('/company-billing/woovi-subaccounts/withdraw', { pixKey: receivingPixKey.trim() });
@@ -82,15 +81,15 @@ export default function TesteRepassePage() {
     <main className="min-h-screen bg-slate-950 px-6 py-8 text-white">
       <div className="mx-auto max-w-6xl">
         <a href="/conta-nextgen" className="text-sm font-bold text-emerald-300">← Conta NextGen</a>
-        <h1 className="mt-4 text-4xl font-black">Teste de repasse</h1>
-        <p className="mt-2 max-w-3xl text-white/60">Use uma cobrança pequena para validar: geração do Pix, divisão do valor e solicitação de repasse.</p>
+        <h1 className="mt-4 text-4xl font-black">Teste de subconta</h1>
+        <p className="mt-2 max-w-3xl text-white/60">Use uma cobrança pequena para validar: geração do Pix, split para subconta e solicitação de repasse.</p>
 
         <section className="mt-8 grid gap-6 lg:grid-cols-2">
-          <Card title="1. Destino do repasse">
+          <Card title="1. Subconta recebedora">
             <Field label="Empresa" value={companyName} onChange={setCompanyName} />
-            <Field label="Pix de repasse" value={receivingPixKey} onChange={setReceivingPixKey} />
+            <Field label="Chave Pix da subconta" value={receivingPixKey} onChange={setReceivingPixKey} />
             <Field label="Valor do teste" value={amount} onChange={setAmount} />
-            <div className="rounded-2xl bg-slate-950 p-4 text-sm text-white/60">Sugestão: testar com R$ 1,00 ou R$ 2,00 primeiro.</div>
+            <div className="rounded-2xl bg-slate-950 p-4 text-sm text-white/60">Sugestão: teste com R$ 10,00 para validar taxa, split e saldo.</div>
           </Card>
 
           <Card title="2. Pagador de teste">
@@ -104,13 +103,13 @@ export default function TesteRepassePage() {
           <Card title="3. Cobrança Pix">
             <div className="rounded-2xl bg-slate-950 p-4 text-sm text-white/60">{charge?.id ? `Cobrança criada: ${charge.id}` : 'Crie a cobrança depois de salvar o pagador.'}</div>
             <button onClick={createCharge} className="mt-4 w-full rounded-xl bg-indigo-400 px-4 py-3 font-black text-slate-950">Criar cobrança</button>
-            <button onClick={generatePix} className="mt-3 w-full rounded-xl bg-emerald-400 px-4 py-3 font-black text-slate-950">Gerar Pix</button>
-            <div className="mt-3 text-xs text-white/50">Depois de gerar, o código/link será copiado se retornar corretamente.</div>
+            <button onClick={generatePix} className="mt-3 w-full rounded-xl bg-emerald-400 px-4 py-3 font-black text-slate-950">Gerar Pix sem comissão por recebimento</button>
+            <div className="mt-3 text-xs text-white/50">A cobrança reserva apenas a taxa técnica estimada do Pix. A receita da NextGen vem do plano e de recursos extras.</div>
           </Card>
 
           <Card title="4. Depois do pagamento">
-            <div className="rounded-2xl bg-slate-950 p-4 text-sm leading-6 text-white/60">Pague o Pix de teste. Depois confira no painel do provedor se o valor caiu no destino esperado. Em seguida, teste o repasse.</div>
-            <button onClick={requestPayout} className="mt-4 w-full rounded-xl bg-purple-400 px-4 py-3 font-black text-slate-950">Solicitar repasse</button>
+            <div className="rounded-2xl bg-slate-950 p-4 text-sm leading-6 text-white/60">Pague o Pix de teste. Depois confira em /repasses se o saldo entrou automaticamente pelo webhook.</div>
+            <button onClick={requestPayout} className="mt-4 w-full rounded-xl bg-purple-400 px-4 py-3 font-black text-slate-950">Solicitar saque da subconta</button>
           </Card>
         </section>
 
