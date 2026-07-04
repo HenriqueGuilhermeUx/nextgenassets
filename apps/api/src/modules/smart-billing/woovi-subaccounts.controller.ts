@@ -14,7 +14,8 @@ export class WooviSubaccountsController {
       service: 'nextgen-receiving-account-engine',
       status: 'ready',
       hasProviderKey: !!process.env.WOOVI_APP_ID,
-      expectedProviderFeeCents: Number(process.env.WOOVI_EXPECTED_FEE_CENTS || 50),
+      defaultNextgenRate: Number(process.env.NEXTGEN_PIX_COMMISSION_RATE || 0),
+      expectedProviderFeeCents: Number(process.env.WOOVI_EXPECTED_FEE_CENTS || 51),
       routes: [
         'POST /v1/company-billing/woovi-subaccounts/create',
         'POST /v1/company-billing/woovi-subaccounts/create-charge',
@@ -111,7 +112,7 @@ export class WooviSubaccountsController {
     }
 
     const totalCents = Math.round(Number(charge.amount_brl || 0) * 100);
-    const nextgenRate = Number(body.nextgenRate ?? body.commissionRate ?? 0.03);
+    const nextgenRate = Number(body.nextgenRate ?? body.commissionRate ?? process.env.NEXTGEN_PIX_COMMISSION_RATE ?? 0);
     const nextgenCents = Math.max(0, Math.floor(totalCents * nextgenRate));
     const providerFeeReserveCents = this.resolveProviderFeeReserveCents(body, totalCents);
     const partnerCents = Math.max(0, totalCents - nextgenCents - providerFeeReserveCents);
@@ -298,7 +299,7 @@ export class WooviSubaccountsController {
   private resolveProviderFeeReserveCents(body: any, totalCents: number) {
     const explicit = body.providerFeeReserveCents ?? body.estimatedProviderFeeCents ?? body.providerFeeCents;
     if (explicit !== undefined && explicit !== null && explicit !== '') return Math.max(0, Math.round(Number(explicit)));
-    const env = Number(process.env.WOOVI_EXPECTED_FEE_CENTS || 50);
+    const env = Number(process.env.WOOVI_EXPECTED_FEE_CENTS || 51);
     const percentReserve = Math.ceil(totalCents * Number(process.env.WOOVI_EXPECTED_FEE_RATE || 0));
     return Math.max(0, Math.round(Math.max(env, percentReserve)));
   }
@@ -330,7 +331,7 @@ export class WooviSubaccountsController {
     return prisma.partner.upsert({
       where: { slug },
       update: {},
-      create: { slug, name: this.titleFromSlug(slug), type: 'FINTECH' as any, config: {}, commissionRate: 0.03, tier: 'STARTER' as any } as any
+      create: { slug, name: this.titleFromSlug(slug), type: 'FINTECH' as any, config: {}, commissionRate: 0, tier: 'STARTER' as any } as any
     });
   }
 
