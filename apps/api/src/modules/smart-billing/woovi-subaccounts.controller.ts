@@ -14,7 +14,7 @@ export class WooviSubaccountsController {
       service: 'nextgen-receiving-account-engine',
       status: 'ready',
       hasProviderKey: !!process.env.WOOVI_APP_ID,
-      expectedProviderFeeCents: Number(process.env.WOOVI_EXPECTED_FEE_CENTS || 200),
+      expectedProviderFeeCents: Number(process.env.WOOVI_EXPECTED_FEE_CENTS || 50),
       routes: [
         'POST /v1/company-billing/woovi-subaccounts/create',
         'POST /v1/company-billing/woovi-subaccounts/create-charge',
@@ -298,7 +298,7 @@ export class WooviSubaccountsController {
   private resolveProviderFeeReserveCents(body: any, totalCents: number) {
     const explicit = body.providerFeeReserveCents ?? body.estimatedProviderFeeCents ?? body.providerFeeCents;
     if (explicit !== undefined && explicit !== null && explicit !== '') return Math.max(0, Math.round(Number(explicit)));
-    const env = Number(process.env.WOOVI_EXPECTED_FEE_CENTS || 200);
+    const env = Number(process.env.WOOVI_EXPECTED_FEE_CENTS || 50);
     const percentReserve = Math.ceil(totalCents * Number(process.env.WOOVI_EXPECTED_FEE_RATE || 0));
     return Math.max(0, Math.round(Math.max(env, percentReserve)));
   }
