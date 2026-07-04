@@ -34,6 +34,7 @@ export class WooviPaymentWebhookController {
     const paymentMerge = JSON.stringify({
       wooviWebhook: {
         status: normalized.status,
+        event: normalized.event,
         providerReference,
         correlationID: normalized.correlationID,
         transactionID: normalized.transactionID,
@@ -72,17 +73,30 @@ export class WooviPaymentWebhookController {
     };
   }
 
+  @Post('webhook-test')
+  async webhookTest(@Query('secret') secret: string, @Body() body: any) {
+    const expected = process.env.NEXTGEN_WOOVI_WEBHOOK_SECRET || process.env.WOOVI_WEBHOOK_SECRET || '';
+    if (expected && secret !== expected) return { success: false, error: 'INVALID_WEBHOOK_SECRET' };
+    const normalized = this.normalize(body);
+    return {
+      success: true,
+      paidDetected: this.isPaid(normalized, body),
+      normalized,
+      hint: 'Use esta rota para testar se o payload seria reconhecido antes de processar pagamento real.'
+    };
+  }
+
   private normalize(body: any) {
-    const charge = body?.charge || body?.data?.charge || body?.pixQrCode || body?.data || body || {};
-    const transaction = body?.transaction || body?.data?.transaction || charge?.transaction || {};
-    const splits = Array.isArray(charge?.splits) ? charge.splits : [];
+    const charge = body?.charge || body?.data?.charge || body?.pixQrCode || body?.data?.pixQrCode || body?.data || body || {};
+    const transaction = body?.transaction || body?.data?.transaction || charge?.transaction || body?.pixTransaction || body?.data?.pixTransaction || {};
+    const splits = Array.isArray(charge?.splits) ? charge.splits : Array.isArray(transaction?.splits) ? transaction.splits : [];
     const splitCents = splits.reduce((sum: number, item: any) => sum + Math.round(Number(item?.value || 0)), 0);
 
     return {
-      event: body?.event || body?.type || body?.eventType || null,
+      event: body?.event || body?.type || body?.eventType || body?.name || null,
       status: charge?.status || transaction?.status || body?.status || null,
-      correlationID: charge?.correlationID || body?.correlationID || transaction?.correlationID || null,
-      identifier: charge?.identifier || charge?.transactionID || body?.identifier || body?.transactionID || null,
+      correlationID: charge?.correlationID || body?.correlationID || transaction?.correlationID || transaction?.charge?.correlationID || null,
+      identifier: charge?.identifier || charge?.transactionID || body?.identifier || body?.transactionID || transaction?.identifier || transaction?.charge?.identifier || null,
       transactionID: charge?.transactionID || transaction?.transactionID || transaction?.id || body?.transactionID || null,
       valueCents: Math.round(Number(charge?.value || transaction?.value || body?.value || 0)),
       feeCents: Math.round(Number(charge?.fee || transaction?.fee || body?.fee || 0)),
@@ -92,7 +106,16 @@ export class WooviPaymentWebhookController {
 
   private isPaid(normalized: any, body: any) {
     const text = JSON.stringify({ event: normalized.event, status: normalized.status, body }).toLowerCase();
-    return text.includes('paid') || text.includes('completed') || text.includes('confirmed') || text.includes('liquidado') || text.includes('pix_received') || text.includes('charge_completed');
+    return text.includes('paid')
+      || text.includes('completed')
+      || text.includes('confirmed')
+      || text.includes('liquidado')
+      || text.includes('recebido')
+      || text.includes('recebida')
+      || text.includes('received')
+      || text.includes('transaction_received')
+      || text.includes('pix_received')
+      || text.includes('charge_completed');
   }
 
   private async findCharge(normalized: any) {
