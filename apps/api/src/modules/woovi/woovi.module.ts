@@ -1,11 +1,10 @@
 import { Module } from '@nestjs/common';
 import { WooviPixAdapter } from './woovi-pix-adapter';
 import { WooviWebhookController } from './woovi-webhook.controller';
-import { WooviCronService } from './woovi-cron.service';
 
 @Module({
-  providers: [WooviPixAdapter, WooviCronService],
+  providers: [WooviPixAdapter],
   controllers: [WooviWebhookController],
-  exports: [WooviPixAdapter, WooviCronService]
+  exports: [WooviPixAdapter]
 })
 export class WooviModule {}
