@@ -32,16 +32,33 @@ export class WooviSubaccountsController {
     const partner = await this.getOrCreatePartner(body.partnerSlug || 'nextgen-assets');
 
     const name = body.name || body.companyName || body.customerName || partner.name;
-    const pixKey = body.pixKey || body.chavePix || body.receivingPixKey;
+    const pixKey = body.pixKey || body.chavePix || body.receivingPixKey || body.subaccountPixKey;
+    const localOnly = body.localOnly === true || body.linkOnly === true || body.mode === 'LOCAL_LINK';
     if (!name) return { success: false, error: 'MISSING_NAME' };
     if (!pixKey) return { success: false, error: 'MISSING_PIX_KEY' };
 
     const customerId = await this.resolveCustomerId(partner.id, body.customerId, body.externalCustomerId);
     const payload = { name, pixKey };
-    const result = await this.woovi('POST', '/api/v1/subaccount', payload);
-    const providerSubaccountId = result.data?.subAccount?.id || result.data?.subaccount?.id || result.data?.id || null;
-    const status = result.ok ? 'ACTIVE' : 'ERROR';
-    const rawData = JSON.stringify({ request: this.mask(payload), response: result.data || result.text, status: result.status, providerSubaccountId, scope: customerId ? 'payer-specific' : 'merchant-receiving-account' });
+
+    let result: any = { ok: true, status: 200, data: { mode: 'LOCAL_LINK' }, text: 'LOCAL_LINK' };
+    let providerSubaccountId: string | null = null;
+    let status = 'ACTIVE';
+
+    if (!localOnly) {
+      result = await this.woovi('POST', '/api/v1/subaccount', payload);
+      providerSubaccountId = result.data?.subAccount?.id || result.data?.subaccount?.id || result.data?.id || null;
+      status = result.ok ? 'ACTIVE' : 'ERROR';
+    }
+
+    const rawData = JSON.stringify({
+      request: this.mask(payload),
+      response: result.data || result.text,
+      status: result.status,
+      providerSubaccountId,
+      scope: customerId ? 'payer-specific' : 'merchant-receiving-account',
+      mode: localOnly ? 'LOCAL_LINK' : 'PROVIDER_CREATE',
+      note: localOnly ? 'Chave Pix vinculada localmente. Não chama saque e não movimenta dinheiro.' : undefined
+    });
 
     const existing = await prisma.$queryRaw<any[]>`
       SELECT * FROM smart_billing_woovi_subaccounts
@@ -67,9 +84,10 @@ export class WooviSubaccountsController {
       return {
         success: result.ok,
         action: 'updated',
+        mode: localOnly ? 'LOCAL_LINK' : 'PROVIDER_CREATE',
         message: result.ok ? 'Conta de recebimento preparada.' : 'Conta salva localmente, mas houve erro no provedor.',
         receivingAccount: this.toSafeCamel(updated[0]),
-        provider: { status: result.status, response: result.data || result.text }
+        provider: localOnly ? null : { status: result.status, response: result.data || result.text }
       };
     }
 
@@ -85,9 +103,10 @@ export class WooviSubaccountsController {
     return {
       success: result.ok,
       action: 'created',
+      mode: localOnly ? 'LOCAL_LINK' : 'PROVIDER_CREATE',
       message: result.ok ? 'Conta de recebimento preparada.' : 'Erro ao preparar conta de recebimento.',
       receivingAccount: this.toSafeCamel(rows[0]),
-      provider: { status: result.status, response: result.data || result.text }
+      provider: localOnly ? null : { status: result.status, response: result.data || result.text }
     };
   }
 
@@ -368,7 +387,7 @@ export class WooviSubaccountsController {
     if (Array.isArray(value)) return value.map((item) => this.mask(item));
     if (!value || typeof value !== 'object') return value;
     const out: any = {};
-    for (const [key, val] of Object.entries(value)) out[key] = key.toLowerCase().includes('pix') ? this.maskText(String(val || '')) : this.mask(val);
+    for (const [key, val] of Object.entries(value)) out[key.toLowerCase().includes('pix') ? key : key] = key.toLowerCase().includes('pix') ? this.maskText(String(val || '')) : this.mask(val);
     return out;
   }
 
