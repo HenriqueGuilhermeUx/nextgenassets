@@ -68,19 +68,13 @@ export default function CobrancasPage() {
   }
 
   async function generatePix(charge: Charge) {
-    if (!subaccountPixKey.trim()) {
-      setResult({ success: false, error: 'Informe a chave Pix da subconta recebedora.' });
-      return;
-    }
+    const body: any = { chargeId: charge.id };
+    if (subaccountPixKey.trim()) body.partnerPixKey = subaccountPixKey.trim();
 
-    const data = await postJson('/company-billing/woovi-subaccounts/create-charge', {
-      chargeId: charge.id,
-      partnerPixKey: subaccountPixKey.trim()
-    });
-
+    const data = await postJson('/company-billing/woovi-subaccounts/create-charge', body);
     const link = data?.payment?.paymentLink || data?.payment?.brCode || '';
     if (link) await navigator.clipboard.writeText(link);
-    setResult({ action: 'pix-generated', chargeId: charge.id, copied: !!link, response: data });
+    setResult({ action: 'pix-generated', chargeId: charge.id, copied: !!link, usedSavedReceivingKey: !subaccountPixKey.trim(), response: data });
     await load();
   }
 
@@ -107,9 +101,8 @@ export default function CobrancasPage() {
   const stats = useMemo(() => {
     const paid = charges.filter((c) => String(c.status || '').toUpperCase() === 'PAID');
     const pending = charges.filter((c) => ['PENDING', 'SENT'].includes(String(c.status || '').toUpperCase()));
-    const total = charges.reduce((sum, c) => sum + numberAmount(c.amountBrl), 0);
     const paidTotal = paid.reduce((sum, c) => sum + numberAmount(c.amountBrl), 0);
-    return { total, paidTotal, paid: paid.length, pending: pending.length };
+    return { paidTotal, paid: paid.length, pending: pending.length };
   }, [charges]);
 
   return (
@@ -118,6 +111,7 @@ export default function CobrancasPage() {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <a href="/operacao" className="text-sm font-black text-emerald-300">← Operação</a>
           <div className="flex gap-3 text-sm font-black">
+            <a href="/nova-cobranca" className="text-emerald-300">Nova cobrança</a>
             <a href="/importar-base" className="text-blue-300">Importar base</a>
             <a href="/repasses" className="text-purple-300">Repasses</a>
           </div>
@@ -141,8 +135,8 @@ export default function CobrancasPage() {
               <input value={partnerSlug} onChange={(e) => setPartnerSlug(e.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 outline-none" />
             </label>
             <label className="mt-4 block">
-              <span className="text-xs font-black uppercase text-white/50">Chave Pix da subconta</span>
-              <input value={subaccountPixKey} onChange={(e) => setSubaccountPixKey(e.target.value)} placeholder="Chave Pix cadastrada na subconta" className="mt-2 w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 outline-none" />
+              <span className="text-xs font-black uppercase text-white/50">Chave Pix da subconta opcional</span>
+              <input value={subaccountPixKey} onChange={(e) => setSubaccountPixKey(e.target.value)} placeholder="Deixe vazio para usar a chave salva da empresa" className="mt-2 w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 outline-none" />
             </label>
             <button onClick={load} className="mt-5 w-full rounded-xl bg-blue-400 px-4 py-3 font-black text-slate-950">Atualizar cobranças</button>
           </div>
@@ -150,8 +144,8 @@ export default function CobrancasPage() {
           <div className="rounded-3xl border border-white/10 bg-white/10 p-6">
             <h2 className="text-2xl font-black">Como usar</h2>
             <div className="mt-5 rounded-2xl bg-slate-950 p-5 text-sm leading-7 text-white/65">
-              <p>1. Importe clientes/cobranças ou crie pela Conta NextGen.</p>
-              <p>2. Informe a chave Pix da subconta recebedora.</p>
+              <p>1. Crie uma cobrança ou importe uma base.</p>
+              <p>2. Se a empresa já tiver chave salva, deixe o campo opcional vazio.</p>
               <p>3. Clique em gerar Pix na cobrança.</p>
               <p>4. O link/código é copiado e o webhook marca como pago depois do pagamento.</p>
             </div>
