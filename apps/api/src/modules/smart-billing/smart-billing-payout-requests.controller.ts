@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Post, Query } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { randomUUID } from 'crypto';
 
@@ -21,6 +21,7 @@ export class SmartBillingPayoutRequestsController {
       service: 'nextgen-payout-requests',
       status: 'ready',
       model: 'scheduled_subaccount_balance_requests',
+      adminProcessingProtected: true,
       plans: { starter: 'D+3', growth: 'D+2', pro: 'D+1' },
       routes: [
         'GET /v1/company-billing/payout-requests/balance?partnerSlug=nextgen-assets',
@@ -106,12 +107,39 @@ export class SmartBillingPayoutRequestsController {
   }
 
   @Post('mark-processed')
-  async markProcessed(@Body() body: any) {
+  async markProcessed(@Body() body: any, @Headers() headers: any, @Query('token') token?: string) {
     await this.ensureTables();
+
+    const expectedToken = process.env.NEXTGEN_ADMIN_TOKEN || process.env.NEXTGEN_OPERATIONS_TOKEN || '';
+    const providedToken = body.adminToken || body.operationsToken || token || headers?.['x-nextgen-admin-token'] || headers?.['x-nextgen-operations-token'];
+
+    if (!expectedToken) {
+      return {
+        success: false,
+        error: 'ADMIN_ACTION_DISABLED',
+        message: 'Ação administrativa desativada. Configure NEXTGEN_ADMIN_TOKEN no ambiente antes de usar este endpoint.'
+      };
+    }
+
+    if (providedToken !== expectedToken) {
+      return {
+        success: false,
+        error: 'INVALID_ADMIN_TOKEN',
+        message: 'Token operacional inválido.'
+      };
+    }
+
     const requestId = body.requestId || body.id;
     if (!requestId) return { success: false, error: 'MISSING_REQUEST_ID' };
 
-    const rawMerge = JSON.stringify({ processedBy: body.processedBy || 'operator', providerReference: body.providerReference || null, note: body.note || null, processedAt: new Date().toISOString() });
+    const rawMerge = JSON.stringify({
+      processedBy: body.processedBy || 'operator',
+      providerReference: body.providerReference || null,
+      note: body.note || null,
+      processedAt: new Date().toISOString(),
+      protected: true
+    });
+
     const rows = await prisma.$queryRaw<any[]>`
       UPDATE smart_billing_payout_requests
       SET status = ${body.status || 'PROCESSED'}, processed_at = now(), raw_data = COALESCE(raw_data, '{}'::jsonb) || ${rawMerge}::jsonb, updated_at = now()
@@ -178,8 +206,8 @@ export class SmartBillingPayoutRequestsController {
   private async getOrCreatePartner(slug: string, name?: string) {
     return prisma.partner.upsert({
       where: { slug },
-      update: name ? { name } : {},
-      create: { slug, name: name || this.titleFromSlug(slug), type: 'FINTECH' as any, config: {}, commissionRate: 0.03, tier: 'STARTER' as any } as any
+      update: name ? { name, commissionRate: 0 } as any : { commissionRate: 0 } as any,
+      create: { slug, name: name || this.titleFromSlug(slug), type: 'FINTECH' as any, config: {}, commissionRate: 0, tier: 'STARTER' as any } as any
     });
   }
 
