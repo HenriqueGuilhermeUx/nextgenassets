@@ -6,6 +6,12 @@ const cards = [
     description: 'Fluxo principal para abrir conta de recebimento, cadastrar pagador e criar cobrança.'
   },
   {
+    title: 'Nova Cobrança',
+    href: '/nova-cobranca',
+    tag: 'venda',
+    description: 'Cria pagador, cobrança e Pix com split para subconta em um fluxo rápido.'
+  },
+  {
     title: 'Cobranças',
     href: '/cobrancas',
     tag: 'operação',
@@ -56,11 +62,11 @@ const cards = [
 ];
 
 const checklist = [
-  'Criar ou importar cliente',
-  'Criar cobrança',
-  'Abrir /cobrancas e gerar Pix com split para subconta',
-  'Pagar cobrança',
-  'Conferir webhook e saldo em Repasses',
+  'Criar nova cobrança ou importar base',
+  'Gerar Pix com split para subconta',
+  'Enviar link/código Pix ao pagador',
+  'Pagamento cair e webhook marcar como pago',
+  'Conferir saldo em Repasses',
   'Solicitar repasse antecipado ou programado',
   'Processar manualmente e marcar no Admin'
 ];
@@ -117,7 +123,7 @@ export default function OperacaoPage() {
               <p><strong className="text-emerald-300">Operação:</strong> repasse programado reduz custo; antecipado é exceção cobrável.</p>
             </div>
             <div className="mt-5 rounded-2xl border border-blue-400/20 bg-blue-400/10 p-5 text-sm leading-7 text-blue-100">
-              Próximo bloco técnico: transformar cobrança em fluxo completo de cliente, com criação rápida, lista e acompanhamento de pagamento.
+              Próximo bloco técnico: melhorar painel do cliente com cobrança, saldo, próximos repasses e mensagens automáticas em uma visão única.
             </div>
           </div>
         </section>
