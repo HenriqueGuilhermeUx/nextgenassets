@@ -18,6 +18,7 @@ type RequestItem = {
 export default function RepassesAdminPage() {
   const [partnerSlug, setPartnerSlug] = useState('nextgen-assets');
   const [plan, setPlan] = useState('starter');
+  const [adminToken, setAdminToken] = useState('');
   const [balance, setBalance] = useState<any>(null);
   const [pending, setPending] = useState<any>(null);
   const [selectedId, setSelectedId] = useState('');
@@ -73,10 +74,16 @@ export default function RepassesAdminPage() {
       return;
     }
 
+    if (!adminToken.trim()) {
+      setResult({ success: false, error: 'Informe o token operacional.' });
+      return;
+    }
+
     const response = await postJson('/company-billing/payout-requests/mark-processed', {
       requestId: selectedId,
       status: 'PROCESSED',
       processedBy: 'repasses-admin',
+      adminToken: adminToken.trim(),
       providerReference: providerReference.trim() || null,
       note: note.trim() || null
     });
@@ -137,6 +144,11 @@ export default function RepassesAdminPage() {
             <p className="mt-2 text-sm text-white/60">Use depois de conferir o pedido e registrar a operação no provedor. Este botão apenas atualiza o status no sistema.</p>
 
             <label className="mt-5 block">
+              <span className="text-xs font-bold uppercase text-white/50">Token operacional</span>
+              <input type="password" value={adminToken} onChange={(e) => setAdminToken(e.target.value)} placeholder="NEXTGEN_ADMIN_TOKEN" className="mt-2 w-full rounded-xl border border-amber-300/30 bg-slate-900 px-4 py-3 outline-none" />
+            </label>
+
+            <label className="mt-5 block">
               <span className="text-xs font-bold uppercase text-white/50">Pedido</span>
               <select value={selectedId} onChange={(e) => setSelectedId(e.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 outline-none">
                 <option value="">Selecione</option>
@@ -157,6 +169,7 @@ export default function RepassesAdminPage() {
             </label>
 
             <button onClick={markProcessed} className="mt-5 w-full rounded-xl bg-emerald-400 px-4 py-3 font-black text-slate-950">Marcar como processado</button>
+            <div className="mt-3 rounded-2xl border border-amber-300/30 bg-amber-300/10 p-4 text-xs leading-5 text-amber-100">Sem token válido, o backend recusa a ação administrativa.</div>
           </div>
         </section>
 
