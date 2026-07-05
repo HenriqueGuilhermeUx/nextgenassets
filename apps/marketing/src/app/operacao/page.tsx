@@ -42,6 +42,12 @@ const cards = [
     description: 'Painel interno para conferir pedidos e marcar repasses como processados.'
   },
   {
+    title: 'Validação do Piloto',
+    href: '/validacao-piloto',
+    tag: 'checklist',
+    description: 'Roteiro final para validar o fluxo de ponta a ponta antes de chamar cliente.'
+  },
+  {
     title: 'Piloto',
     href: '/piloto',
     tag: 'go-live',
@@ -137,7 +143,7 @@ export default function OperacaoPage() {
               <p><strong className="text-emerald-300">Comunicação:</strong> lembretes e confirmação reduzem trabalho manual do financeiro.</p>
             </div>
             <div className="mt-5 rounded-2xl border border-blue-400/20 bg-blue-400/10 p-5 text-sm leading-7 text-blue-100">
-              Próximo bloco técnico: revisão final da home e do posicionamento público para vender Recebimentos Inteligentes.
+              Próximo bloco técnico: fazer o teste real final com cobrança pequena e validar webhook, saldo e repasse.
             </div>
           </div>
         </section>
