@@ -18,6 +18,18 @@ const cards = [
     description: 'Lista cobranças reais, gera Pix com split para subconta e acompanha status.'
   },
   {
+    title: 'Régua de Cobrança',
+    href: '/regua-cobranca',
+    tag: 'comunicação',
+    description: 'Modelos de mensagem para lembrar, recuperar e confirmar pagamentos.'
+  },
+  {
+    title: 'Notificações',
+    href: '/notificacoes',
+    tag: 'automação',
+    description: 'Central operacional de mensagens, pendências e histórico.'
+  },
+  {
     title: 'Repasses',
     href: '/repasses',
     tag: 'cliente',
@@ -58,12 +70,6 @@ const cards = [
     href: '/roteador-pagamentos',
     tag: 'pagamento',
     description: 'Página pública de pagamento para links de cobrança.'
-  },
-  {
-    title: 'Teste pausado',
-    href: '/teste-repasse',
-    tag: 'legado',
-    description: 'Tela antiga de teste pausada por segurança operacional.'
   }
 ];
 
@@ -72,6 +78,7 @@ const checklist = [
   'Criar nova cobrança ou importar base',
   'Gerar Pix com split para subconta',
   'Enviar link/código Pix ao pagador',
+  'Acompanhar comunicação da cobrança',
   'Pagamento cair e webhook marcar como pago',
   'Conferir saldo em Repasses',
   'Solicitar repasse antecipado ou programado',
@@ -87,13 +94,13 @@ export default function OperacaoPage() {
         <section className="mt-6 rounded-[2rem] border border-white/10 bg-white/10 p-8 md:p-10">
           <div className="text-sm font-black uppercase tracking-[0.25em] text-emerald-300">Operação NextGen</div>
           <h1 className="mt-4 max-w-4xl text-4xl font-black leading-tight md:text-6xl">Central de operação dos recebimentos inteligentes.</h1>
-          <p className="mt-5 max-w-4xl text-lg leading-8 text-white/65">Use esta página como atalho para operar cobranças, Pix, split, webhook, saldo e repasses sem decorar URLs.</p>
+          <p className="mt-5 max-w-4xl text-lg leading-8 text-white/65">Use esta página como atalho para operar cobranças, Pix, comunicação, saldo e repasses sem decorar URLs.</p>
 
           <div className="mt-8 grid gap-4 md:grid-cols-4">
             <Metric title="Pix" value="0% NextGen" />
             <Metric title="Split" value="Subconta" />
             <Metric title="Repasse" value="D+3 / D+2 / D+1" />
-            <Metric title="Antecipado" value="Extra" />
+            <Metric title="Comunicação" value="Régua" />
           </div>
         </section>
 
@@ -127,10 +134,10 @@ export default function OperacaoPage() {
               <p><strong className="text-emerald-300">Pix:</strong> cliente recebe o máximo possível na subconta.</p>
               <p><strong className="text-emerald-300">NextGen:</strong> não cobra percentual por Pix no plano base.</p>
               <p><strong className="text-emerald-300">Receita:</strong> assinatura, excedente, automações premium e repasse antecipado.</p>
-              <p><strong className="text-emerald-300">Operação:</strong> repasse programado reduz custo; antecipado é exceção cobrável.</p>
+              <p><strong className="text-emerald-300">Comunicação:</strong> lembretes e confirmação reduzem trabalho manual do financeiro.</p>
             </div>
             <div className="mt-5 rounded-2xl border border-blue-400/20 bg-blue-400/10 p-5 text-sm leading-7 text-blue-100">
-              Próximo bloco técnico: melhorar comunicação automática e preparar o piloto comercial com uma empresa real.
+              Próximo bloco técnico: revisão final da home e do posicionamento público para vender Recebimentos Inteligentes.
             </div>
           </div>
         </section>
