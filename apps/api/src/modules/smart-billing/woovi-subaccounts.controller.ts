@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Post, Query } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { randomUUID } from 'crypto';
 
@@ -16,6 +16,7 @@ export class WooviSubaccountsController {
       hasProviderKey: !!process.env.WOOVI_APP_ID,
       defaultNextgenRate: Number(process.env.NEXTGEN_PIX_COMMISSION_RATE || 0),
       expectedProviderFeeCents: Number(process.env.WOOVI_EXPECTED_FEE_CENTS || 51),
+      directWithdrawLocked: true,
       routes: [
         'POST /v1/company-billing/woovi-subaccounts/create',
         'POST /v1/company-billing/woovi-subaccounts/create-charge',
@@ -205,8 +206,36 @@ export class WooviSubaccountsController {
   }
 
   @Post('withdraw')
-  async withdraw(@Body() body: any) {
+  async withdraw(@Body() body: any, @Query('secret') secret: string, @Headers() headers: any) {
     await this.ensureTables();
+
+    const expected = process.env.NEXTGEN_WITHDRAW_SECRET || process.env.NEXTGEN_WOOVI_WITHDRAW_SECRET || '';
+    const provided = secret || body?.secret || headers?.['x-nextgen-withdraw-secret'];
+
+    if (!expected) {
+      return {
+        success: false,
+        error: 'DIRECT_WITHDRAW_DISABLED',
+        message: 'Saque direto da subconta bloqueado. Configure NEXTGEN_WITHDRAW_SECRET apenas quando a operação automática/lote estiver pronta.'
+      };
+    }
+
+    if (provided !== expected) {
+      return {
+        success: false,
+        error: 'INVALID_WITHDRAW_SECRET',
+        message: 'Saque direto exige secret operacional.'
+      };
+    }
+
+    if (body.confirmWithdraw !== true && body.confirm !== true) {
+      return {
+        success: false,
+        error: 'MISSING_CONFIRMATION',
+        message: 'Envie confirmWithdraw=true para confirmar saque real.'
+      };
+    }
+
     const pixKey = body.pixKey || body.chavePix || await this.findMerchantReceivingPixKeyByLocalId(body.subaccountId);
     if (!pixKey) return { success: false, error: 'MISSING_PIX_KEY' };
 
