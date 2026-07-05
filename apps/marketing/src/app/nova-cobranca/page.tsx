@@ -94,25 +94,18 @@ export default function NovaCobrancaPage() {
     return data;
   }
 
+  function pixBody(chargeId: string) {
+    const body: any = { chargeId };
+    if (subaccountPixKey.trim()) body.partnerPixKey = subaccountPixKey.trim();
+    return body;
+  }
+
   async function createChargeAndPix() {
     const chargeData = await createChargeOnly();
     const smartCharge = chargeData?.charge;
     if (!smartCharge?.id) return;
 
-    if (!subaccountPixKey.trim()) {
-      setResult({
-        success: true,
-        warning: 'Cobrança criada, mas Pix não foi gerado porque a chave Pix da subconta não foi informada.',
-        charge: smartCharge
-      });
-      return;
-    }
-
-    const pix = await postJson('/company-billing/woovi-subaccounts/create-charge', {
-      chargeId: smartCharge.id,
-      partnerPixKey: subaccountPixKey.trim()
-    });
-
+    const pix = await postJson('/company-billing/woovi-subaccounts/create-charge', pixBody(smartCharge.id));
     const link = pix?.payment?.paymentLink || pix?.payment?.brCode || '';
     if (link) await navigator.clipboard.writeText(link);
 
@@ -120,7 +113,8 @@ export default function NovaCobrancaPage() {
       action: 'charge-and-pix-created',
       charge: smartCharge,
       pix,
-      copied: !!link
+      copied: !!link,
+      usedSavedReceivingKey: !subaccountPixKey.trim()
     });
   }
 
@@ -129,19 +123,11 @@ export default function NovaCobrancaPage() {
       setResult({ success: false, error: 'Crie a cobrança primeiro.' });
       return;
     }
-    if (!subaccountPixKey.trim()) {
-      setResult({ success: false, error: 'Informe a chave Pix da subconta.' });
-      return;
-    }
 
-    const pix = await postJson('/company-billing/woovi-subaccounts/create-charge', {
-      chargeId: createdCharge.id,
-      partnerPixKey: subaccountPixKey.trim()
-    });
-
+    const pix = await postJson('/company-billing/woovi-subaccounts/create-charge', pixBody(createdCharge.id));
     const link = pix?.payment?.paymentLink || pix?.payment?.brCode || '';
     if (link) await navigator.clipboard.writeText(link);
-    setResult({ action: 'pix-generated-for-created-charge', chargeId: createdCharge.id, pix, copied: !!link });
+    setResult({ action: 'pix-generated-for-created-charge', chargeId: createdCharge.id, pix, copied: !!link, usedSavedReceivingKey: !subaccountPixKey.trim() });
   }
 
   return (
@@ -159,8 +145,8 @@ export default function NovaCobrancaPage() {
           <div className="rounded-3xl border border-white/10 bg-white/10 p-6">
             <h2 className="text-2xl font-black">Configuração</h2>
             <Field label="Conta" value={partnerSlug} onChange={setPartnerSlug} />
-            <Field label="Chave Pix da subconta" value={subaccountPixKey} onChange={setSubaccountPixKey} placeholder="Chave Pix cadastrada na subconta recebedora" />
-            <div className="mt-4 rounded-2xl bg-slate-950 p-4 text-sm leading-6 text-white/60">Sem percentual NextGen por Pix. A cobrança reserva apenas a taxa técnica estimada do provedor.</div>
+            <Field label="Chave Pix da subconta opcional" value={subaccountPixKey} onChange={setSubaccountPixKey} placeholder="Deixe vazio para usar a chave salva da empresa" />
+            <div className="mt-4 rounded-2xl bg-slate-950 p-4 text-sm leading-6 text-white/60">Sem percentual NextGen por Pix. Se a chave ficar vazia, o backend usa a subconta salva para a empresa.</div>
           </div>
 
           <div className="rounded-3xl border border-emerald-400/20 bg-emerald-400/10 p-6">
