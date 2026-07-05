@@ -30,6 +30,12 @@ const cards = [
     description: 'Painel interno para conferir pedidos e marcar repasses como processados.'
   },
   {
+    title: 'Piloto',
+    href: '/piloto',
+    tag: 'go-live',
+    description: 'Checklist comercial para testar o produto com empresa piloto.'
+  },
+  {
     title: 'Planos',
     href: '/planos',
     tag: 'pricing',
@@ -62,6 +68,7 @@ const cards = [
 ];
 
 const checklist = [
+  'Configurar a Conta NextGen da empresa',
   'Criar nova cobrança ou importar base',
   'Gerar Pix com split para subconta',
   'Enviar link/código Pix ao pagador',
@@ -123,7 +130,7 @@ export default function OperacaoPage() {
               <p><strong className="text-emerald-300">Operação:</strong> repasse programado reduz custo; antecipado é exceção cobrável.</p>
             </div>
             <div className="mt-5 rounded-2xl border border-blue-400/20 bg-blue-400/10 p-5 text-sm leading-7 text-blue-100">
-              Próximo bloco técnico: melhorar painel do cliente com cobrança, saldo, próximos repasses e mensagens automáticas em uma visão única.
+              Próximo bloco técnico: melhorar comunicação automática e preparar o piloto comercial com uma empresa real.
             </div>
           </div>
         </section>
