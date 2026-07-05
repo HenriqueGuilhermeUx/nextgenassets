@@ -8,9 +8,9 @@ export default function ContaNextGenPage() {
   const [partnerSlug] = useState('nextgen-assets');
   const [account, setAccount] = useState({ companyName: 'Empresa Cliente', receivingPixKey: '' });
   const [payer, setPayer] = useState({ name: 'Cliente Pagador', externalCustomerId: 'pagador-001', email: '', phone: '' });
-  const [charge, setCharge] = useState({ title: 'Pagamento teste', description: 'Serviço / mensalidade / pedido', amount: '10.00', dueDate: '2026-07-05' });
+  const [charge, setCharge] = useState({ title: 'Pagamento teste', description: 'Serviço / mensalidade / pedido', amount: '10.00', dueDate: new Date().toISOString().slice(0, 10) });
   const [lastCharge, setLastCharge] = useState<any>(null);
-  const [result, setResult] = useState<any>({ passo: 'Comece abrindo a Conta NextGen da empresa.' });
+  const [result, setResult] = useState<any>({ passo: 'Comece configurando a Conta NextGen da empresa.' });
   const [loading, setLoading] = useState(false);
 
   async function post(path: string, body: any) {
@@ -33,9 +33,11 @@ export default function ContaNextGenPage() {
     const prepared = await post('/company-billing/woovi-subaccounts/create', {
       partnerSlug,
       name: account.companyName,
-      receivingPixKey: account.receivingPixKey
+      receivingPixKey: account.receivingPixKey,
+      localOnly: true,
+      source: 'conta-nextgen-page'
     });
-    setResult({ action: 'nextgen-account-ready', message: 'Conta NextGen preparada para receber repasses.', response: prepared });
+    setResult({ action: 'nextgen-account-ready', message: 'Conta NextGen configurada para recebimentos.', response: prepared });
   }
 
   async function savePayer() {
@@ -54,7 +56,7 @@ export default function ContaNextGenPage() {
       setResult({ success: false, error: 'Crie uma cobrança primeiro.' });
       return;
     }
-    const generated = await post('/company-billing/woovi-subaccounts/create-charge', { chargeId: lastCharge.id, nextgenRate: 0.03 });
+    const generated = await post('/company-billing/woovi-subaccounts/create-charge', { chargeId: lastCharge.id });
     const link = generated?.payment?.paymentLink || generated?.payment?.brCode || '';
     if (link) await navigator.clipboard.writeText(link);
     setResult({ action: 'pix-generated', message: link ? 'Pix gerado e copiado.' : 'Pix gerado.', response: generated });
@@ -63,16 +65,19 @@ export default function ContaNextGenPage() {
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-8 text-white">
       <div className="mx-auto max-w-6xl">
-        <a href="/painel-empresa" className="text-sm font-bold text-emerald-300">← Painel</a>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <a href="/painel-empresa" className="text-sm font-bold text-emerald-300">← Painel</a>
+          <a href="/cobrancas" className="text-sm font-bold text-blue-300">Cobranças →</a>
+        </div>
         <h1 className="mt-4 text-4xl font-black">Conta NextGen</h1>
-        <p className="mt-2 max-w-3xl text-white/60">Fluxo simples: empresa abre a conta, informa o Pix de repasse, cadastra cliente pagador, cria cobrança e gera Pix.</p>
+        <p className="mt-2 max-w-3xl text-white/60">Configure a empresa recebedora uma vez. Depois as cobranças usam essa conta automaticamente para o split.</p>
 
         <div className="mt-8 grid gap-6 lg:grid-cols-2">
-          <Card title="1. Abrir Conta NextGen">
-            <p className="text-sm text-white/60">Este é o cadastro da empresa que vai receber os repasses.</p>
+          <Card title="1. Configurar Conta NextGen">
+            <p className="text-sm text-white/60">Este é o cadastro da empresa que vai receber na subconta. Não executa saque e não movimenta dinheiro.</p>
             <Field label="Nome da empresa" value={account.companyName} onChange={(v) => setAccount({ ...account, companyName: v })} />
-            <Field label="Pix para receber repasses" value={account.receivingPixKey} onChange={(v) => setAccount({ ...account, receivingPixKey: v })} />
-            <button onClick={openAccount} className="mt-4 w-full rounded-xl bg-emerald-400 px-4 py-3 font-black text-slate-950">Preparar conta</button>
+            <Field label="Chave Pix da subconta" value={account.receivingPixKey} onChange={(v) => setAccount({ ...account, receivingPixKey: v })} />
+            <button onClick={openAccount} className="mt-4 w-full rounded-xl bg-emerald-400 px-4 py-3 font-black text-slate-950">Salvar conta recebedora</button>
           </Card>
 
           <Card title="2. Cliente pagador">
@@ -94,7 +99,7 @@ export default function ContaNextGenPage() {
           </Card>
 
           <Card title="4. Pix e envio">
-            <p className="text-sm text-white/60">Gera o Pix usando a conta de repasse já preparada na Conta NextGen.</p>
+            <p className="text-sm text-white/60">Gera o Pix usando a conta recebedora já salva na Conta NextGen.</p>
             <div className="rounded-2xl bg-slate-950 p-4 text-sm text-white/60">{lastCharge?.id ? `Cobrança pronta: ${lastCharge.id}` : 'Crie uma cobrança primeiro.'}</div>
             <button onClick={generatePix} className="mt-4 w-full rounded-xl bg-purple-400 px-4 py-3 font-black text-slate-950">Gerar Pix</button>
             <div className="mt-3 text-xs text-white/50">Depois vamos ligar envio automático por e-mail e WhatsApp do cliente.</div>
