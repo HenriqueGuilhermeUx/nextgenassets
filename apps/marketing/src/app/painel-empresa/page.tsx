@@ -1,329 +1,257 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
-const API_BASE = 'https://api.nextgenassets.com.br/v1';
+const API = 'https://api.nextgenassets.com.br/v1';
+
+type Charge = {
+  id: string;
+  title?: string;
+  amountBrl?: string | number;
+  dueDate?: string;
+  status?: string;
+  customerName?: string;
+  paymentLink?: string;
+  providerRef?: string;
+  rawData?: any;
+  createdAt?: string;
+};
 
 export default function PainelEmpresaPage() {
   const [partnerSlug, setPartnerSlug] = useState('nextgen-assets');
-  const [customer, setCustomer] = useState({
-    name: 'Cliente Teste',
-    externalCustomerId: 'cliente-001',
-    phone: '',
-    email: '',
-    unit: '001',
-    segment: 'servicos'
-  });
-  const [charge, setCharge] = useState({
-    externalCustomerId: 'cliente-001',
-    amount: '100.00',
-    dueDate: '2026-07-05',
-    title: 'Pagamento teste',
-    description: 'Serviço / mensalidade / pedido'
-  });
+  const [plan, setPlan] = useState('starter');
   const [dashboard, setDashboard] = useState<any>(null);
-  const [customers, setCustomers] = useState<any>(null);
-  const [charges, setCharges] = useState<any>(null);
-  const [reminders, setReminders] = useState<any>(null);
-  const [notifications, setNotifications] = useState<any>(null);
-  const [notificationLogs, setNotificationLogs] = useState<any>(null);
-  const [result, setResult] = useState<any>(null);
+  const [charges, setCharges] = useState<Charge[]>([]);
+  const [balance, setBalance] = useState<any>(null);
+  const [requests, setRequests] = useState<any>(null);
+  const [result, setResult] = useState<any>({ info: 'Carregando painel da empresa.' });
   const [loading, setLoading] = useState(false);
 
-  async function callApi(path: string, options?: RequestInit, showResult = true) {
+  async function getJson(path: string) {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}${path}`, {
-        ...options,
-        headers: { 'Content-Type': 'application/json', ...(options?.headers || {}) }
-      });
-      const data = await res.json();
-      if (showResult) setResult(data);
-      return data;
+      const res = await fetch(`${API}${path}`);
+      return await res.json();
     } catch (err: any) {
-      const data = { success: false, error: err.message };
-      if (showResult) setResult(data);
-      return data;
+      return { success: false, error: err.message };
     } finally {
       setLoading(false);
     }
   }
 
-  async function loadAll() {
+  async function load() {
     const slug = encodeURIComponent(partnerSlug);
-    const d = await callApi(`/company-billing/dashboard?partnerSlug=${slug}`, undefined, false);
-    const c = await callApi(`/company-billing/customers?partnerSlug=${slug}`, undefined, false);
-    const ch = await callApi(`/company-billing/charges?partnerSlug=${slug}`, undefined, false);
-    const r = await callApi(`/company-billing/reminders/due?partnerSlug=${slug}`, undefined, false);
-    const n = await callApi(`/company-billing/notifications/pending?partnerSlug=${slug}`, undefined, false);
-    const nl = await callApi(`/company-billing/notifications/logs?partnerSlug=${slug}&limit=50`, undefined, false);
+    const d = await getJson(`/company-billing/dashboard?partnerSlug=${slug}`);
+    const c = await getJson(`/company-billing/charges?partnerSlug=${slug}`);
+    const b = await getJson(`/company-billing/payout-requests/balance?partnerSlug=${slug}&plan=${plan}`);
+    const r = await getJson(`/company-billing/payout-requests/pending?partnerSlug=${slug}`);
+
     setDashboard(d);
-    setCustomers(c);
-    setCharges(ch);
-    setReminders(r);
-    setNotifications(n);
-    setNotificationLogs(nl);
+    setCharges(c?.charges || []);
+    setBalance(b);
+    setRequests(r);
+    setResult({ action: 'loaded-company-dashboard', dashboard: d, charges: c, balance: b, requests: r });
   }
 
-  async function createCustomer() {
-    const response = await callApi('/company-billing/customers', {
-      method: 'POST',
-      body: JSON.stringify({ partnerSlug, ...customer })
-    });
-    setResult({ action: 'create-customer', response });
-    await loadAll();
-  }
-
-  async function createCharge() {
-    const created = await callApi('/company-billing/charges', {
-      method: 'POST',
-      body: JSON.stringify({ partnerSlug, ...charge })
-    });
-
-    if (created?.success && created?.charge?.id) {
-      const scheduled = await callApi('/company-billing/notifications/schedule-charge', {
-        method: 'POST',
-        body: JSON.stringify({
-          partnerSlug,
-          chargeId: created.charge.id,
-          channels: ['whatsapp', 'email'],
-          source: 'painel-empresa'
-        })
-      });
-      setResult({ action: 'create-charge-and-schedule-notifications', chargeCreated: created, notificationsScheduled: scheduled });
-    } else {
-      setResult({ action: 'create-charge', response: created });
-    }
-
-    await loadAll();
-  }
-
-  async function simulatePending() {
-    const response = await callApi('/company-billing/notifications/email/process-pending', {
-      method: 'POST',
-      body: JSON.stringify({ partnerSlug, dryRun: true, limit: 50 })
-    });
-    setResult({ action: 'simulate-email-pending', response });
-    await loadAll();
-  }
-
-  async function sendPendingEmails() {
-    const response = await callApi('/company-billing/notifications/email/process-pending', {
-      method: 'POST',
-      body: JSON.stringify({ partnerSlug, dryRun: false, limit: 50 })
-    });
-    setResult({ action: 'send-email-pending', response });
-    await loadAll();
-  }
-
-  async function sendEmailTest() {
-    const response = await callApi('/company-billing/notifications/email/send-test', {
-      method: 'POST',
-      body: JSON.stringify({
-        to: customer.email || 'teste@nextgenassets.com.br',
-        subject: 'Teste NextGen',
-        message: `Olá, ${customer.name.split(' ')[0] || 'cliente'}. Este é um teste de comunicação automática da NextGen.`
-      })
-    });
-    setResult({ action: 'email-test', response });
-    await loadAll();
+  async function copyChargeLink(charge: Charge) {
+    const link = charge.paymentLink || charge.rawData?.paymentProvider?.paymentLink || `https://nextgenassets.com.br/roteador-pagamentos?id=${charge.id}`;
+    await navigator.clipboard.writeText(link);
+    setResult({ success: true, action: 'charge-link-copied', chargeId: charge.id, link });
   }
 
   useEffect(() => {
-    loadAll();
+    load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const pendingNotifications = notifications?.count || 0;
-  const logsCount = notificationLogs?.count || 0;
+  const stats = dashboard?.dashboard || {};
+  const balanceData = balance?.balance || {};
+  const latestCharges = useMemo(() => charges.slice(0, 8), [charges]);
+  const pendingCharges = useMemo(() => charges.filter((c) => ['PENDING', 'SENT'].includes(String(c.status || '').toUpperCase())).slice(0, 5), [charges]);
+  const openRequests = requests?.requests || [];
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white">
-      <section className="border-b border-white/10 px-6 py-8">
-        <div className="mx-auto flex max-w-7xl flex-col gap-6 md:flex-row md:items-center md:justify-between">
-          <div>
-            <a href="/" className="text-sm font-bold text-emerald-300">← NextGen Assets</a>
-            <h1 className="mt-3 text-4xl font-black md:text-5xl">Operação de Recebimentos</h1>
-            <p className="mt-2 max-w-3xl text-white/60">Cadastre clientes, gere cobranças, envie lembretes automáticos e acompanhe tudo em um fluxo simples.</p>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
-            <label className="text-xs font-bold uppercase text-white/50">Empresa / Partner Slug</label>
-            <input value={partnerSlug} onChange={(e) => setPartnerSlug(e.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none" />
-            <button onClick={loadAll} className="mt-3 w-full rounded-xl bg-emerald-400 px-4 py-3 font-bold text-slate-950 hover:bg-emerald-300">Atualizar operação</button>
+    <main className="min-h-screen bg-slate-950 px-6 py-8 text-white">
+      <div className="mx-auto max-w-7xl">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <a href="/operacao" className="text-sm font-black text-emerald-300">← Operação</a>
+          <div className="flex flex-wrap gap-3 text-sm font-black">
+            <a href="/nova-cobranca" className="text-emerald-300">Nova cobrança</a>
+            <a href="/cobrancas" className="text-blue-300">Cobranças</a>
+            <a href="/repasses" className="text-purple-300">Repasses</a>
           </div>
         </div>
-      </section>
 
-      <section className="px-6 py-8">
-        <div className="mx-auto grid max-w-7xl gap-4 md:grid-cols-4">
-          <Step title="1. Cliente" text="Cadastre nome, e-mail e WhatsApp." />
-          <Step title="2. Recebimento" text="Crie valor, vencimento e descrição." />
-          <Step title="3. Pix Woovi" text="Gere o Pix real com split para subconta." />
-          <Step title="4. Automação" text="Cron envia e-mails e acompanha pendências." />
-        </div>
-      </section>
-
-      <section className="px-6 pb-8">
-        <div className="mx-auto grid max-w-7xl gap-4 md:grid-cols-3 lg:grid-cols-6">
-          <Metric title="Total a receber" value={money(dashboard?.dashboard?.totalAmount)} />
-          <Metric title="Recebido" value={money(dashboard?.dashboard?.paidAmount)} />
-          <Metric title="Pendente" value={money(dashboard?.dashboard?.pendingAmount)} />
-          <Metric title="Lembretes vencidos" value={String(dashboard?.dashboard?.dueReminders || 0)} />
-          <Metric title="Avisos pendentes" value={String(pendingNotifications)} highlight="blue" />
-          <Metric title="Logs comunicação" value={String(logsCount)} highlight="blue" />
-        </div>
-      </section>
-
-      <section className="px-6 pb-12">
-        <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[1fr_1fr_0.9fr]">
-          <Card title="Cadastrar cliente">
-            <Helper>Use para criar ou atualizar a base de clientes que receberá cobranças e avisos.</Helper>
-            <Field label="Nome" value={customer.name} onChange={(v) => setCustomer({ ...customer, name: v })} />
-            <Field label="Código interno / unidade" value={customer.externalCustomerId} onChange={(v) => { setCustomer({ ...customer, externalCustomerId: v }); setCharge({ ...charge, externalCustomerId: v }); }} />
-            <Field label="WhatsApp" value={customer.phone} onChange={(v) => setCustomer({ ...customer, phone: v })} />
-            <Field label="E-mail" value={customer.email} onChange={(v) => setCustomer({ ...customer, email: v })} />
-            <Field label="Segmento" value={customer.segment} onChange={(v) => setCustomer({ ...customer, segment: v })} />
-            <button onClick={createCustomer} className="mt-4 w-full rounded-xl bg-emerald-400 px-4 py-3 font-bold text-slate-950 hover:bg-emerald-300">Salvar cliente</button>
-          </Card>
-
-          <Card title="Gerar recebimento">
-            <Helper>Cria o pagamento e agenda a régua de mensagens automaticamente.</Helper>
-            <Field label="Código do cliente" value={charge.externalCustomerId} onChange={(v) => setCharge({ ...charge, externalCustomerId: v })} />
-            <Field label="Título" value={charge.title} onChange={(v) => setCharge({ ...charge, title: v })} />
-            <Field label="Descrição" value={charge.description} onChange={(v) => setCharge({ ...charge, description: v })} />
-            <Field label="Valor" value={charge.amount} onChange={(v) => setCharge({ ...charge, amount: v })} />
-            <Field label="Vencimento" value={charge.dueDate} onChange={(v) => setCharge({ ...charge, dueDate: v })} />
-            <button onClick={createCharge} className="mt-4 w-full rounded-xl bg-blue-400 px-4 py-3 font-bold text-slate-950 hover:bg-blue-300">Criar recebimento + agendar avisos</button>
-          </Card>
-
-          <Card title="Notificar e automatizar">
-            <Helper>Envie agora ou deixe o cron processar automaticamente os e-mails pendentes.</Helper>
-            <button onClick={simulatePending} className="mt-4 w-full rounded-xl border border-white/10 px-4 py-3 font-bold text-white hover:bg-white/10">Ver e-mails pendentes</button>
-            <button onClick={sendPendingEmails} className="mt-3 w-full rounded-xl bg-indigo-400 px-4 py-3 font-bold text-slate-950 hover:bg-indigo-300">Enviar e-mails pendentes</button>
-            <button onClick={sendEmailTest} className="mt-3 w-full rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 font-bold text-emerald-100 hover:bg-emerald-400/20">Testar e-mail</button>
-            <a href="/notificacoes" className="mt-3 block w-full rounded-xl border border-blue-300/30 bg-blue-300/10 px-4 py-3 text-center font-bold text-blue-100 hover:bg-blue-300/20">Central de notificações</a>
-          </Card>
-        </div>
-      </section>
-
-      <section className="px-6 pb-12">
-        <div className="mx-auto max-w-7xl rounded-3xl border border-emerald-400/20 bg-emerald-400/10 p-6">
-          <div className="grid gap-6 lg:grid-cols-[1fr_1.3fr] lg:items-center">
+        <section className="mt-6 rounded-[2rem] border border-white/10 bg-white/10 p-8 md:p-10">
+          <div className="text-sm font-black uppercase tracking-[0.25em] text-emerald-300">Conta NextGen</div>
+          <div className="mt-4 grid gap-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
             <div>
-              <div className="text-sm font-bold uppercase text-emerald-200">Fluxo Woovi</div>
-              <h2 className="mt-2 text-2xl font-black">Gere Pix real com split para subconta</h2>
-              <p className="mt-2 text-sm leading-6 text-white/70">Na lista de Recebimentos, clique em Gerar Pix Woovi, cole a chave Pix/subconta do cliente e a NextGen cria a cobrança na Woovi com SPLIT_SUB_ACCOUNT.</p>
+              <h1 className="max-w-4xl text-4xl font-black leading-tight md:text-6xl">Painel da empresa</h1>
+              <p className="mt-5 max-w-4xl text-lg leading-8 text-white/65">Acompanhe recebimentos, cobranças pendentes, saldo estimado da subconta e próximos repasses.</p>
             </div>
-            <div className="rounded-2xl bg-slate-950 p-4 text-xs text-emerald-200">
-              <div className="font-bold text-white">Depois do pagamento</div>
-              <pre className="mt-2 overflow-auto">Cliente paga Pix{`\n`}Valor do cliente vai para subconta{`\n`}Taxa NextGen fica na conta principal{`\n`}Conciliação marca como recebido</pre>
+            <div className="rounded-3xl border border-white/10 bg-slate-950 p-5">
+              <label className="block">
+                <span className="text-xs font-black uppercase text-white/45">Empresa / Partner Slug</span>
+                <input value={partnerSlug} onChange={(e) => setPartnerSlug(e.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 outline-none" />
+              </label>
+              <label className="mt-4 block">
+                <span className="text-xs font-black uppercase text-white/45">Plano</span>
+                <select value={plan} onChange={(e) => setPlan(e.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 outline-none">
+                  <option value="starter">Starter - D+3</option>
+                  <option value="growth">Growth - D+2</option>
+                  <option value="pro">Pro - D+1</option>
+                  <option value="enterprise">Enterprise</option>
+                </select>
+              </label>
+              <button onClick={load} className="mt-5 w-full rounded-xl bg-emerald-400 px-4 py-3 font-black text-slate-950">Atualizar painel</button>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="px-6 pb-12">
-        <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-3">
-          <ListCard title="Clientes" items={customers?.customers || []} />
-          <ListCard title="Recebimentos" items={charges?.charges || []} />
-          <ListCard title="Avisos pendentes" items={notifications?.notifications || []} />
-        </div>
-      </section>
+        <section className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+          <Metric title="Total cobrado" value={money(stats.totalAmount)} />
+          <Metric title="Recebido" value={money(stats.paidAmount)} />
+          <Metric title="Pendente" value={money(stats.pendingAmount)} />
+          <Metric title="Cobranças pagas" value={String(stats.paidCount || 0)} />
+          <Metric title="Saldo disponível" value={balanceData.available || 'R$ 0,00'} highlight="blue" />
+          <Metric title="Prazo repasse" value={balance?.scheduledPayout || 'D+3'} highlight="purple" />
+        </section>
 
-      <section className="px-6 pb-12">
-        <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-2">
-          <ListCard title="Lembretes antigos" items={reminders?.reminders || []} />
-          <ListCard title="Logs de comunicação" items={notificationLogs?.logs || []} />
-        </div>
-      </section>
+        <section className="mt-8 grid gap-6 lg:grid-cols-4">
+          <ActionCard title="Nova cobrança" text="Crie pagador, cobrança e Pix em um fluxo rápido." href="/nova-cobranca" cta="Criar agora" />
+          <ActionCard title="Cobranças" text="Gere Pix, copie links e acompanhe status." href="/cobrancas" cta="Abrir lista" />
+          <ActionCard title="Repasses" text="Veja saldo e solicite repasse conforme o plano." href="/repasses" cta="Ver saldo" />
+          <ActionCard title="Importar base" text="Suba clientes e cobranças em lote por CSV." href="/importar-base" cta="Importar" />
+        </section>
 
-      <section className="px-6 pb-16">
-        <div className="mx-auto max-w-7xl rounded-3xl border border-white/10 bg-white/10 p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-black">Resposta da última ação</h2>
-            {loading && <span className="text-sm text-emerald-300">Carregando...</span>}
+        <section className="mt-8 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+          <div className="rounded-3xl border border-white/10 bg-white/10 p-6">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <h2 className="text-2xl font-black">Últimas cobranças</h2>
+              <a href="/cobrancas" className="text-sm font-black text-emerald-300">Ver todas →</a>
+            </div>
+            <div className="mt-5 max-h-[520px] space-y-3 overflow-auto">
+              {latestCharges.length ? latestCharges.map((charge) => (
+                <ChargeRow key={charge.id} charge={charge} onCopy={() => copyChargeLink(charge)} />
+              )) : <Empty text="Nenhuma cobrança ainda." />}
+            </div>
           </div>
-          <pre className="max-h-96 overflow-auto rounded-2xl bg-slate-950 p-4 text-xs text-emerald-200">{JSON.stringify(result || { info: 'Nenhuma ação ainda. Use o fluxo acima para cadastrar cliente, gerar recebimento ou enviar notificações.' }, null, 2)}</pre>
-        </div>
-      </section>
+
+          <div className="space-y-6">
+            <div className="rounded-3xl border border-white/10 bg-white/10 p-6">
+              <h2 className="text-2xl font-black">Saldo e repasses</h2>
+              <div className="mt-5 grid gap-3">
+                <MiniMetric title="Confirmado" value={balanceData.confirmed || 'R$ 0,00'} />
+                <MiniMetric title="Reservado" value={balanceData.reserved || 'R$ 0,00'} />
+                <MiniMetric title="Disponível" value={balanceData.available || 'R$ 0,00'} />
+              </div>
+              <a href="/repasses" className="mt-5 block rounded-xl bg-purple-400 px-4 py-3 text-center font-black text-slate-950">Solicitar / acompanhar repasse</a>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-white/10 p-6">
+              <h2 className="text-2xl font-black">Pedidos em aberto</h2>
+              <div className="mt-5 space-y-3">
+                {openRequests.length ? openRequests.slice(0, 4).map((item: any) => (
+                  <div key={item.id} className="rounded-2xl bg-slate-950 p-4">
+                    <div className="font-black">{item.type} · {item.status}</div>
+                    <div className="mt-1 text-sm text-white/60">{moneyFromCents(item.amountCents)} · {formatDate(item.scheduledFor)}</div>
+                  </div>
+                )) : <Empty text="Nenhum pedido de repasse aberto." />}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-8 grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
+          <div className="rounded-3xl border border-emerald-400/20 bg-emerald-400/10 p-6">
+            <h2 className="text-2xl font-black">Próximas ações</h2>
+            <div className="mt-5 space-y-3">
+              {pendingCharges.length ? pendingCharges.map((charge) => (
+                <div key={charge.id} className="rounded-2xl bg-slate-950 p-4">
+                  <div className="font-black">Cobrança pendente</div>
+                  <div className="mt-1 text-sm text-white/60">{charge.customerName || 'Cliente'} · {money(numberAmount(charge.amountBrl))}</div>
+                  <div className="mt-2 grid gap-2 md:grid-cols-2">
+                    <a href={`/roteador-pagamentos?id=${charge.id}`} className="rounded-xl bg-white/10 px-3 py-2 text-center text-sm font-black text-white">Abrir pagamento</a>
+                    <button onClick={() => copyChargeLink(charge)} className="rounded-xl bg-blue-400 px-3 py-2 text-sm font-black text-slate-950">Copiar link</button>
+                  </div>
+                </div>
+              )) : <Empty text="Nenhuma cobrança pendente agora." />}
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-white/10 p-6">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-2xl font-black">Status técnico</h2>
+              {loading ? <span className="text-sm font-bold text-emerald-300">Carregando...</span> : null}
+            </div>
+            <pre className="max-h-96 overflow-auto rounded-2xl bg-slate-950 p-4 text-xs text-emerald-200">{JSON.stringify(result, null, 2)}</pre>
+          </div>
+        </section>
+      </div>
     </main>
   );
 }
 
-function Card({ title, children }: { title: string; children: ReactNode }) {
-  return <div className="rounded-3xl border border-white/10 bg-white/10 p-6"><h2 className="mb-4 text-2xl font-black">{title}</h2><div className="space-y-3">{children}</div></div>;
+function Metric({ title, value, highlight }: { title: string; value: string; highlight?: 'blue' | 'purple' }) {
+  const color = highlight === 'blue' ? 'text-blue-300' : highlight === 'purple' ? 'text-purple-300' : 'text-emerald-300';
+  return <div className="rounded-3xl border border-white/10 bg-white/10 p-5"><div className="text-xs font-black uppercase text-white/45">{title}</div><div className={`mt-3 text-2xl font-black ${color}`}>{value}</div></div>;
 }
 
-function Helper({ children }: { children: ReactNode }) {
-  return <p className="rounded-2xl bg-slate-950 p-4 text-sm leading-6 text-white/60">{children}</p>;
+function MiniMetric({ title, value }: { title: string; value: string }) {
+  return <div className="rounded-2xl bg-slate-950 p-4"><div className="text-xs font-black uppercase text-white/45">{title}</div><div className="mt-1 text-xl font-black text-emerald-300">{value}</div></div>;
 }
 
-function Field({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return <label className="block"><span className="text-xs font-bold uppercase text-white/50">{label}</span><input value={value} onChange={(e) => onChange(e.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none focus:border-emerald-300" /></label>;
+function ActionCard({ title, text, href, cta }: { title: string; text: string; href: string; cta: string }) {
+  return (
+    <a href={href} className="rounded-3xl border border-white/10 bg-white/10 p-6 transition hover:-translate-y-1 hover:border-emerald-300/50 hover:bg-white/15">
+      <h2 className="text-2xl font-black text-emerald-300">{title}</h2>
+      <p className="mt-3 min-h-14 text-sm leading-6 text-white/60">{text}</p>
+      <div className="mt-5 rounded-xl bg-slate-950 px-4 py-3 text-center text-sm font-black text-white">{cta}</div>
+    </a>
+  );
 }
 
-function Metric({ title, value, highlight }: { title: string; value: string; highlight?: 'blue' }) {
-  const color = highlight === 'blue' ? 'text-blue-300' : 'text-emerald-300';
-  return <div className="rounded-3xl border border-white/10 bg-white/10 p-5"><div className="text-xs font-bold uppercase text-white/50">{title}</div><div className={`mt-3 text-2xl font-black ${color}`}>{value}</div></div>;
+function ChargeRow({ charge, onCopy }: { charge: Charge; onCopy: () => void }) {
+  const status = String(charge.status || 'PENDING').toUpperCase();
+  return (
+    <div className="rounded-2xl bg-slate-950 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="font-black">{charge.title || 'Cobrança'}</div>
+          <div className="mt-1 text-sm text-white/50">{charge.customerName || 'Cliente'} · venc. {formatDate(charge.dueDate)}</div>
+        </div>
+        <div className="text-right">
+          <div className="text-xl font-black text-emerald-300">{money(numberAmount(charge.amountBrl))}</div>
+          <div className={`mt-1 inline-flex rounded-full px-3 py-1 text-xs font-black ${status === 'PAID' ? 'bg-emerald-400 text-slate-950' : 'bg-white/10 text-white/70'}`}>{status}</div>
+        </div>
+      </div>
+      <div className="mt-3 grid gap-2 md:grid-cols-3">
+        <a href={`/roteador-pagamentos?id=${charge.id}`} className="rounded-xl bg-white/10 px-3 py-2 text-center text-sm font-black text-white">Abrir pagamento</a>
+        <button onClick={onCopy} className="rounded-xl bg-blue-400 px-3 py-2 text-sm font-black text-slate-950">Copiar link</button>
+        <a href="/cobrancas" className="rounded-xl border border-white/10 px-3 py-2 text-center text-sm font-black text-white">Gerenciar</a>
+      </div>
+    </div>
+  );
 }
 
-function Step({ title, text }: { title: string; text: string }) {
-  return <div className="rounded-3xl border border-white/10 bg-white/10 p-5"><div className="text-lg font-black text-emerald-300">{title}</div><p className="mt-2 text-sm leading-6 text-white/60">{text}</p></div>;
+function Empty({ text }: { text: string }) {
+  return <div className="rounded-2xl bg-slate-950 p-4 text-sm text-white/50">{text}</div>;
 }
 
-function ListCard({ title, items }: { title: string; items: any[] }) {
-  const isReceivables = title === 'Recebimentos';
-
-  async function copyLink(item: any) {
-    const link = item.paymentLink || `https://nextgenassets.com.br/roteador-pagamentos?id=${item.id}`;
-    await navigator.clipboard.writeText(link);
-    alert('Link copiado.');
-  }
-
-  async function quickReceive(item: any) {
-    await fetch(`${API_BASE}/company-billing/manual-settlements`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        partnerSlug: 'nextgen-assets',
-        chargeId: item.id,
-        amount: Number(item.amountBrl || 0),
-        recipientName: item.customerName || 'Empresa cliente',
-        provider: 'panel-action',
-        providerReference: `panel-${item.id}-${Date.now()}`,
-        description: item.title || 'Recebimento confirmado no painel',
-        received: true
-      })
-    });
-    window.location.reload();
-  }
-
-  async function createWooviPix(item: any) {
-    const pixKey = window.prompt('Cole a chave Pix/subconta Woovi do cliente/empresa:');
-    if (!pixKey) return;
-
-    const response = await fetch(`${API_BASE}/company-billing/woovi-subaccounts/create-charge`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chargeId: item.id, pixKey, nextgenRate: 0.03 })
-    });
-    const data = await response.json();
-
-    if (data?.success) {
-      const link = data?.payment?.paymentLink || data?.payment?.brCode || '';
-      if (link) await navigator.clipboard.writeText(link);
-      alert(link ? 'Pix Woovi criado e link/código copiado.' : 'Pix Woovi criado. Confira a resposta no painel após atualizar.');
-      window.location.reload();
-      return;
-    }
-
-    alert(`Erro ao gerar Pix Woovi: ${data?.error || data?.message || 'verifique a resposta da API'}`);
-  }
-
-  return <div className="rounded-3xl border border-white/10 bg-white/10 p-6"><h2 className="mb-4 text-xl font-black">{title}</h2><div className="max-h-96 space-y-3 overflow-auto">{items.length ? items.slice(0, 10).map((item, index) => <div key={item.id || index} className="rounded-2xl bg-slate-950 p-4"><div className="font-bold">{item.name || item.title || item.type || item.customerName || 'Registro'}</div><div className="mt-1 text-xs text-white/50">{item.status || item.externalCustomerId || item.stepKey || item.channel || item.createdAt}</div>{item.message && <div className="mt-3 text-sm text-white/60">{item.message}</div>}{isReceivables && <div className="mt-3 grid gap-2"><button onClick={() => createWooviPix(item)} className="rounded-xl bg-blue-400 px-3 py-2 text-sm font-black text-slate-950 hover:bg-blue-300">Gerar Pix Woovi</button><div className="grid gap-2 md:grid-cols-2"><button onClick={() => copyLink(item)} className="rounded-xl border border-white/10 px-3 py-2 text-sm font-bold hover:bg-white/10">Copiar link</button><button disabled={String(item.status).toUpperCase() === 'PAID'} onClick={() => quickReceive(item)} className="rounded-xl bg-emerald-400 px-3 py-2 text-sm font-black text-slate-950 disabled:opacity-50">{String(item.status).toUpperCase() === 'PAID' ? 'Recebido' : 'Confirmar recebido'}</button></div></div>}</div>) : <div className="rounded-2xl bg-slate-950 p-4 text-sm text-white/50">Nenhum registro ainda.</div>}</div></div>;
+function numberAmount(value: any) {
+  return Number(String(value || '0').replace(',', '.')) || 0;
 }
 
 function money(value: any) {
-  const n = Number(value || 0);
+  const n = Number(String(value || '0').replace(',', '.')) || 0;
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function moneyFromCents(value: any) {
+  return (Number(value || 0) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function formatDate(value: any) {
+  if (!value) return '-';
+  try { return new Date(value).toLocaleDateString('pt-BR'); } catch { return String(value); }
 }
