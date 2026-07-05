@@ -3,13 +3,13 @@ const cards = [
     title: 'Conta NextGen',
     href: '/conta-nextgen',
     tag: 'comercial',
-    description: 'Fluxo principal para criar conta de recebimento, cliente pagador e cobrança.'
+    description: 'Fluxo principal para abrir conta de recebimento, cadastrar pagador e criar cobrança.'
   },
   {
-    title: 'Teste de Subconta',
-    href: '/teste-repasse',
-    tag: 'teste',
-    description: 'Valida Pix, split para subconta, webhook e saldo com valor pequeno.'
+    title: 'Cobranças',
+    href: '/cobrancas',
+    tag: 'operação',
+    description: 'Lista cobranças reais, gera Pix com split para subconta e acompanha status.'
   },
   {
     title: 'Repasses',
@@ -46,13 +46,20 @@ const cards = [
     href: '/roteador-pagamentos',
     tag: 'pagamento',
     description: 'Página pública de pagamento para links de cobrança.'
+  },
+  {
+    title: 'Teste pausado',
+    href: '/teste-repasse',
+    tag: 'legado',
+    description: 'Tela antiga de teste pausada por segurança operacional.'
   }
 ];
 
 const checklist = [
   'Criar ou importar cliente',
-  'Gerar cobrança Pix com split para subconta',
-  'Pagar cobrança teste',
+  'Criar cobrança',
+  'Abrir /cobrancas e gerar Pix com split para subconta',
+  'Pagar cobrança',
   'Conferir webhook e saldo em Repasses',
   'Solicitar repasse antecipado ou programado',
   'Processar manualmente e marcar no Admin'
@@ -67,7 +74,7 @@ export default function OperacaoPage() {
         <section className="mt-6 rounded-[2rem] border border-white/10 bg-white/10 p-8 md:p-10">
           <div className="text-sm font-black uppercase tracking-[0.25em] text-emerald-300">Operação NextGen</div>
           <h1 className="mt-4 max-w-4xl text-4xl font-black leading-tight md:text-6xl">Central de operação dos recebimentos inteligentes.</h1>
-          <p className="mt-5 max-w-4xl text-lg leading-8 text-white/65">Use esta página como atalho para testar Pix, split, subconta, webhook, saldo e repasses sem decorar URLs.</p>
+          <p className="mt-5 max-w-4xl text-lg leading-8 text-white/65">Use esta página como atalho para operar cobranças, Pix, split, webhook, saldo e repasses sem decorar URLs.</p>
 
           <div className="mt-8 grid gap-4 md:grid-cols-4">
             <Metric title="Pix" value="0% NextGen" />
@@ -77,7 +84,7 @@ export default function OperacaoPage() {
           </div>
         </section>
 
-        <section className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <section className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {cards.map((card) => (
             <a key={card.href} href={card.href} className="group rounded-3xl border border-white/10 bg-white/10 p-6 transition hover:-translate-y-1 hover:border-emerald-300/50 hover:bg-white/15">
               <div className="inline-flex rounded-full bg-slate-950 px-3 py-1 text-xs font-black uppercase text-blue-300">{card.tag}</div>
@@ -110,7 +117,7 @@ export default function OperacaoPage() {
               <p><strong className="text-emerald-300">Operação:</strong> repasse programado reduz custo; antecipado é exceção cobrável.</p>
             </div>
             <div className="mt-5 rounded-2xl border border-blue-400/20 bg-blue-400/10 p-5 text-sm leading-7 text-blue-100">
-              Próximo bloco técnico: automatizar processamento de lote com trava por secret, mantendo modo manual como plano de segurança.
+              Próximo bloco técnico: transformar cobrança em fluxo completo de cliente, com criação rápida, lista e acompanhamento de pagamento.
             </div>
           </div>
         </section>
