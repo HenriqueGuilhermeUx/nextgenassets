@@ -10,6 +10,8 @@ const readyItems = [
 ];
 
 const testFlow = [
+  'Escolher alvos em /alvos-piloto',
+  'Enviar /proposta-piloto para a empresa',
   'Abrir /comece com a empresa piloto',
   'Configurar a Conta NextGen da empresa',
   'Criar uma nova cobrança de teste',
@@ -21,6 +23,7 @@ const testFlow = [
 ];
 
 const commercialRoutes = [
+  ['/alvos-piloto', 'Alvos do piloto', 'Segmentos ideais, critério de escolha e lista dos primeiros contatos.'],
   ['/proposta-piloto', 'Proposta para empresa piloto', 'Página para apresentar a solução e explicar o piloto.'],
   ['/comece', 'Guia de início', 'Página simples para a empresa configurar e testar.'],
   ['/kit-piloto', 'Kit comercial', 'Mensagens, objeções, qualificação e roteiro de reunião.'],
@@ -48,7 +51,7 @@ export default function PilotoPage() {
         <section className="mt-6 rounded-[2rem] border border-white/10 bg-white/10 p-8 md:p-10">
           <div className="text-sm font-black uppercase tracking-[0.25em] text-emerald-300">Central do Piloto</div>
           <h1 className="mt-4 max-w-4xl text-4xl font-black leading-tight md:text-6xl">Tudo pronto para abordar e testar com uma empresa.</h1>
-          <p className="mt-5 max-w-4xl text-lg leading-8 text-white/65">Use esta página como hub do piloto: proposta, abordagem comercial, onboarding da empresa e validação final.</p>
+          <p className="mt-5 max-w-4xl text-lg leading-8 text-white/65">Use esta página como hub do piloto: escolha de alvos, proposta, abordagem comercial, onboarding da empresa e validação final.</p>
 
           <div className="mt-8 grid gap-4 md:grid-cols-4">
             <Metric title="Modelo" value="0% por Pix" />
@@ -58,7 +61,7 @@ export default function PilotoPage() {
           </div>
         </section>
 
-        <section className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <section className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-5">
           {commercialRoutes.map(([href, title, text]) => (
             <a key={href} href={href} className="group rounded-3xl border border-emerald-400/20 bg-emerald-400/10 p-6 transition hover:-translate-y-1 hover:bg-emerald-400/15">
               <div className="text-sm font-black uppercase text-emerald-300">Comercial</div>
