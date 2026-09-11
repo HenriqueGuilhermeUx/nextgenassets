@@ -41,6 +41,7 @@ import { WooviModule } from './modules/woovi/woovi.module';
 import { EfiOFModule } from './modules/efi-of/efi-of.module';
 import { NextGenIntegrationModule } from './modules/nextgen-integration/nextgen-integration.module';
 import { KlaviModule } from './modules/klavi/klavi.module';
+import { SmartOperationsModule } from './modules/smart-operations/smart-operations.module';
 import { CommissionService } from './modules/commissions/commission.service';
 import { AiSuggestionsService } from './modules/ai/ai-suggestions.service';
 import { AiSuggestionsController } from './modules/ai/ai-suggestions.controller';
@@ -87,7 +88,8 @@ import { MarketWatcherWorker } from './workers/market-watcher.worker';
     ScheduleModule.forRoot(),
     WooviModule,
     KlaviModule,
-    EfiOFModule
+    EfiOFModule,
+    SmartOperationsModule
   ],
 
   controllers: [
