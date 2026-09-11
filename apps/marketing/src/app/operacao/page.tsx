@@ -18,6 +18,24 @@ const cards = [
     description: 'Lista cobranças reais, gera Pix com split para subconta e acompanha status.'
   },
   {
+    title: 'Smart Operations',
+    href: '/smart-operations',
+    tag: 'documentos',
+    description: 'Transforma foto, PDF, nota, recibo e código de barras em dado e ação operacional.'
+  },
+  {
+    title: 'Smart Inbox',
+    href: '/smart-inbox',
+    tag: 'ia',
+    description: 'Caixa de entrada para identificar documentos e sugerir compra, despesa, estoque ou conta a pagar.'
+  },
+  {
+    title: 'Product Scan',
+    href: '/product-scan',
+    tag: 'produto',
+    description: 'Lê EAN/UPC, identifica produto e acelera cadastro de custo, venda e estoque.'
+  },
+  {
     title: 'Régua de Cobrança',
     href: '/regua-cobranca',
     tag: 'comunicação',
@@ -85,6 +103,8 @@ const checklist = [
   'Gerar Pix com split para subconta',
   'Enviar link/código Pix ao pagador',
   'Acompanhar comunicação da cobrança',
+  'Receber documento na Smart Inbox quando houver compra, recibo ou boleto',
+  'Confirmar manualmente compra, despesa, estoque ou conta a pagar',
   'Pagamento cair e webhook marcar como pago',
   'Conferir saldo em Repasses',
   'Solicitar repasse antecipado ou programado',
@@ -100,17 +120,17 @@ export default function OperacaoPage() {
         <section className="mt-6 rounded-[2rem] border border-white/10 bg-white/10 p-8 md:p-10">
           <div className="text-sm font-black uppercase tracking-[0.25em] text-emerald-300">Operação NextGen</div>
           <h1 className="mt-4 max-w-4xl text-4xl font-black leading-tight md:text-6xl">Central de operação dos recebimentos inteligentes.</h1>
-          <p className="mt-5 max-w-4xl text-lg leading-8 text-white/65">Use esta página como atalho para operar cobranças, Pix, comunicação, saldo e repasses sem decorar URLs.</p>
+          <p className="mt-5 max-w-4xl text-lg leading-8 text-white/65">Use esta página como atalho para operar cobranças, Pix, comunicação, saldo, repasses e documentos operacionais sem decorar URLs.</p>
 
           <div className="mt-8 grid gap-4 md:grid-cols-4">
             <Metric title="Pix" value="0% NextGen" />
             <Metric title="Split" value="Subconta" />
             <Metric title="Repasse" value="D+3 / D+2 / D+1" />
-            <Metric title="Comunicação" value="Régua" />
+            <Metric title="Smart Ops" value="Documentos" />
           </div>
         </section>
 
-        <section className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        <section className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
           {cards.map((card) => (
             <a key={card.href} href={card.href} className="group rounded-3xl border border-white/10 bg-white/10 p-6 transition hover:-translate-y-1 hover:border-emerald-300/50 hover:bg-white/15">
               <div className="inline-flex rounded-full bg-slate-950 px-3 py-1 text-xs font-black uppercase text-blue-300">{card.tag}</div>
@@ -141,9 +161,10 @@ export default function OperacaoPage() {
               <p><strong className="text-emerald-300">NextGen:</strong> não cobra percentual por Pix no plano base.</p>
               <p><strong className="text-emerald-300">Receita:</strong> assinatura, excedente, automações premium e repasse antecipado.</p>
               <p><strong className="text-emerald-300">Comunicação:</strong> lembretes e confirmação reduzem trabalho manual do financeiro.</p>
+              <p><strong className="text-emerald-300">Smart Operations:</strong> documentos, notas e recibos viram dados e ações confirmáveis.</p>
             </div>
             <div className="mt-5 rounded-2xl border border-blue-400/20 bg-blue-400/10 p-5 text-sm leading-7 text-blue-100">
-              Próximo bloco técnico: fazer o teste real final com cobrança pequena e validar webhook, saldo e repasse.
+              Próximo bloco técnico: fazer deploy, testar /smart-operations/health e validar Smart Inbox com documento simulado.
             </div>
           </div>
         </section>
