@@ -176,5 +176,5 @@ CREATE INDEX IF NOT EXISTS idx_so_docs_hash ON smart_ops_documents(partner_id, t
 CREATE INDEX IF NOT EXISTS idx_so_products_partner_ean ON smart_ops_products(partner_id, ean);
 CREATE INDEX IF NOT EXISTS idx_so_payables_partner_due ON smart_ops_accounts_payable(partner_id, status, due_date);
 CREATE INDEX IF NOT EXISTS idx_so_events_partner_type ON smart_ops_events(partner_id, event_type, created_at);
+CREATE INDEX IF NOT EXISTS idx_so_inventory_document_group ON smart_ops_inventory_movements(partner_id, source_document_id, movement_group);
 CREATE UNIQUE INDEX IF NOT EXISTS uniq_so_products_partner_ean_not_null ON smart_ops_products(partner_id, ean) WHERE ean IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS uniq_so_inventory_document_group ON smart_ops_inventory_movements(partner_id, source_document_id, movement_group) WHERE source_document_id IS NOT NULL AND movement_group IS NOT NULL;
