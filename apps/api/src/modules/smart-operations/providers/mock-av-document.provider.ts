@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AvDocumentIntelligenceProvider, ExtractedDocument, SmartDocumentType } from '../smart-operations.types';
+import { AvDocumentIntelligenceProvider, ExtractedDocument, SmartDocumentType, SmartOperationAction } from '../smart-operations.types';
 
 @Injectable()
 export class MockAvDocumentProvider implements AvDocumentIntelligenceProvider {
@@ -64,12 +64,12 @@ export class MockAvDocumentProvider implements AvDocumentIntelligenceProvider {
     return 'UNKNOWN';
   }
 
-  private suggestActions(type: SmartDocumentType) {
-    if (type === 'PURCHASE_INVOICE') return ['REGISTER_PURCHASE', 'UPDATE_INVENTORY', 'CREATE_SUPPLIER', 'CREATE_ACCOUNT_PAYABLE', 'ARCHIVE_DOCUMENT'] as const;
-    if (type === 'BILL_OR_BARCODE') return ['CREATE_ACCOUNT_PAYABLE', 'ARCHIVE_DOCUMENT'] as const;
-    if (type === 'EXPENSE_RECEIPT' || type === 'RECEIPT') return ['CREATE_EXPENSE', 'ARCHIVE_DOCUMENT'] as const;
-    if (type === 'PAYMENT_PROOF') return ['RECONCILE_DOCUMENT', 'ARCHIVE_DOCUMENT'] as const;
-    return ['ARCHIVE_DOCUMENT'] as const;
+  private suggestActions(type: SmartDocumentType): SmartOperationAction[] {
+    if (type === 'PURCHASE_INVOICE') return ['REGISTER_PURCHASE', 'UPDATE_INVENTORY', 'CREATE_SUPPLIER', 'CREATE_ACCOUNT_PAYABLE', 'ARCHIVE_DOCUMENT'];
+    if (type === 'BILL_OR_BARCODE') return ['CREATE_ACCOUNT_PAYABLE', 'ARCHIVE_DOCUMENT'];
+    if (type === 'EXPENSE_RECEIPT' || type === 'RECEIPT') return ['CREATE_EXPENSE', 'ARCHIVE_DOCUMENT'];
+    if (type === 'PAYMENT_PROOF') return ['RECONCILE_DOCUMENT', 'ARCHIVE_DOCUMENT'];
+    return ['ARCHIVE_DOCUMENT'];
   }
 
   private mockItems(type: SmartDocumentType, text: string, total?: number) {
