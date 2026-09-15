@@ -61,28 +61,34 @@ function sanitizeCustomer(customer: ChargeBody['customer']) {
 
 async function ensureReceiptTable() {
   if (!ensureTablePromise) {
-    ensureTablePromise = prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS nexoffice_charge_receipts (
-        id BIGSERIAL PRIMARY KEY,
-        workspace_id TEXT NOT NULL,
-        correlation_id TEXT NOT NULL,
-        command_action_id TEXT NOT NULL,
-        approval_id TEXT,
-        amount_minor BIGINT NOT NULL,
-        status TEXT NOT NULL,
-        provider TEXT NOT NULL DEFAULT 'woovi',
-        provider_charge_id TEXT,
-        receipt JSONB,
-        last_error TEXT,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        UNIQUE(workspace_id, correlation_id)
-      );
-      CREATE INDEX IF NOT EXISTS idx_nexoffice_charge_receipts_action
-        ON nexoffice_charge_receipts(command_action_id);
-      CREATE INDEX IF NOT EXISTS idx_nexoffice_charge_receipts_status
-        ON nexoffice_charge_receipts(status, updated_at DESC);
-    `).catch(error => {
+    ensureTablePromise = (async () => {
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS nexoffice_charge_receipts (
+          id BIGSERIAL PRIMARY KEY,
+          workspace_id TEXT NOT NULL,
+          correlation_id TEXT NOT NULL,
+          command_action_id TEXT NOT NULL,
+          approval_id TEXT,
+          amount_minor BIGINT NOT NULL,
+          status TEXT NOT NULL,
+          provider TEXT NOT NULL DEFAULT 'woovi',
+          provider_charge_id TEXT,
+          receipt JSONB,
+          last_error TEXT,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          UNIQUE(workspace_id, correlation_id)
+        )
+      `);
+      await prisma.$executeRawUnsafe(`
+        CREATE INDEX IF NOT EXISTS idx_nexoffice_charge_receipts_action
+        ON nexoffice_charge_receipts(command_action_id)
+      `);
+      await prisma.$executeRawUnsafe(`
+        CREATE INDEX IF NOT EXISTS idx_nexoffice_charge_receipts_status
+        ON nexoffice_charge_receipts(status, updated_at DESC)
+      `);
+    })().catch(error => {
       ensureTablePromise = null;
       throw error;
     });
