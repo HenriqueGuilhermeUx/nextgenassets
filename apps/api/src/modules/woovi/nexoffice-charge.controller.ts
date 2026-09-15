@@ -1,9 +1,10 @@
 import { Body, Controller, Get, Headers, HttpException, HttpStatus, Post } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
-import { createHash, timingSafeEqual } from 'crypto';
+import { timingSafeEqual } from 'crypto';
 import { WooviPixAdapter } from './woovi-pix-adapter';
 
 const prisma = new PrismaClient();
+let ensureTablePromise: Promise<unknown> | null = null;
 
 type ChargeBody = {
   correlationId?: string;
@@ -21,6 +22,21 @@ type ChargeBody = {
   };
 };
 
+type ChargeReservation = {
+  workspace_id: string;
+  correlation_id: string;
+  command_action_id: string;
+  approval_id: string | null;
+  amount_minor: bigint | number | string;
+  status: string;
+  provider: string;
+  provider_charge_id: string | null;
+  receipt: any;
+  last_error: string | null;
+  created_at: Date | string;
+  updated_at: Date | string;
+};
+
 function clean(value: unknown, max: number) {
   return String(value ?? '').replace(/\u0000/g, '').trim().slice(0, max);
 }
@@ -32,11 +48,6 @@ function safeEqual(received: string, expected: string) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-function advisoryKey(value: string) {
-  const digest = createHash('sha256').update(value).digest();
-  return digest.readBigInt64BE(0);
-}
-
 function sanitizeCustomer(customer: ChargeBody['customer']) {
   if (!customer) return undefined;
   const result = {
@@ -46,6 +57,37 @@ function sanitizeCustomer(customer: ChargeBody['customer']) {
     taxID: clean(customer.taxID, 32) || undefined,
   };
   return Object.values(result).some(Boolean) ? result : undefined;
+}
+
+async function ensureReceiptTable() {
+  if (!ensureTablePromise) {
+    ensureTablePromise = prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS nexoffice_charge_receipts (
+        id BIGSERIAL PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        correlation_id TEXT NOT NULL,
+        command_action_id TEXT NOT NULL,
+        approval_id TEXT,
+        amount_minor BIGINT NOT NULL,
+        status TEXT NOT NULL,
+        provider TEXT NOT NULL DEFAULT 'woovi',
+        provider_charge_id TEXT,
+        receipt JSONB,
+        last_error TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE(workspace_id, correlation_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_nexoffice_charge_receipts_action
+        ON nexoffice_charge_receipts(command_action_id);
+      CREATE INDEX IF NOT EXISTS idx_nexoffice_charge_receipts_status
+        ON nexoffice_charge_receipts(status, updated_at DESC);
+    `).catch(error => {
+      ensureTablePromise = null;
+      throw error;
+    });
+  }
+  return ensureTablePromise;
 }
 
 @Controller('internal/nexoffice')
@@ -67,12 +109,29 @@ export class NexOfficeChargeController {
     return workspace;
   }
 
+  private async audit(action: string, resourceId: string, metadata: Record<string, unknown>) {
+    try {
+      await prisma.auditLog.create({
+        data: {
+          actor: 'service:nexoffice',
+          action,
+          resource: 'nexoffice_charge',
+          resourceId,
+          metadata,
+        },
+      });
+    } catch {
+      // O recibo idempotente é a fonte de verdade. AuditLog é trilha adicional.
+    }
+  }
+
   @Get('health')
-  health(
+  async health(
     @Headers('x-nexoffice-key') key?: string,
     @Headers('x-nexoffice-workspace-id') workspaceId?: string,
   ) {
     const workspace = this.authorize(key, workspaceId);
+    await ensureReceiptTable();
     return {
       success: true,
       status: 'online',
@@ -83,6 +142,7 @@ export class NexOfficeChargeController {
       externalEffects: true,
       requiresHumanApproval: true,
       idempotent: true,
+      ambiguousResultPolicy: 'block_retry_until_reconciled',
     };
   }
 
@@ -115,142 +175,136 @@ export class NexOfficeChargeController {
       throw new HttpException({ success: false, error: 'invalid_amount_minor' }, HttpStatus.UNPROCESSABLE_ENTITY);
     }
 
-    const resourceId = `${workspace}:${correlationId}`;
-    const lockKey = advisoryKey(resourceId);
+    await ensureReceiptTable();
 
-    const outcome = await prisma.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe('SELECT pg_advisory_xact_lock($1::bigint)', lockKey.toString());
+    const inserted = await prisma.$queryRawUnsafe<ChargeReservation[]>(`
+      INSERT INTO nexoffice_charge_receipts (
+        workspace_id, correlation_id, command_action_id, approval_id, amount_minor, status, provider
+      ) VALUES ($1, $2, $3, $4, $5, 'CREATING', 'woovi')
+      ON CONFLICT (workspace_id, correlation_id) DO NOTHING
+      RETURNING *
+    `, workspace, correlationId, commandActionId, approvalId, amountMinor);
 
-      const existing = await tx.auditLog.findFirst({
-        where: {
-          resource: 'nexoffice_charge',
-          resourceId,
-          action: { in: ['NEXOFFICE_CHARGE_CREATED', 'NEXOFFICE_CHARGE_UNCERTAIN'] },
-        },
-        orderBy: { createdAt: 'desc' },
-      });
+    if (!inserted.length) {
+      const rows = await prisma.$queryRawUnsafe<ChargeReservation[]>(`
+        SELECT * FROM nexoffice_charge_receipts
+        WHERE workspace_id = $1 AND correlation_id = $2
+        LIMIT 1
+      `, workspace, correlationId);
+      const existing = rows[0];
 
-      if (existing?.action === 'NEXOFFICE_CHARGE_CREATED') {
-        const meta = (existing.metadata || {}) as Record<string, any>;
+      if (existing?.status === 'CREATED') {
         return {
           success: true,
           created: true,
           duplicate: true,
           correlationId,
           workspaceId: workspace,
-          charge: meta.charge || null,
+          provider: existing.provider,
+          charge: existing.receipt || null,
         };
       }
 
-      if (existing?.action === 'NEXOFFICE_CHARGE_UNCERTAIN') {
-        return {
-          success: false,
-          uncertain: true,
-          duplicate: true,
-          correlationId,
-          workspaceId: workspace,
-          error: 'previous_attempt_uncertain_manual_reconciliation_required',
-        };
-      }
-
-      await tx.auditLog.create({
-        data: {
-          actor: `service:nexoffice:${workspace}`,
-          action: 'NEXOFFICE_CHARGE_REQUESTED',
-          resource: 'nexoffice_charge',
-          resourceId,
-          metadata: {
-            workspaceId: workspace,
-            correlationId,
-            commandActionId,
-            approvalId,
-            amountMinor,
-            humanApproved: true,
-          },
-        },
-      });
-
-      try {
-        const charge = await this.woovi.createCharge({
-          correlationID: correlationId,
-          value: amountMinor,
-          comment: description,
-          customer,
-          expiresIn: 3600,
-        });
-
-        const receipt = {
-          id: charge.id,
-          identifier: charge.identifier,
-          correlationID: charge.correlationID,
-          status: charge.status,
-          value: charge.value,
-          qrCodeImage: charge.qrCodeImage,
-          brCode: charge.brCode,
-          paymentLinkID: charge.paymentLinkID,
-          paymentLinkUrl: charge.paymentLinkUrl,
-          createdAt: charge.createdAt,
-        };
-
-        await tx.auditLog.create({
-          data: {
-            actor: `service:nexoffice:${workspace}`,
-            action: 'NEXOFFICE_CHARGE_CREATED',
-            resource: 'nexoffice_charge',
-            resourceId,
-            metadata: {
-              workspaceId: workspace,
-              correlationId,
-              commandActionId,
-              approvalId,
-              amountMinor,
-              charge: receipt,
-            },
-          },
-        });
-
-        return {
-          success: true,
-          created: true,
-          duplicate: false,
-          correlationId,
-          workspaceId: workspace,
-          provider: 'woovi',
-          charge: receipt,
-        };
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        await tx.auditLog.create({
-          data: {
-            actor: `service:nexoffice:${workspace}`,
-            action: 'NEXOFFICE_CHARGE_UNCERTAIN',
-            resource: 'nexoffice_charge',
-            resourceId,
-            metadata: {
-              workspaceId: workspace,
-              correlationId,
-              commandActionId,
-              approvalId,
-              amountMinor,
-              error: message.slice(0, 1000),
-              reconciliationRequired: true,
-            },
-          },
-        });
-        return {
-          success: false,
-          uncertain: true,
-          duplicate: false,
-          correlationId,
-          workspaceId: workspace,
-          error: 'provider_result_uncertain_manual_reconciliation_required',
-        };
-      }
-    }, { timeout: 30_000 });
-
-    if (!outcome.success) {
-      throw new HttpException(outcome, HttpStatus.CONFLICT);
+      throw new HttpException({
+        success: false,
+        duplicate: true,
+        uncertain: existing?.status === 'UNCERTAIN' || existing?.status === 'CREATING',
+        status: existing?.status || 'UNKNOWN',
+        correlationId,
+        workspaceId: workspace,
+        error: existing?.status === 'CREATING'
+          ? 'charge_creation_in_progress_or_interrupted_reconciliation_required'
+          : 'previous_attempt_uncertain_manual_reconciliation_required',
+      }, HttpStatus.CONFLICT);
     }
-    return outcome;
+
+    const resourceId = `${workspace}:${correlationId}`;
+    await this.audit('NEXOFFICE_CHARGE_REQUESTED', resourceId, {
+      workspaceId: workspace,
+      correlationId,
+      commandActionId,
+      approvalId,
+      amountMinor,
+      humanApproved: true,
+    });
+
+    try {
+      const charge = await this.woovi.createCharge({
+        correlationID: correlationId,
+        value: amountMinor,
+        comment: description,
+        customer,
+        expiresIn: 3600,
+      });
+
+      const receipt = {
+        id: charge.id,
+        identifier: charge.identifier,
+        correlationID: charge.correlationID,
+        status: charge.status,
+        value: charge.value,
+        qrCodeImage: charge.qrCodeImage,
+        brCode: charge.brCode,
+        paymentLinkID: charge.paymentLinkID,
+        paymentLinkUrl: charge.paymentLinkUrl,
+        createdAt: charge.createdAt,
+      };
+
+      await prisma.$executeRawUnsafe(`
+        UPDATE nexoffice_charge_receipts
+        SET status = 'CREATED', provider_charge_id = $3, receipt = $4::jsonb,
+            last_error = NULL, updated_at = NOW()
+        WHERE workspace_id = $1 AND correlation_id = $2 AND status = 'CREATING'
+      `, workspace, correlationId, String(charge.id || ''), JSON.stringify(receipt));
+
+      await this.audit('NEXOFFICE_CHARGE_CREATED', resourceId, {
+        workspaceId: workspace,
+        correlationId,
+        commandActionId,
+        approvalId,
+        amountMinor,
+        providerChargeId: charge.id,
+      });
+
+      return {
+        success: true,
+        created: true,
+        duplicate: false,
+        correlationId,
+        workspaceId: workspace,
+        provider: 'woovi',
+        charge: receipt,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      try {
+        await prisma.$executeRawUnsafe(`
+          UPDATE nexoffice_charge_receipts
+          SET status = 'UNCERTAIN', last_error = $3, updated_at = NOW()
+          WHERE workspace_id = $1 AND correlation_id = $2 AND status = 'CREATING'
+        `, workspace, correlationId, message.slice(0, 2000));
+      } catch {
+        // Se até a marcação falhar, a reserva CREATING continua bloqueando retry automático.
+      }
+
+      await this.audit('NEXOFFICE_CHARGE_UNCERTAIN', resourceId, {
+        workspaceId: workspace,
+        correlationId,
+        commandActionId,
+        approvalId,
+        amountMinor,
+        reconciliationRequired: true,
+        error: message.slice(0, 1000),
+      });
+
+      throw new HttpException({
+        success: false,
+        uncertain: true,
+        duplicate: false,
+        correlationId,
+        workspaceId: workspace,
+        error: 'provider_result_uncertain_manual_reconciliation_required',
+      }, HttpStatus.CONFLICT);
+    }
   }
 }
