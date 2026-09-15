@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Headers, HttpException, HttpStatus, Post } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { timingSafeEqual } from 'crypto';
 import { WooviPixAdapter } from './woovi-pix-adapter';
 
@@ -57,6 +57,10 @@ function sanitizeCustomer(customer: ChargeBody['customer']) {
     taxID: clean(customer.taxID, 32) || undefined,
   };
   return Object.values(result).some(Boolean) ? result : undefined;
+}
+
+function prismaJson(value: Record<string, unknown>): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
 async function ensureReceiptTable() {
@@ -123,7 +127,7 @@ export class NexOfficeChargeController {
           action,
           resource: 'nexoffice_charge',
           resourceId,
-          metadata,
+          metadata: prismaJson(metadata),
         },
       });
     } catch {
