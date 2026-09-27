@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Headers, HttpException, HttpStatus, Post } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
-import { timingSafeEqual } from 'crypto';
+import { randomUUID, timingSafeEqual } from 'crypto';
 
 const prisma = new PrismaClient();
 let ensured: Promise<unknown> | null = null;
@@ -64,12 +64,13 @@ export class NexOfficeReceivingAccountController {
   }
   private actionsEnabled(){return String(process.env.NEXOFFICE_RECEIVING_ACCOUNT_ACTIONS_ENABLED||process.env.NEXOFFICE_FINANCIAL_ACTIONS_ENABLED||'false').toLowerCase()==='true'}
   private requireAction(body:any){if(!this.actionsEnabled())throw new HttpException({success:false,error:'receiving_account_actions_disabled'},HttpStatus.CONFLICT);if(body?.humanApproved!==true)throw new HttpException({success:false,error:'human_approval_required'},HttpStatus.CONFLICT)}
-  private config(){const appId=clean(process.env.WOOVI_APP_ID,1000);const base=clean(process.env.WOOVI_API_URL||'https://api.woovi.com',500).replace(/\/$/,'');return{appId,base}}
+  private config(){const appId=clean(process.env.WOOVI_APP_ID,1000);const base=clean(process.env.WOOVI_API_URL||'https://api.woovi.com',500).replace(/\/$/,'');return{appId,base,sandbox:base.includes('woovi-sandbox.com')}}
   private async woovi(method:'GET'|'POST',path:string,body?:any){const{appId,base}=this.config();if(!appId)throw new HttpException({success:false,error:'woovi_not_configured'},HttpStatus.SERVICE_UNAVAILABLE);const r=await fetch(`${base}${path}`,{method,headers:{Authorization:appId,'Content-Type':'application/json',Accept:'application/json'},body:method==='POST'?JSON.stringify(body||{}):undefined});const text=await r.text();let data:any=text;try{data=JSON.parse(text)}catch{}if(!r.ok)throw new HttpException({success:false,error:'woovi_request_failed',providerStatus:r.status,provider:data},r.status>=500?HttpStatus.BAD_GATEWAY:HttpStatus.CONFLICT);return data}
   private safe(row:any){if(!row)return null;return{workspaceId:row.workspace_id,legalName:row.legal_name,taxIdMasked:row.tax_id?`${String(row.tax_id).slice(0,3)}***${String(row.tax_id).slice(-3)}`:null,pixKeyMasked:row.pix_key_masked,pixKeyType:row.pix_key_type,providerStatus:row.provider_status,payoutPolicy:row.payout_policy,balanceMinor:row.last_balance_minor==null?null:Number(row.last_balance_minor),lastCheckedAt:row.last_checked_at,configured:true}}
+  private async row(workspace:string){await ensureTable();return (await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM nexoffice_receiving_accounts WHERE workspace_id=$1 LIMIT 1`,workspace))[0]||null}
 
   @Get()
-  async get(@Headers('x-nexoffice-key') key?:string,@Headers('x-nexoffice-workspace-id') workspaceId?:string){const workspace=this.authorize(key,workspaceId);await ensureTable();const rows=await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM nexoffice_receiving_accounts WHERE workspace_id=$1 LIMIT 1`,workspace);return{success:true,account:this.safe(rows[0]),actionsEnabled:this.actionsEnabled(),providerConfigured:Boolean(this.config().appId),externalEffect:false}}
+  async get(@Headers('x-nexoffice-key') key?:string,@Headers('x-nexoffice-workspace-id') workspaceId?:string){const workspace=this.authorize(key,workspaceId);const row=await this.row(workspace);const cfg=this.config();return{success:true,account:this.safe(row),actionsEnabled:this.actionsEnabled(),providerConfigured:Boolean(cfg.appId),sandbox:cfg.sandbox,externalEffect:false}}
 
   @Post('setup')
   async setup(@Headers('x-nexoffice-key') key:string|undefined,@Headers('x-nexoffice-workspace-id') workspaceId:string|undefined,@Body() body:SetupBody){
@@ -80,23 +81,32 @@ export class NexOfficeReceivingAccountController {
     const error=validatePixKey(pixKeyType,pixKey,taxId);if(error)throw new HttpException({success:false,error},HttpStatus.UNPROCESSABLE_ENTITY);
     const provider=await this.woovi('POST','/api/v1/subaccount',{name:legalName,pixKey});
     const snapshot=provider?.subAccount||provider?.subaccount||provider||{};
-    const status='ACTIVE';
-    const rows=await prisma.$queryRawUnsafe<any[]>(`INSERT INTO nexoffice_receiving_accounts(workspace_id,legal_name,tax_id,pix_key,pix_key_masked,pix_key_type,provider_status,payout_policy,provider_snapshot,last_checked_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,NOW()) ON CONFLICT(workspace_id) DO UPDATE SET legal_name=EXCLUDED.legal_name,tax_id=EXCLUDED.tax_id,pix_key=EXCLUDED.pix_key,pix_key_masked=EXCLUDED.pix_key_masked,pix_key_type=EXCLUDED.pix_key_type,provider_status=EXCLUDED.provider_status,payout_policy=EXCLUDED.payout_policy,provider_snapshot=EXCLUDED.provider_snapshot,last_checked_at=NOW(),updated_at=NOW() RETURNING *`,workspace,legalName,taxId||null,pixKey,masked(pixKey),pixKeyType,status,payoutPolicy,JSON.stringify({name:snapshot.name||legalName,pixKeyMasked:masked(pixKey),created:true}));
-    return{success:true,account:this.safe(rows[0]),providerStatus:status,payoutPolicy,externalEffect:true};
+    const rows=await prisma.$queryRawUnsafe<any[]>(`INSERT INTO nexoffice_receiving_accounts(workspace_id,legal_name,tax_id,pix_key,pix_key_masked,pix_key_type,provider_status,payout_policy,provider_snapshot,last_checked_at) VALUES($1,$2,$3,$4,$5,$6,'ACTIVE',$7,$8::jsonb,NOW()) ON CONFLICT(workspace_id) DO UPDATE SET legal_name=EXCLUDED.legal_name,tax_id=EXCLUDED.tax_id,pix_key=EXCLUDED.pix_key,pix_key_masked=EXCLUDED.pix_key_masked,pix_key_type=EXCLUDED.pix_key_type,provider_status='ACTIVE',payout_policy=EXCLUDED.payout_policy,provider_snapshot=EXCLUDED.provider_snapshot,last_checked_at=NOW(),updated_at=NOW() RETURNING *`,workspace,legalName,taxId||null,pixKey,masked(pixKey),pixKeyType,payoutPolicy,JSON.stringify({name:snapshot.name||legalName,pixKeyMasked:masked(pixKey),created:true}));
+    return{success:true,account:this.safe(rows[0]),providerStatus:'ACTIVE',payoutPolicy,externalEffect:true};
   }
 
   @Post('refresh')
   async refresh(@Headers('x-nexoffice-key') key:string|undefined,@Headers('x-nexoffice-workspace-id') workspaceId:string|undefined){
-    const workspace=this.authorize(key,workspaceId);await ensureTable();const rows=await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM nexoffice_receiving_accounts WHERE workspace_id=$1 LIMIT 1`,workspace);const row=rows[0];if(!row)throw new HttpException({success:false,error:'receiving_account_not_found'},HttpStatus.NOT_FOUND);
+    const workspace=this.authorize(key,workspaceId);const row=await this.row(workspace);if(!row)throw new HttpException({success:false,error:'receiving_account_not_found'},HttpStatus.NOT_FOUND);
     const provider=await this.woovi('GET',`/api/v1/subaccount/${encodeURIComponent(row.pix_key)}`);const sub=provider?.SubAccount||provider?.subAccount||provider?.subaccount||provider||{};const balance=Number(sub.balance||0);
     const updated=await prisma.$queryRawUnsafe<any[]>(`UPDATE nexoffice_receiving_accounts SET provider_status='ACTIVE',last_balance_minor=$2,provider_snapshot=$3::jsonb,last_checked_at=NOW(),updated_at=NOW() WHERE workspace_id=$1 RETURNING *`,workspace,balance,JSON.stringify({name:sub.name||row.legal_name,pixKeyMasked:masked(row.pix_key),balance}));
     return{success:true,account:this.safe(updated[0]),externalEffect:false};
   }
 
+  @Post('test-charge')
+  async testCharge(@Headers('x-nexoffice-key') key:string|undefined,@Headers('x-nexoffice-workspace-id') workspaceId:string|undefined,@Body() body:any){
+    const workspace=this.authorize(key,workspaceId);this.requireAction(body);const row=await this.row(workspace);if(!row)throw new HttpException({success:false,error:'receiving_account_not_found'},HttpStatus.NOT_FOUND);
+    const value=Number(body?.amountMinor||100);if(!Number.isSafeInteger(value)||value<100||value>5000)throw new HttpException({success:false,error:'test_amount_must_be_100_to_5000'},HttpStatus.BAD_REQUEST);
+    const correlationID=clean(body?.correlationId||`nexoffice-test-${workspace}-${randomUUID()}`,220);
+    const provider=await this.woovi('POST','/api/v1/charge',{value,correlationID,comment:'NexOffice receiving account validation',splits:[{pixKey:row.pix_key,value,splitType:'SPLIT_SUB_ACCOUNT'}],expiresIn:3600});
+    const charge=provider?.charge||provider||{};
+    return{success:true,correlationId:correlationID,charge:{id:clean(charge.id||charge.identifier,180),status:clean(charge.status,40),value:Number(charge.value||value),brCode:typeof charge.brCode==='string'?charge.brCode:null,paymentLinkUrl:typeof charge.paymentLinkUrl==='string'?charge.paymentLinkUrl:null},split:{type:'SPLIT_SUB_ACCOUNT',destinationPixKeyMasked:row.pix_key_masked,valueMinor:value},sandbox:this.config().sandbox,externalEffect:true};
+  }
+
   @Post('withdraw')
   async withdraw(@Headers('x-nexoffice-key') key:string|undefined,@Headers('x-nexoffice-workspace-id') workspaceId:string|undefined,@Body() body:any){
-    const workspace=this.authorize(key,workspaceId);this.requireAction(body);await ensureTable();const rows=await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM nexoffice_receiving_accounts WHERE workspace_id=$1 LIMIT 1`,workspace);const row=rows[0];if(!row)throw new HttpException({success:false,error:'receiving_account_not_found'},HttpStatus.NOT_FOUND);
+    const workspace=this.authorize(key,workspaceId);this.requireAction(body);const row=await this.row(workspace);if(!row)throw new HttpException({success:false,error:'receiving_account_not_found'},HttpStatus.NOT_FOUND);
     const provider=await this.woovi('POST',`/api/v1/subaccount/${encodeURIComponent(row.pix_key)}/withdraw`,body?.valueMinor?{value:Number(body.valueMinor)}:{});
-    return{success:true,withdrawal:{status:'requested',pixKeyMasked:row.pix_key_masked,valueMinor:body?.valueMinor?Number(body.valueMinor):null},providerReceived:Boolean(provider),externalEffect:true};
+    return{success:true,withdrawal:{status:'requested',pixKeyMasked:row.pix_key_masked,valueMinor:body?.valueMinor?Number(body.valueMinor):null},providerReceived:Boolean(provider),sandbox:this.config().sandbox,externalEffect:true};
   }
 }
