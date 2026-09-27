@@ -10,13 +10,47 @@ function safeEqual(a:string,b:string){if(!a||!b)return false;const x=Buffer.from
 function normalizeStatus(v:any){const s=clean(v,40).toUpperCase();if(['PAID','COMPLETED'].includes(s))return'PAID';if(s==='EXPIRED')return'EXPIRED';if(['CANCELED','CANCELLED'].includes(s))return'CANCELED';if(['FAILED','ERROR'].includes(s))return'FAILED';return'CREATED'}
 function safeCharge(provider:any,fallbackValue=0){const c=provider?.charge||provider||{};return{id:clean(c.id||c.identifier,180),identifier:clean(c.identifier||c.id,180),correlationID:clean(c.correlationID,220),status:normalizeStatus(c.status),value:Number(c.value||fallbackValue),brCode:typeof c.brCode==='string'?c.brCode:null,qrCodeImage:typeof c.qrCodeImage==='string'?c.qrCodeImage:null,paymentLinkUrl:typeof c.paymentLinkUrl==='string'?c.paymentLinkUrl:null,createdAt:c.createdAt||null,paidAt:c.paidAt||null}}
 
-async function ensureTable(){if(!ensured)ensured=(async()=>{await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS nexoffice_subaccount_charge_receipts (workspace_id TEXT NOT NULL,correlation_id TEXT NOT NULL,command_action_id TEXT,approval_id TEXT,amount_minor BIGINT NOT NULL,status TEXT NOT NULL DEFAULT 'CREATING',provider_charge_id TEXT,receipt JSONB NOT NULL DEFAULT '{}'::jsonb,last_error TEXT,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),PRIMARY KEY(workspace_id,correlation_id))`)})().catch(e=>{ensured=null;throw e});return ensured}
+async function ensureTable(){
+  if(!ensured)ensured=(async()=>{
+    await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS nexoffice_receiving_accounts (
+      workspace_id TEXT PRIMARY KEY,
+      legal_name TEXT NOT NULL,
+      tax_id TEXT,
+      pix_key TEXT NOT NULL,
+      pix_key_masked TEXT NOT NULL,
+      pix_key_type TEXT NOT NULL,
+      provider TEXT NOT NULL DEFAULT 'woovi',
+      provider_status TEXT NOT NULL DEFAULT 'PENDING',
+      payout_policy TEXT NOT NULL DEFAULT 'manual',
+      provider_snapshot JSONB NOT NULL DEFAULT '{}'::jsonb,
+      last_balance_minor BIGINT,
+      last_checked_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`);
+    await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS nexoffice_subaccount_charge_receipts (
+      workspace_id TEXT NOT NULL,
+      correlation_id TEXT NOT NULL,
+      command_action_id TEXT,
+      approval_id TEXT,
+      amount_minor BIGINT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'CREATING',
+      provider_charge_id TEXT,
+      receipt JSONB NOT NULL DEFAULT '{}'::jsonb,
+      last_error TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY(workspace_id,correlation_id)
+    )`);
+  })().catch(e=>{ensured=null;throw e});
+  return ensured;
+}
 
 @Controller('internal/nexoffice/receiving-account/charges')
 export class NexOfficeSubaccountChargeController {
   private authorize(key?:string,workspaceId?:string){const expected=clean(process.env.NEXOFFICE_SERVICE_KEY,400);if(!expected)throw new HttpException({success:false,error:'bridge_not_configured'},HttpStatus.SERVICE_UNAVAILABLE);if(!safeEqual(clean(key,400),expected))throw new HttpException({success:false,error:'unauthorized'},HttpStatus.UNAUTHORIZED);const workspace=clean(workspaceId,120);if(!workspace)throw new HttpException({success:false,error:'workspace_required'},HttpStatus.BAD_REQUEST);return workspace}
   private requireAction(body:any){const enabled=String(process.env.NEXOFFICE_RECEIVING_ACCOUNT_ACTIONS_ENABLED||process.env.NEXOFFICE_FINANCIAL_ACTIONS_ENABLED||'false').toLowerCase()==='true';if(!enabled)throw new HttpException({success:false,error:'receiving_account_actions_disabled'},HttpStatus.CONFLICT);if(body?.humanApproved!==true)throw new HttpException({success:false,error:'human_approval_required'},HttpStatus.CONFLICT)}
-  private async account(workspace:string){const rows=await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM nexoffice_receiving_accounts WHERE workspace_id=$1 AND provider_status='ACTIVE' LIMIT 1`,workspace);if(!rows[0])throw new HttpException({success:false,error:'receiving_account_not_ready'},HttpStatus.CONFLICT);return rows[0]}
+  private async account(workspace:string){await ensureTable();const rows=await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM nexoffice_receiving_accounts WHERE workspace_id=$1 AND provider_status='ACTIVE' LIMIT 1`,workspace);if(!rows[0])throw new HttpException({success:false,error:'receiving_account_not_ready'},HttpStatus.CONFLICT);return rows[0]}
   private async woovi(method:'GET'|'POST',path:string,body?:any){const appId=clean(process.env.WOOVI_APP_ID,1000),base=clean(process.env.WOOVI_API_URL||'https://api.woovi.com',500).replace(/\/$/,'');if(!appId)throw new HttpException({success:false,error:'woovi_not_configured'},HttpStatus.SERVICE_UNAVAILABLE);const r=await fetch(`${base}${path}`,{method,headers:{Authorization:appId,'Content-Type':'application/json',Accept:'application/json'},body:method==='POST'?JSON.stringify(body||{}):undefined});const text=await r.text();let data:any=text;try{data=JSON.parse(text)}catch{}if(!r.ok)throw new HttpException({success:false,error:'woovi_request_failed',providerStatus:r.status},r.status>=500?HttpStatus.BAD_GATEWAY:HttpStatus.CONFLICT);return data}
 
   @Post()
