@@ -1,0 +1,102 @@
+import { Body, Controller, Get, Headers, HttpException, HttpStatus, Post } from '@nestjs/common';
+import { PrismaClient } from '@prisma/client';
+import { timingSafeEqual } from 'crypto';
+
+const prisma = new PrismaClient();
+let ensured: Promise<unknown> | null = null;
+
+type PixKeyType = 'CPF'|'CNPJ'|'EMAIL'|'PHONE'|'EVP';
+type SetupBody = {
+  humanApproved?: boolean;
+  legalName?: string;
+  taxId?: string;
+  pixKey?: string;
+  pixKeyType?: PixKeyType;
+  payoutPolicy?: 'manual'|'daily';
+};
+
+function clean(v:unknown,max=240){return String(v??'').replace(/\u0000/g,'').trim().slice(0,max)}
+function safeEqual(a:string,b:string){if(!a||!b)return false;const x=Buffer.from(a),y=Buffer.from(b);return x.length===y.length&&timingSafeEqual(x,y)}
+function masked(value:string){const v=clean(value,240);if(v.length<=6)return '******';return `${v.slice(0,3)}***${v.slice(-3)}`}
+function normalizeTaxId(value:string){return clean(value,32).replace(/\D/g,'')}
+function validatePixKey(type:PixKeyType,key:string,taxId:string){
+  const value=clean(key,240);const doc=normalizeTaxId(taxId);
+  if(!value)return 'pix_key_required';
+  if(type==='CPF'&&value.replace(/\D/g,'').length!==11)return 'invalid_cpf_pix_key';
+  if(type==='CNPJ'&&value.replace(/\D/g,'').length!==14)return 'invalid_cnpj_pix_key';
+  if(type==='EMAIL'&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value))return 'invalid_email_pix_key';
+  if(type==='PHONE'&&!/^\+?\d{10,15}$/.test(value.replace(/[\s()-]/g,'')))return 'invalid_phone_pix_key';
+  if(type==='EVP'&&value.length<20)return 'invalid_evp_pix_key';
+  if(type==='CPF'&&doc&&doc!==value.replace(/\D/g,''))return 'pix_key_owner_document_mismatch';
+  if(type==='CNPJ'&&doc&&doc!==value.replace(/\D/g,''))return 'pix_key_owner_document_mismatch';
+  return null;
+}
+
+async function ensureTable(){
+  if(!ensured)ensured=(async()=>{
+    await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS nexoffice_receiving_accounts (
+      workspace_id TEXT PRIMARY KEY,
+      legal_name TEXT NOT NULL,
+      tax_id TEXT,
+      pix_key TEXT NOT NULL,
+      pix_key_masked TEXT NOT NULL,
+      pix_key_type TEXT NOT NULL,
+      provider TEXT NOT NULL DEFAULT 'woovi',
+      provider_status TEXT NOT NULL DEFAULT 'PENDING',
+      payout_policy TEXT NOT NULL DEFAULT 'manual',
+      provider_snapshot JSONB NOT NULL DEFAULT '{}'::jsonb,
+      last_balance_minor BIGINT,
+      last_checked_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`);
+  })().catch(e=>{ensured=null;throw e});
+  return ensured;
+}
+
+@Controller('internal/nexoffice/receiving-account')
+export class NexOfficeReceivingAccountController {
+  private authorize(key?:string,workspaceId?:string){
+    const expected=clean(process.env.NEXOFFICE_SERVICE_KEY,400);
+    if(!expected)throw new HttpException({success:false,error:'bridge_not_configured'},HttpStatus.SERVICE_UNAVAILABLE);
+    if(!safeEqual(clean(key,400),expected))throw new HttpException({success:false,error:'unauthorized'},HttpStatus.UNAUTHORIZED);
+    const workspace=clean(workspaceId,120);if(!workspace)throw new HttpException({success:false,error:'workspace_required'},HttpStatus.BAD_REQUEST);return workspace;
+  }
+  private actionsEnabled(){return String(process.env.NEXOFFICE_RECEIVING_ACCOUNT_ACTIONS_ENABLED||process.env.NEXOFFICE_FINANCIAL_ACTIONS_ENABLED||'false').toLowerCase()==='true'}
+  private requireAction(body:any){if(!this.actionsEnabled())throw new HttpException({success:false,error:'receiving_account_actions_disabled'},HttpStatus.CONFLICT);if(body?.humanApproved!==true)throw new HttpException({success:false,error:'human_approval_required'},HttpStatus.CONFLICT)}
+  private config(){const appId=clean(process.env.WOOVI_APP_ID,1000);const base=clean(process.env.WOOVI_API_URL||'https://api.woovi.com',500).replace(/\/$/,'');return{appId,base}}
+  private async woovi(method:'GET'|'POST',path:string,body?:any){const{appId,base}=this.config();if(!appId)throw new HttpException({success:false,error:'woovi_not_configured'},HttpStatus.SERVICE_UNAVAILABLE);const r=await fetch(`${base}${path}`,{method,headers:{Authorization:appId,'Content-Type':'application/json',Accept:'application/json'},body:method==='POST'?JSON.stringify(body||{}):undefined});const text=await r.text();let data:any=text;try{data=JSON.parse(text)}catch{}if(!r.ok)throw new HttpException({success:false,error:'woovi_request_failed',providerStatus:r.status,provider:data},r.status>=500?HttpStatus.BAD_GATEWAY:HttpStatus.CONFLICT);return data}
+  private safe(row:any){if(!row)return null;return{workspaceId:row.workspace_id,legalName:row.legal_name,taxIdMasked:row.tax_id?`${String(row.tax_id).slice(0,3)}***${String(row.tax_id).slice(-3)}`:null,pixKeyMasked:row.pix_key_masked,pixKeyType:row.pix_key_type,providerStatus:row.provider_status,payoutPolicy:row.payout_policy,balanceMinor:row.last_balance_minor==null?null:Number(row.last_balance_minor),lastCheckedAt:row.last_checked_at,configured:true}}
+
+  @Get()
+  async get(@Headers('x-nexoffice-key') key?:string,@Headers('x-nexoffice-workspace-id') workspaceId?:string){const workspace=this.authorize(key,workspaceId);await ensureTable();const rows=await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM nexoffice_receiving_accounts WHERE workspace_id=$1 LIMIT 1`,workspace);return{success:true,account:this.safe(rows[0]),actionsEnabled:this.actionsEnabled(),providerConfigured:Boolean(this.config().appId),externalEffect:false}}
+
+  @Post('setup')
+  async setup(@Headers('x-nexoffice-key') key:string|undefined,@Headers('x-nexoffice-workspace-id') workspaceId:string|undefined,@Body() body:SetupBody){
+    const workspace=this.authorize(key,workspaceId);this.requireAction(body);await ensureTable();
+    const legalName=clean(body.legalName,180),taxId=normalizeTaxId(body.taxId||''),pixKey=clean(body.pixKey,240),pixKeyType=clean(body.pixKeyType,20) as PixKeyType,payoutPolicy=body.payoutPolicy==='daily'?'daily':'manual';
+    if(!legalName)throw new HttpException({success:false,error:'legal_name_required'},HttpStatus.BAD_REQUEST);
+    if(!['CPF','CNPJ','EMAIL','PHONE','EVP'].includes(pixKeyType))throw new HttpException({success:false,error:'invalid_pix_key_type'},HttpStatus.BAD_REQUEST);
+    const error=validatePixKey(pixKeyType,pixKey,taxId);if(error)throw new HttpException({success:false,error},HttpStatus.UNPROCESSABLE_ENTITY);
+    const provider=await this.woovi('POST','/api/v1/subaccount',{name:legalName,pixKey});
+    const snapshot=provider?.subAccount||provider?.subaccount||provider||{};
+    const status='ACTIVE';
+    const rows=await prisma.$queryRawUnsafe<any[]>(`INSERT INTO nexoffice_receiving_accounts(workspace_id,legal_name,tax_id,pix_key,pix_key_masked,pix_key_type,provider_status,payout_policy,provider_snapshot,last_checked_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,NOW()) ON CONFLICT(workspace_id) DO UPDATE SET legal_name=EXCLUDED.legal_name,tax_id=EXCLUDED.tax_id,pix_key=EXCLUDED.pix_key,pix_key_masked=EXCLUDED.pix_key_masked,pix_key_type=EXCLUDED.pix_key_type,provider_status=EXCLUDED.provider_status,payout_policy=EXCLUDED.payout_policy,provider_snapshot=EXCLUDED.provider_snapshot,last_checked_at=NOW(),updated_at=NOW() RETURNING *`,workspace,legalName,taxId||null,pixKey,masked(pixKey),pixKeyType,status,payoutPolicy,JSON.stringify({name:snapshot.name||legalName,pixKeyMasked:masked(pixKey),created:true}));
+    return{success:true,account:this.safe(rows[0]),providerStatus:status,payoutPolicy,externalEffect:true};
+  }
+
+  @Post('refresh')
+  async refresh(@Headers('x-nexoffice-key') key:string|undefined,@Headers('x-nexoffice-workspace-id') workspaceId:string|undefined){
+    const workspace=this.authorize(key,workspaceId);await ensureTable();const rows=await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM nexoffice_receiving_accounts WHERE workspace_id=$1 LIMIT 1`,workspace);const row=rows[0];if(!row)throw new HttpException({success:false,error:'receiving_account_not_found'},HttpStatus.NOT_FOUND);
+    const provider=await this.woovi('GET',`/api/v1/subaccount/${encodeURIComponent(row.pix_key)}`);const sub=provider?.SubAccount||provider?.subAccount||provider?.subaccount||provider||{};const balance=Number(sub.balance||0);
+    const updated=await prisma.$queryRawUnsafe<any[]>(`UPDATE nexoffice_receiving_accounts SET provider_status='ACTIVE',last_balance_minor=$2,provider_snapshot=$3::jsonb,last_checked_at=NOW(),updated_at=NOW() WHERE workspace_id=$1 RETURNING *`,workspace,balance,JSON.stringify({name:sub.name||row.legal_name,pixKeyMasked:masked(row.pix_key),balance}));
+    return{success:true,account:this.safe(updated[0]),externalEffect:false};
+  }
+
+  @Post('withdraw')
+  async withdraw(@Headers('x-nexoffice-key') key:string|undefined,@Headers('x-nexoffice-workspace-id') workspaceId:string|undefined,@Body() body:any){
+    const workspace=this.authorize(key,workspaceId);this.requireAction(body);await ensureTable();const rows=await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM nexoffice_receiving_accounts WHERE workspace_id=$1 LIMIT 1`,workspace);const row=rows[0];if(!row)throw new HttpException({success:false,error:'receiving_account_not_found'},HttpStatus.NOT_FOUND);
+    const provider=await this.woovi('POST',`/api/v1/subaccount/${encodeURIComponent(row.pix_key)}/withdraw`,body?.valueMinor?{value:Number(body.valueMinor)}:{});
+    return{success:true,withdrawal:{status:'requested',pixKeyMasked:row.pix_key_masked,valueMinor:body?.valueMinor?Number(body.valueMinor):null},providerReceived:Boolean(provider),externalEffect:true};
+  }
+}
