@@ -1,0 +1,48 @@
+name: NexOffice Payout Engine V1
+
+on:
+  pull_request:
+    paths:
+      - 'apps/api/src/modules/woovi/nexoffice-payout-engine.service.ts'
+      - 'apps/api/src/modules/woovi/nexoffice-payout-engine.controller.ts'
+      - 'apps/api/src/modules/woovi/woovi.module.ts'
+      - 'scripts/smoke-nexoffice-payout-engine-v1.mjs'
+      - '.github/workflows/nexoffice-payout-engine-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      NEXOFFICE_PAYOUT_ENGINE_ENABLED: 'false'
+      NEXOFFICE_PAYOUT_ACTIONS_ENABLED: 'false'
+      NEXOFFICE_RECEIVING_ACCOUNT_ACTIONS_ENABLED: 'false'
+      NEXOFFICE_SERVICE_KEY: ci-only-service-key
+      WOOVI_APP_ID: ''
+      WOOVI_API_URL: https://api.woovi-sandbox.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Generate Prisma client
+        run: npm run prebuild -w @orkest/api
+      - name: Build API
+        run: npm run build -w @orkest/api
+      - name: Contract smoke
+        run: node scripts/smoke-nexoffice-payout-engine-v1.mjs
+      - name: Guard automatic money movement
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "NEXOFFICE_PAYOUT_ENGINE_ENABLED" apps/api/src/modules/woovi/nexoffice-payout-engine.service.ts
+          grep -q "human_approval_required" apps/api/src/modules/woovi/nexoffice-payout-engine.controller.ts
+          grep -q "payout_policy IN ('daily','economic')" apps/api/src/modules/woovi/nexoffice-payout-engine.service.ts
+          ! grep -q "WOOVI_FROM_PIX_KEY" apps/api/src/modules/woovi/nexoffice-payout-engine.service.ts
+          ! grep -q "createTransfer(" apps/api/src/modules/woovi/nexoffice-payout-engine.service.ts
