@@ -1,0 +1,34 @@
+name: Payments Engine Positioning V1
+
+on:
+  pull_request:
+    paths:
+      - 'apps/marketing/src/app/page.tsx'
+      - '.github/workflows/payments-engine-positioning-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build marketing site
+        run: npm run build -w @orkest/marketing
+      - name: Validate positioning contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "Payments & Financial Engine" apps/marketing/src/app/page.tsx
+          grep -q "NEXOFFICE + NEXTGEN" apps/marketing/src/app/page.tsx
+          grep -q "PAYOUT ENGINE" apps/marketing/src/app/page.tsx
+          grep -q "Stripe Connect" apps/marketing/src/app/page.tsx
+          grep -q "Woovi" apps/marketing/src/app/page.tsx
