@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'apps/api/src/modules/woovi/nexoffice-receiving-account.controller.ts'
+      - 'apps/api/src/modules/woovi/nexoffice-subaccount-charge.controller.ts'
       - 'apps/api/src/modules/woovi/woovi.module.ts'
       - 'scripts/smoke-nexoffice-receiving-account-v1.mjs'
       - '.github/workflows/nexoffice-receiving-account-v1.yml'
@@ -42,6 +43,7 @@ jobs:
           grep -q "NEXOFFICE_RECEIVING_ACCOUNT_ACTIONS_ENABLED" apps/api/src/modules/woovi/nexoffice-receiving-account.controller.ts
           grep -q "human_approval_required" apps/api/src/modules/woovi/nexoffice-receiving-account.controller.ts
           grep -q "SPLIT_SUB_ACCOUNT" apps/api/src/modules/woovi/nexoffice-receiving-account.controller.ts
-          grep -q "row.pix_key" apps/api/src/modules/woovi/nexoffice-receiving-account.controller.ts
-          ! grep -q "createTransfer(" apps/api/src/modules/woovi/nexoffice-receiving-account.controller.ts
-          ! grep -q "WOOVI_FROM_PIX_KEY" apps/api/src/modules/woovi/nexoffice-receiving-account.controller.ts
+          grep -q "SPLIT_SUB_ACCOUNT" apps/api/src/modules/woovi/nexoffice-subaccount-charge.controller.ts
+          grep -q "account.pix_key" apps/api/src/modules/woovi/nexoffice-subaccount-charge.controller.ts
+          ! grep -q "createTransfer(" apps/api/src/modules/woovi/nexoffice-receiving-account.controller.ts apps/api/src/modules/woovi/nexoffice-subaccount-charge.controller.ts
+          ! grep -E "WOOVI_FROM_PIX_KEY|WOOVI_NEXTGEN_PIX_KEY" apps/api/src/modules/woovi/nexoffice-receiving-account.controller.ts apps/api/src/modules/woovi/nexoffice-subaccount-charge.controller.ts
