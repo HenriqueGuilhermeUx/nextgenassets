@@ -116,7 +116,7 @@ export class NexOfficeReceivingAccountController {
     if(!['CPF','CNPJ','EMAIL','PHONE','EVP'].includes(pixKeyType))throw new HttpException({success:false,error:'invalid_pix_key_type'},HttpStatus.BAD_REQUEST);
     const error=validatePixKey(pixKeyType,pixKey,taxId);if(error)throw new HttpException({success:false,error},HttpStatus.UNPROCESSABLE_ENTITY);
     if(pixKey===current.pix_key)return{success:true,account:this.safe(current),changed:false,externalEffect:false};
-    const oldProvider=await this.woovi('GET',`/api/v1/subaccount/${encodeURIComponent(current.pix_key)}`);const oldSub=oldProvider?.SubAccount||oldProvider?.subAccount||oldProvider?.subaccount||oldProvider||{};const oldBalance=Number(oldSub.balance||0);
+    const oldProvider=await this.woovi('GET',`/api/v1/subaccount/${encodeURIComponent(current.pix_key)}`);const oldSub=oldProvider?.SubAccount||oldProvider?.subAccount||oldProvider||{};const oldBalance=Number(oldSub.balance||0);
     if(!Number.isFinite(oldBalance)||oldBalance>0)throw new HttpException({success:false,error:'receiving_account_balance_must_be_zero_before_pix_key_change',balanceMinor:Number.isFinite(oldBalance)?oldBalance:null},HttpStatus.CONFLICT);
     const newProvider=await this.woovi('POST','/api/v1/subaccount',{name:legalName,pixKey});const nextSub=newProvider?.SubAccount||newProvider?.subAccount||newProvider||{};
     let oldSubaccountCleanupPending=false;
@@ -130,11 +130,15 @@ export class NexOfficeReceivingAccountController {
     const workspace=this.authorize(key,workspaceId);this.requireAction(body);const row=await this.row(workspace);if(!row)throw new HttpException({success:false,error:'receiving_account_not_found'},HttpStatus.NOT_FOUND);
     const value=Number(body?.amountMinor||100);if(!Number.isSafeInteger(value)||value<100||value>5000)throw new HttpException({success:false,error:'test_amount_must_be_100_to_5000'},HttpStatus.BAD_REQUEST);
     const correlationID=clean(body?.correlationId||`nexoffice-test-${workspace}-${randomUUID()}`,220);
-    const provider=await this.woovi('POST','/api/v1/charge',{value,correlationID,comment:'NexOffice receiving account validation',splits:[{pixKey:row.pix_key,value,splitType:'SPLIT_SUB_ACCOUNT'}],expiresIn:3600});
+    // 100% da cobrança pertence a esta subconta. Na Woovi, o campo `subaccount`
+    // é o contrato correto para atrelar a cobrança inteira à subconta. Usar um
+    // SPLIT_SUB_ACCOUNT de 100% é rejeitado pelo provider porque split pressupõe
+    // que uma parte do valor permaneça na conta principal.
+    const provider=await this.woovi('POST','/api/v1/charge',{value,correlationID,comment:'NexOffice receiving account validation',subaccount:row.pix_key,expiresIn:3600});
     const charge=provider?.charge||provider||{};
     const brCode=typeof provider?.brCode==='string'?provider.brCode:typeof charge.brCode==='string'?charge.brCode:null;
     const paymentLinkUrl=typeof provider?.paymentLinkUrl==='string'?provider.paymentLinkUrl:typeof charge.paymentLinkUrl==='string'?charge.paymentLinkUrl:null;
-    return{success:true,correlationId:correlationID,charge:{id:clean(charge.id||charge.identifier,180),status:clean(charge.status,40),value:Number(charge.value||value),brCode,paymentLinkUrl},split:{type:'SPLIT_SUB_ACCOUNT',destinationPixKeyMasked:row.pix_key_masked,valueMinor:value,providerMode:'SUBACCOUNT_SPLIT'},sandbox:this.config().sandbox,externalEffect:true};
+    return{success:true,correlationId:correlationID,charge:{id:clean(charge.id||charge.identifier,180),status:clean(charge.status,40),value:Number(charge.value||value),brCode,paymentLinkUrl},split:{type:'SUBACCOUNT',destinationPixKeyMasked:row.pix_key_masked,valueMinor:value,providerMode:'DIRECT_SUBACCOUNT'},sandbox:this.config().sandbox,externalEffect:true};
   }
 
   @Post('withdraw')
