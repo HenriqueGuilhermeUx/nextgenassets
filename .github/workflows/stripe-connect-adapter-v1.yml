@@ -1,0 +1,43 @@
+name: Stripe Connect Adapter V1
+
+on:
+  pull_request:
+    paths:
+      - 'apps/api/src/modules/payments/**'
+      - 'apps/api/src/app.module.ts'
+      - 'scripts/smoke-stripe-connect-adapter-v1.mjs'
+      - '.github/workflows/stripe-connect-adapter-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      STRIPE_CONNECT_ENABLED: 'false'
+      STRIPE_SECRET_KEY: ''
+      NEXOFFICE_SERVICE_KEY: ci-only-service-key
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Generate Prisma client
+        run: npm run prebuild -w @orkest/api
+      - name: Build API
+        run: npm run build -w @orkest/api
+      - name: Contract smoke
+        run: node scripts/smoke-stripe-connect-adapter-v1.mjs
+      - name: Guard financial effects
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -q "/v1/payment_intents" apps/api/src/modules/payments/stripe-connect.adapter.ts
+          ! grep -q "/v1/payouts" apps/api/src/modules/payments/stripe-connect.adapter.ts
+          grep -q "STRIPE_CONNECT_ENABLED" apps/api/src/modules/payments/stripe-connect.adapter.ts
+          grep -q "externalEffect:false" apps/api/src/modules/payments/payments.controller.ts
