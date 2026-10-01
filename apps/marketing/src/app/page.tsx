@@ -1,254 +1,148 @@
 // ============================================
-//  NextGen Assets — Home: Recebimentos Inteligentes
+//  NextGen — Payments & Financial Engine
 // ============================================
 
-const segments = [
-  ['Serviços e consultorias', 'Propostas, contratos, parcelas, sinal, saldo, lembretes e confirmação de pagamento.'],
-  ['Condomínios e associações', 'Cotas, acordos, segunda via, comunicação com moradores e conciliação do financeiro.'],
-  ['Escolas, cursos e clubes', 'Mensalidades, matrículas, recorrência, avisos aos responsáveis e baixa automática.'],
-  ['Academias, clínicas e recorrência', 'Planos, pacotes, consultas, retornos, renovações e lembretes de pagamento.'],
-  ['SaaS e assinaturas digitais', 'Assinaturas, upgrades, renovações, pagamentos não concluídos e conciliação via API.'],
-  ['E-commerce e infoprodutos', 'Links Pix, recuperação de pedidos, carrinho abandonado, campanhas e comunicação pós-venda.']
+const capabilities = [
+  ['Pix para receber de verdade', 'Cobrança avulsa, QR Code, link, vencimento, status e conciliação conectados à operação.'],
+  ['Subcontas e split', 'Cada empresa pode ter sua própria conta de recebimento e o valor é direcionado para ela sem depender de BaaS completo.'],
+  ['Pix recorrente', 'Mensalidades, contratos e receitas recorrentes com criação e cancelamento governados.'],
+  ['Conciliação automática', 'Pagamento confirmado vira evento operacional e baixa o recebível original em vez de criar um financeiro paralelo.'],
+  ['Payout Engine', 'Políticas Econômico, Diário e Receber agora para acumular saldo e controlar quando o dinheiro sai da conta de recebimento.'],
+  ['Payments orchestration', 'Uma única camada para Pix hoje e cartões, assinaturas e outros meios de pagamento através de providers especializados.']
 ];
 
-const features = [
-  ['Cobranças Pix', 'Crie cobranças avulsas ou recorrentes com link, QR Code, vencimento e controle de status.'],
-  ['Régua de cobrança', 'Mensagens antes, no dia e depois do vencimento para reduzir esquecimento e atraso.'],
-  ['Painel da empresa', 'Acompanhe pendentes, pagos, saldo estimado, repasses e próximas ações em uma visão simples.'],
-  ['Conciliação', 'Webhook, histórico, status e logs para o financeiro não depender de planilha manual.'],
-  ['Repasses controlados', 'Pedidos de repasse, agenda por plano e operação manual segura no piloto.'],
-  ['API e operação assistida', 'Evolua para integrações com ERP, CRM, checkout, sistemas próprios e white-label.']
+const platformUseCases = [
+  ['ERP e software de gestão', 'Transforme contas a receber em cobrança, pagamento e conciliação dentro do próprio produto.'],
+  ['SaaS vertical', 'Adicione recebimentos, recorrência e repasses sem precisar reconstruir infraestrutura financeira.'],
+  ['Marketplaces e redes', 'Crie contas de recebimento, splits e políticas de payout por participante.'],
+  ['Clínicas, escolas e serviços', 'Mensalidades, consultas, contratos e parcelas com cobrança e baixa conectadas.'],
+  ['Condomínios e associações', 'Cotas, acordos, segunda via, conciliação e repasses centralizados.'],
+  ['NexOffice', 'A NextGen é o motor financeiro invisível que transforma venda, contrato e recebível em dinheiro conciliado.']
 ];
 
-const flow = [
-  ['1', 'Configure a empresa', 'Salve a conta recebedora uma vez e deixe o sistema usar essa configuração nas cobranças.'],
-  ['2', 'Crie a cobrança', 'Informe cliente, valor e vencimento. A NextGen gera o Pix e o link de pagamento.'],
-  ['3', 'Comunique o pagador', 'Use mensagens prontas para lembrar, recuperar e confirmar pagamentos.'],
-  ['4', 'Acompanhe e repasse', 'Veja status, saldo, solicitações e operação de repasse em painéis separados.']
+const architecture = [
+  ['1', 'Seu produto entende o negócio', 'ERP, CRM ou NexOffice sabem quem é o cliente, quanto deve, por quê e quando vence.'],
+  ['2', 'NextGen executa o pagamento', 'A camada financeira cria cobrança, split, recorrência e acompanha o provider certo.'],
+  ['3', 'O dinheiro vai para o recebedor', 'A empresa recebe na própria conta de recebimento conforme a política configurada.'],
+  ['4', 'O resultado volta para a operação', 'Pagamento, falha, saldo e payout retornam como eventos para conciliação e automação.']
 ];
 
-const pricing = [
-  ['Starter', 'R$ 79/mês', 'até 50 cobranças/mês', '0% NextGen por Pix'],
-  ['Growth', 'R$ 149/mês', 'até 200 cobranças/mês', '0% NextGen por Pix'],
-  ['Pro', 'R$ 299/mês', 'até 1.000 cobranças/mês', '0% NextGen por Pix'],
-  ['Enterprise', 'Sob consulta', 'alto volume, API e white-label', 'contrato sob medida']
+const providers = [
+  ['Pix Brasil', 'Woovi', 'Cobranças Pix, subcontas, split, Pix Automático e saque.'],
+  ['Cartões & Billing', 'Stripe Connect', 'Cartões, assinaturas, onboarding de contas, application fees e payouts.'],
+  ['Brasil-first opcional', 'Asaas', 'Cartão, boleto, Pix, recorrência e split como adapter complementar.']
 ];
 
-const revenue = [
-  ['Assinatura mensal', 'Receita previsível por plano, sem pedágio NextGen por Pix no plano base.'],
-  ['Excedente de volume', 'Cobranças acima do limite mensal podem entrar como pacote adicional.'],
-  ['Comunicação premium', 'Régua avançada, recuperação de pagamentos e campanhas de reativação.'],
-  ['Repasse antecipado', 'Produto extra para empresas que querem sair da agenda padrão do plano.']
+const payoutModes = [
+  ['Econômico', 'Acumula saldo e prioriza saque consolidado para reduzir custo operacional.'],
+  ['Diário', 'Um repasse consolidado por dia, em vez de um saque para cada venda.'],
+  ['Receber agora', 'Saque sob demanda com custo exibido antes da confirmação.']
 ];
 
-const routes = [
-  ['/painel-empresa', 'Painel'],
-  ['/nova-cobranca', 'Nova cobrança'],
-  ['/cobrancas', 'Cobranças'],
-  ['/regua-cobranca', 'Régua'],
-  ['/planos', 'Planos'],
-  ['/piloto', 'Piloto']
+const safety = [
+  'Ações financeiras desligadas por padrão até ativação explícita.',
+  'Aprovação e confirmação humana para criar ou cancelar operações sensíveis.',
+  'Idempotência para evitar cobranças duplicadas.',
+  'Resultado incerto bloqueia retry automático.',
+  'Credenciais dos providers ficam no backend e nunca no frontend.',
+  'Cada workspace recebe somente na conta de recebimento que cadastrou.'
 ];
 
 export default function Home() {
   return (
     <main className="min-h-screen bg-white text-slate-950">
       <section className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 px-6 py-24 text-white">
-        <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 20% 20%, #22c55e 0, transparent 30%), radial-gradient(circle at 80% 10%, #60a5fa 0, transparent 25%)' }} />
+        <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 18% 12%, #22c55e 0, transparent 28%), radial-gradient(circle at 82% 8%, #60a5fa 0, transparent 28%)' }} />
         <div className="relative mx-auto max-w-7xl">
           <nav className="mb-20 flex items-center justify-between">
-            <a href="/" className="text-xl font-black tracking-tight">NextGen Assets</a>
+            <a href="/" className="text-xl font-black tracking-tight">NextGen</a>
             <div className="hidden gap-6 text-sm text-white/70 md:flex">
-              <a href="#produto" className="hover:text-white">Produto</a>
-              <a href="#como-funciona" className="hover:text-white">Como funciona</a>
-              <a href="#usos" className="hover:text-white">Quem usa</a>
-              <a href="#precos" className="hover:text-white">Preços</a>
+              <a href="#engine" className="hover:text-white">Engine</a>
+              <a href="#arquitetura" className="hover:text-white">Como funciona</a>
+              <a href="#providers" className="hover:text-white">Providers</a>
+              <a href="#payouts" className="hover:text-white">Repasses</a>
+              <a href="#integracao" className="hover:text-white">Integração</a>
             </div>
           </nav>
 
-          <div className="grid gap-14 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+          <div className="grid gap-14 lg:grid-cols-[1.08fr_0.92fr] lg:items-center">
             <div>
               <div className="mb-6 inline-flex rounded-full border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-sm font-semibold text-emerald-200">
-                Pix + cobranças + mensagens + repasses
+                Payments & Financial Engine
               </div>
-              <h1 className="max-w-4xl text-5xl font-black leading-tight tracking-tight md:text-7xl">
-                Receba melhor com Pix, comunicação e controle de repasses.
+              <h1 className="max-w-5xl text-5xl font-black leading-tight tracking-tight md:text-7xl">
+                Da venda ao dinheiro recebido. Uma camada financeira para qualquer produto.
               </h1>
               <p className="mt-7 max-w-3xl text-xl leading-8 text-white/75">
-                A Conta NextGen ajuda empresas a criar cobranças Pix, lembrar clientes, acompanhar pagamentos e organizar repasses em um painel simples.
+                A NextGen conecta cobrança, Pix, split, recorrência, conciliação e repasses em uma infraestrutura única — pronta para operar por trás de ERPs, SaaS, marketplaces e do NexOffice.
               </p>
               <p className="mt-4 max-w-3xl text-base leading-7 text-white/60">
-                No plano base, a NextGen não cobra percentual por Pix. A receita vem de assinatura, automações premium, excedente de volume e repasse antecipado.
+                O cliente final não precisa aprender outro sistema. A NextGen trabalha por baixo: recebe a intenção do produto, executa no provider certo e devolve o resultado financeiro para a operação.
               </p>
               <div className="mt-10 flex flex-col gap-4 sm:flex-row">
-                <a href="https://wa.me/5511947984328?text=Quero%20conhecer%20a%20Conta%20NextGen" className="rounded-xl bg-emerald-400 px-7 py-4 text-center font-bold text-slate-950 shadow-lg shadow-emerald-400/20 hover:bg-emerald-300">
-                  Quero conhecer
-                </a>
-                <a href="/piloto" className="rounded-xl border border-white/20 px-7 py-4 text-center font-bold text-white hover:bg-white/10">
-                  Ver piloto
-                </a>
+                <a href="https://wa.me/5511947984328?text=Quero%20integrar%20o%20Payments%20Engine%20da%20NextGen" className="rounded-xl bg-emerald-400 px-7 py-4 text-center font-bold text-slate-950 shadow-lg shadow-emerald-400/20 hover:bg-emerald-300">Quero integrar</a>
+                <a href="#arquitetura" className="rounded-xl border border-white/20 px-7 py-4 text-center font-bold text-white hover:bg-white/10">Ver arquitetura</a>
               </div>
-
-              <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                <a href="/painel-empresa" className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-5 py-3 text-center text-sm font-bold text-emerald-100 hover:bg-emerald-400/20">Painel</a>
-                <a href="/nova-cobranca" className="rounded-xl border border-blue-300/30 bg-blue-300/10 px-5 py-3 text-center text-sm font-bold text-blue-100 hover:bg-blue-300/20">Nova cobrança</a>
-                <a href="/planos" className="rounded-xl border border-white/20 bg-white/10 px-5 py-3 text-center text-sm font-bold text-white hover:bg-white/20">Planos</a>
-              </div>
-
               <div className="mt-10 grid gap-4 text-sm text-white/75 sm:grid-cols-3">
-                <div>✅ 0% NextGen por Pix</div>
-                <div>✅ Régua de cobrança</div>
-                <div>✅ Repasses organizados</div>
+                <div>✓ Pix + split + subcontas</div>
+                <div>✓ Recorrência + conciliação</div>
+                <div>✓ Cartões no roadmap Connect</div>
               </div>
             </div>
 
             <div className="rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur">
               <div className="rounded-2xl bg-slate-950 p-5 font-mono text-sm text-emerald-200">
-                <div className="text-white/50">Jornada de recebimento</div>
+                <div className="text-white/50">Uma única interface financeira</div>
                 <pre className="mt-4 whitespace-pre-wrap text-xs leading-6">{`{
-  "cobranca": "Pix",
-  "valor": "100.00",
-  "vencimento": "hoje",
-  "comunicacao": ["lembrete", "pendencia", "confirmacao"],
-  "status": "pago",
-  "repasse": "controlado"
+  "receivable": "R$ 1.500,00",
+  "method": "PIX",
+  "destination": "workspace_account",
+  "split": "subaccount",
+  "status": "PAID",
+  "reconciliation": "completed",
+  "payoutPolicy": "economic"
 }`}</pre>
               </div>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                <div className="rounded-2xl bg-emerald-400 p-5 text-slate-950">
-                  <div className="text-sm font-bold uppercase tracking-wide">Empresa</div>
-                  <p className="mt-2 text-lg font-black">Cobra, acompanha e solicita repasse.</p>
-                </div>
-                <div className="rounded-2xl bg-white p-5 text-slate-950">
-                  <div className="text-sm font-bold uppercase tracking-wide text-slate-500">Cliente</div>
-                  <p className="mt-2 text-lg font-black">Recebe link, paga Pix e recebe confirmação.</p>
-                </div>
+                <div className="rounded-2xl bg-emerald-400 p-5 text-slate-950"><div className="text-sm font-bold uppercase tracking-wide">Hoje</div><p className="mt-2 text-lg font-black">Pix, subcontas, split, recorrência e conciliação.</p></div>
+                <div className="rounded-2xl bg-white p-5 text-slate-950"><div className="text-sm font-bold uppercase tracking-wide text-slate-500">Evolução</div><p className="mt-2 text-lg font-black">Cartões, Billing e Connect no mesmo motor.</p></div>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section id="produto" className="px-6 py-20">
+      <section id="engine" className="px-6 py-20">
         <div className="mx-auto max-w-7xl">
-          <div className="mb-12 max-w-3xl">
-            <p className="font-bold text-blue-600">PRODUTO</p>
-            <h2 className="mt-3 text-4xl font-black md:text-5xl">Não é só Pix. É a operação de recebimentos.</h2>
-            <p className="mt-4 text-lg text-gray-600">A NextGen organiza o caminho entre vender, cobrar, lembrar, receber, confirmar, conciliar e repassar.</p>
-          </div>
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {features.map(([title, text]) => (
-              <div key={title} className="rounded-3xl border border-gray-200 p-7 shadow-sm">
-                <h3 className="text-xl font-black">{title}</h3>
-                <p className="mt-3 text-sm text-gray-600">{text}</p>
-              </div>
-            ))}
-          </div>
+          <div className="mb-12 max-w-4xl"><p className="font-bold text-blue-600">O MOTOR</p><h2 className="mt-3 text-4xl font-black md:text-5xl">Não é mais um painel financeiro. É infraestrutura que faz o financeiro acontecer.</h2><p className="mt-4 text-lg text-gray-600">A NextGen recebe comandos de negócio, governa a execução financeira e devolve evidências para o sistema que já conhece o cliente e a operação.</p></div>
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">{capabilities.map(([title, text]) => <div key={title} className="rounded-3xl border border-gray-200 p-7 shadow-sm"><h3 className="text-xl font-black">{title}</h3><p className="mt-3 text-sm leading-6 text-gray-600">{text}</p></div>)}</div>
         </div>
       </section>
 
-      <section id="como-funciona" className="bg-slate-950 px-6 py-20 text-white">
+      <section id="arquitetura" className="bg-slate-950 px-6 py-20 text-white">
         <div className="mx-auto max-w-7xl">
-          <div className="mb-12 max-w-3xl">
-            <p className="font-bold text-emerald-300">COMO FUNCIONA</p>
-            <h2 className="mt-3 text-4xl font-black md:text-5xl">Da cobrança ao repasse, tudo conectado.</h2>
-            <p className="mt-4 text-lg text-white/70">A empresa não precisa entender termos técnicos. Ela vê cobrança criada, cliente avisado, pagamento confirmado e saldo acompanhado.</p>
-          </div>
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            {flow.map(([number, title, text]) => (
-              <div key={title} className="rounded-3xl border border-white/10 bg-white/10 p-7">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-400 font-black text-slate-950">{number}</div>
-                <h3 className="mt-5 text-xl font-black">{title}</h3>
-                <p className="mt-3 text-sm text-white/70">{text}</p>
-              </div>
-            ))}
-          </div>
+          <div className="mb-12 max-w-4xl"><p className="font-bold text-emerald-300">ARQUITETURA</p><h2 className="mt-3 text-4xl font-black md:text-5xl">O produto pensa. A NextGen executa. O recebedor recebe.</h2><p className="mt-4 text-lg text-white/70">Essa separação permite colocar pagamentos dentro de qualquer software sem criar um segundo ERP, um segundo CRM ou uma segunda fonte da verdade.</p></div>
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">{architecture.map(([number, title, text]) => <div key={title} className="rounded-3xl border border-white/10 bg-white/10 p-7"><div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-400 font-black text-slate-950">{number}</div><h3 className="mt-5 text-xl font-black">{title}</h3><p className="mt-3 text-sm leading-6 text-white/70">{text}</p></div>)}</div>
         </div>
       </section>
 
-      <section id="usos" className="bg-gray-50 px-6 py-20">
-        <div className="mx-auto max-w-7xl">
-          <div className="mb-12 max-w-3xl">
-            <p className="font-bold text-blue-600">QUEM PODE USAR</p>
-            <h2 className="mt-3 text-4xl font-black md:text-5xl">Para empresas que dependem de recebimento recorrente ou organizado.</h2>
-            <p className="mt-4 text-lg text-gray-600">Serve para pagamentos pontuais, mensalidades, contratos, parcelas, assinaturas, acordos ou operações com repasse.</p>
-          </div>
+      <section className="bg-gray-50 px-6 py-20"><div className="mx-auto max-w-7xl"><div className="mb-12 max-w-4xl"><p className="font-bold text-blue-600">ONDE ENTRA</p><h2 className="mt-3 text-4xl font-black md:text-5xl">Um engine para produtos que precisam transformar recebível em dinheiro.</h2></div><div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">{platformUseCases.map(([title, text]) => <div key={title} className="rounded-2xl bg-white p-6 shadow-sm"><h3 className="text-xl font-black">{title}</h3><p className="mt-2 text-sm leading-6 text-gray-600">{text}</p></div>)}</div></div></section>
 
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {segments.map(([title, text]) => (
-              <div key={title} className="rounded-2xl bg-white p-6 shadow-sm">
-                <h3 className="text-xl font-black">{title}</h3>
-                <p className="mt-2 text-sm text-gray-600">{text}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <section id="providers" className="px-6 py-20"><div className="mx-auto max-w-7xl"><div className="mb-12 max-w-4xl"><p className="font-bold text-blue-600">ORQUESTRAÇÃO MULTI-PROVIDER</p><h2 className="mt-3 text-4xl font-black md:text-5xl">O método de pagamento muda. A interface da sua aplicação não precisa mudar.</h2><p className="mt-4 text-lg text-gray-600">A NextGen isola detalhes de provider e expõe uma camada comum para criar, acompanhar, conciliar e repassar pagamentos.</p></div><div className="grid gap-6 lg:grid-cols-3">{providers.map(([rail, provider, text]) => <div key={provider} className="rounded-3xl border border-gray-200 bg-white p-7 shadow-sm"><div className="text-xs font-black uppercase tracking-[0.16em] text-blue-600">{rail}</div><h3 className="mt-3 text-2xl font-black">{provider}</h3><p className="mt-3 text-sm leading-6 text-gray-600">{text}</p></div>)}</div><p className="mt-6 text-sm text-gray-500">Providers e métodos futuros entram como adapters. O produto integrador continua falando com o mesmo Payments Engine.</p></div></section>
 
-      <section className="px-6 py-20">
-        <div className="mx-auto max-w-7xl">
-          <div className="mb-12 max-w-3xl">
-            <p className="font-bold text-blue-600">MODELO DE RECEITA</p>
-            <h2 className="mt-3 text-4xl font-black md:text-5xl">Sem pedágio NextGen por Pix no plano base.</h2>
-            <p className="mt-4 text-lg text-gray-600">O produto ganha força na assinatura e nas camadas de automação, não em punir cada recebimento.</p>
-          </div>
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            {revenue.map(([title, text]) => (
-              <div key={title} className="rounded-3xl border border-gray-200 bg-white p-7 shadow-sm">
-                <h3 className="text-xl font-black">{title}</h3>
-                <p className="mt-3 text-sm text-gray-600">{text}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <section id="payouts" className="bg-blue-950 px-6 py-20 text-white"><div className="mx-auto max-w-7xl"><div className="mb-12 max-w-4xl"><p className="font-bold text-emerald-300">PAYOUT ENGINE</p><h2 className="mt-3 text-4xl font-black md:text-5xl">Receber não precisa significar sacar a cada venda.</h2><p className="mt-4 text-lg text-white/70">A NextGen pode acumular saldo por empresa e aplicar uma política de repasse compatível com custo, urgência e operação.</p></div><div className="grid gap-6 md:grid-cols-3">{payoutModes.map(([title, text]) => <div key={title} className="rounded-3xl border border-white/10 bg-white/10 p-7"><h3 className="text-2xl font-black">{title}</h3><p className="mt-3 text-sm leading-6 text-white/70">{text}</p></div>)}</div></div></section>
 
-      <section id="precos" className="bg-gray-50 px-6 py-20">
-        <div className="mx-auto max-w-7xl">
-          <div className="mb-12 max-w-3xl">
-            <p className="font-bold text-blue-600">PLANOS</p>
-            <h2 className="mt-3 text-4xl font-black md:text-5xl">Preço simples para começar.</h2>
-            <p className="mt-4 text-lg text-gray-600">Mensalidade por plano, volume incluído e 0% NextGen por Pix no plano base.</p>
-          </div>
-          <div className="grid gap-5 lg:grid-cols-4">
-            {pricing.map(([plan, price, volume, fee]) => (
-              <div key={plan} className="rounded-3xl border border-gray-200 bg-white p-7 shadow-sm">
-                <h3 className="text-2xl font-black">{plan}</h3>
-                <div className="mt-4 text-3xl font-black text-blue-700">{price}</div>
-                <p className="mt-3 text-sm text-gray-600">{volume}</p>
-                <p className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm font-bold text-emerald-800">{fee}</p>
-              </div>
-            ))}
-          </div>
-          <div className="mt-8 text-center">
-            <a href="/planos" className="inline-flex rounded-xl bg-slate-950 px-7 py-4 font-bold text-white hover:bg-slate-800">Ver detalhes dos planos</a>
-          </div>
-        </div>
-      </section>
+      <section className="px-6 py-20"><div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-2 lg:items-start"><div><p className="font-bold text-blue-600">NEXOFFICE + NEXTGEN</p><h2 className="mt-3 text-4xl font-black md:text-5xl">O cérebro operacional ganha braços financeiros.</h2><p className="mt-5 text-lg leading-8 text-gray-600">No NexOffice, CRM, contratos, recebíveis, cobrança e inteligência continuam pertencendo ao workspace. A NextGen entra só para executar a operação financeira autorizada e devolver o resultado.</p><div className="mt-8 rounded-3xl bg-slate-950 p-6 font-mono text-sm text-emerald-200"><pre className="whitespace-pre-wrap leading-7">{`Cliente → Venda → Contrato → Recebível
+                         ↓
+                 NextGen Payments
+                         ↓
+            Pix / Cartão / Recorrência
+                         ↓
+             Pagamento + Conciliação`}</pre></div></div><div className="rounded-3xl border border-gray-200 p-7"><h3 className="text-2xl font-black">Governança financeira por padrão</h3><div className="mt-6 grid gap-3">{safety.map(item => <div key={item} className="rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-700">✓ {item}</div>)}</div></div></div></section>
 
-      <section className="px-6 py-20">
-        <div className="mx-auto max-w-7xl">
-          <div className="mb-12 max-w-3xl">
-            <p className="font-bold text-blue-600">ATALHOS DO PILOTO</p>
-            <h2 className="mt-3 text-4xl font-black md:text-5xl">Teste o fluxo completo.</h2>
-            <p className="mt-4 text-lg text-gray-600">As telas abaixo já formam o piloto assistido da Conta NextGen.</p>
-          </div>
-          <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
-            {routes.map(([href, label]) => (
-              <a key={href} href={href} className="rounded-2xl border border-gray-200 bg-white p-5 text-center font-black text-slate-800 shadow-sm hover:border-blue-300 hover:text-blue-700">{label}</a>
-            ))}
-          </div>
-        </div>
-      </section>
+      <section id="integracao" className="bg-gray-50 px-6 py-20"><div className="mx-auto max-w-7xl rounded-3xl bg-slate-950 p-10 text-white md:p-14"><p className="font-bold text-emerald-300">PARA PLATAFORMAS</p><h2 className="mt-3 max-w-4xl text-4xl font-black md:text-5xl">Adicione pagamentos ao seu produto sem transformar pagamentos no seu produto.</h2><p className="mt-5 max-w-3xl text-lg leading-8 text-white/70">Integre uma vez. Use Pix agora. Adicione cartão, assinatura e novos providers depois sem reescrever o núcleo da sua aplicação.</p><div className="mt-8 flex flex-col gap-4 sm:flex-row"><a href="https://wa.me/5511947984328?text=Quero%20integrar%20a%20NextGen%20ao%20meu%20produto" className="rounded-xl bg-emerald-400 px-7 py-4 text-center font-bold text-slate-950 hover:bg-emerald-300">Falar sobre integração</a><a href="/api-docs" className="rounded-xl border border-white/20 px-7 py-4 text-center font-bold hover:bg-white/10">Ver API</a></div></div></section>
 
-      <section className="bg-gradient-to-br from-slate-950 to-blue-950 px-6 py-20 text-center text-white">
-        <h2 className="mx-auto max-w-4xl text-4xl font-black md:text-5xl">Quer organizar os recebimentos do seu negócio?</h2>
-        <p className="mx-auto mt-4 max-w-2xl text-lg text-white/70">Em 10 minutos mostramos como a Conta NextGen cria cobranças Pix, comunicação, conciliação e repasses para sua operação.</p>
-        <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
-          <a href="https://wa.me/5511947984328?text=Quero%20uma%20demo%20da%20Conta%20NextGen" className="rounded-xl bg-emerald-400 px-7 py-4 font-bold text-slate-950 hover:bg-emerald-300">Quero uma demo</a>
-          <a href="/painel-empresa" className="rounded-xl border border-white/20 px-7 py-4 font-bold text-white hover:bg-white/10">Ver painel empresa</a>
-        </div>
-      </section>
+      <footer className="border-t border-gray-200 px-6 py-10"><div className="mx-auto flex max-w-7xl flex-col gap-4 text-sm text-gray-500 md:flex-row md:items-center md:justify-between"><div><b className="text-slate-950">NextGen</b> · Payments & Financial Engine</div><div>Pix hoje. Cartões e novos trilhos pela mesma arquitetura.</div></div></footer>
     </main>
   );
 }
