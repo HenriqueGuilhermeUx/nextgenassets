@@ -5,6 +5,7 @@
 import { NestFactory } from '@nestjs/core';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
+import { probeEfiRegistrationScopes } from './modules/efi-registration/efi-registration-probe';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -72,6 +73,12 @@ async function bootstrap() {
   logger.log(`💚 Health check: /health`);
   logger.log(`📡 CORS liberado para: ${corsOrigins === true ? '* (todos)' : corsOrigins.join(', ')}`);
   logger.log(`🌍 Ambiente: ${process.env.NODE_ENV || 'development'}`);
+
+  if (String(process.env.EFI_REGISTRATION_PROBE_ON_BOOT || 'false').toLowerCase() === 'true') {
+    void probeEfiRegistrationScopes()
+      .then((result) => logger.log(`[EFI-REGISTRATION-PROBE] ${JSON.stringify(result)}`))
+      .catch((err) => logger.error(`[EFI-REGISTRATION-PROBE] ${JSON.stringify({ ok: false, status: 0, errorCode: 'UNEXPECTED_ERROR', errorDescription: err instanceof Error ? err.message : String(err) })}`));
+  }
 }
 
 bootstrap().catch((err) => {
