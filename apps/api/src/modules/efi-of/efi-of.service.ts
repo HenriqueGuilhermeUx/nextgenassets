@@ -377,7 +377,7 @@ export class EfiOFService {
     }
     if (!/^urn:efi:[a-zA-Z0-9-]+$/.test(input.adhesionId) ||
         !Number.isSafeInteger(input.amountCents) || input.amountCents <= 0 ||
-        !/^\\d{4}-\\d{2}-\\d{2}$/.test(input.dueDate) ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(input.dueDate) ||
         !/^[a-zA-Z0-9-]{32,128}$/.test(input.idempotencyKey)) {
       throw new Error('INVALID_EFI_AUTOMATIC_PAYMENT_REQUEST');
     }
