@@ -7,7 +7,7 @@ BEGIN;
 CREATE TABLE IF NOT EXISTS ng_efi_central_receipts (
   id text PRIMARY KEY,
   partner_id text NOT NULL,
-  cycle_id text REFERENCES ng_efi_auto_cycles(id),
+  cycle_id text NOT NULL REFERENCES ng_efi_auto_cycles(id),
   -- Incoming Pix to verified NextGen Efí bank account (never authorization/issuance id).
   incoming_e2e_id text NOT NULL UNIQUE,
   bank_account_fingerprint text NOT NULL,
