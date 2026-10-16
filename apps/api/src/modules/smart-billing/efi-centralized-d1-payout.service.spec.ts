@@ -1,13 +1,16 @@
-import { PrismaClient } from '@prisma/client';
 import { createHash } from 'crypto';
 import { EfiCentralizedD1PayoutService } from './efi-centralized-d1-payout.service';
 
-jest.mock('@prisma/client', () => ({
-  PrismaClient: jest.fn().mockImplementation(() => ({
+jest.mock('@prisma/client', () => {
+  const prismaForTest = {
     partner: { findUnique: jest.fn() },
     $transaction: jest.fn()
-  }))
-}));
+  };
+  return {
+    PrismaClient: jest.fn().mockImplementation(() => prismaForTest),
+    __mockPrisma: prismaForTest
+  };
+});
 
 const envKeys = [
   'NEXTGEN_CENTRALIZED_D1_ENABLED','NEXTGEN_BANK_CALENDAR_SOURCE',
@@ -48,7 +51,7 @@ describe('NextGen centralized D+1 payout service — non-movement safety', () =>
     process.env.EFI_OF_FAVORECIDO_AGENCIA=beneficiary[2];
     process.env.EFI_OF_FAVORECIDO_CONTA=beneficiary[3];
 
-    db = (PrismaClient as jest.Mock).mock.results[0].value;
+    db = (jest.requireMock('@prisma/client') as any).__mockPrisma;
     db.partner.findUnique.mockReset().mockResolvedValue({id:'partner-a',slug:'partner-demo'});
     db.$transaction.mockReset();
     tx = { $queryRaw: jest.fn(), $executeRaw: jest.fn().mockResolvedValue(1) };
