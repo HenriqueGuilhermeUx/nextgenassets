@@ -30,6 +30,16 @@ export class EfiAutomaticRecurrenceController {
     return this.bridge.startSandboxAuthorization(body?.partnerSlug, id, body?.payer);
   }
 
+  @Post('intents/:id/sync-sandbox')
+  syncBankStatus(@Param('id') id: string, @Body() body: any) {
+    return this.bridge.syncVerifiedBankAuthorization(body?.partnerSlug, id);
+  }
+
+  @Post('cycles/plan')
+  planCycle(@Body() body: any) {
+    return this.bridge.planNextCycle(body?.partnerSlug, body?.recurrenceId);
+  }
+
   @Post('cycles/preview')
   previewCycle(@Body() body: any) {
     return this.bridge.previewNextCycle(body?.partnerSlug, body?.recurrenceId);
