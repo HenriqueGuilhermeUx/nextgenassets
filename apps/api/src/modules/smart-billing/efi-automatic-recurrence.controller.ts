@@ -40,6 +40,11 @@ export class EfiAutomaticRecurrenceController {
     return this.bridge.planNextCycle(body?.partnerSlug, body?.recurrenceId);
   }
 
+  @Post('cycles/plan-due')
+  planDueCycles(@Body() body: any) {
+    return this.bridge.planDueCycles(body?.partnerSlug, body?.asOf, body?.limit);
+  }
+
   @Post('cycles/preview')
   previewCycle(@Body() body: any) {
     return this.bridge.previewNextCycle(body?.partnerSlug, body?.recurrenceId);
