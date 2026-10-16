@@ -158,9 +158,9 @@ export function toEfiOpenFinanceAutomaticPayment(
   };
 }
 
-/** Stable key for DB uniqueness per month. Actual idempotency requires a UNIQUE DB constraint + transaction lock. */
+/** Stable key for DB uniqueness per due-date cycle. Actual idempotency requires a UNIQUE DB constraint + transaction lock. */
 export function recurrenceCycleKey(r: NextgenRecurrenceSnapshot): string {
   requireBoundedRecurrence(r);
-  const competence = r.dueDate.slice(0, 7);
+  const competence = r.dueDate;
   return createHash('sha256').update(`${r.tenantId}|efi-auto|${r.id}|${competence}`).digest('hex');
 }
