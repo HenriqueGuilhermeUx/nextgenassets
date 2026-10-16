@@ -43,7 +43,7 @@ export class EfiAutomaticRecurrenceService {
     if (!recurrenceId || recurrenceId.length > 130) throw new BadRequestException('INVALID_RECURRENCE_ID');
     const rows = await prisma.$queryRaw<any[]>`
       SELECT r.id, r.partner_id, r.customer_id, r.title, r.amount_brl,
-             r.frequency, r.status, r.start_date, r.end_date, r.next_charge_date
+             r.frequency, r.status, r.start_date, r.end_date, r.next_charge_date, r.due_day
       FROM smart_billing_recurrences r
       WHERE r.partner_id = ${partnerId} AND r.id = ${recurrenceId}
       LIMIT 1
@@ -360,20 +360,59 @@ export class EfiAutomaticRecurrenceService {
       maxPaymentCents: Number(a.amount_cap_cents),
       allowRetry: Boolean(a.retry_allowed)
     });
-    const id = `eac_${randomUUID().replace(/-/g, '')}`;
+    const cycleId = 'eac_' + randomUUID().replace(/-/g, '');
     const key = recurrenceCycleKey(data);
-    const created = await prisma.$queryRaw<any[]>`
-      INSERT INTO ng_efi_auto_cycles
-        (id, partner_id, recurrence_id, authorization_id, due_date, amount_cents, state, idempotency_key)
-      VALUES
-        (${id}, ${company.id}, ${recurrenceId}, ${a.id}, ${data.dueDate}::date,
-         ${data.amountCents}::bigint, 'PLANNED', ${key})
-      ON CONFLICT (partner_id,recurrence_id,due_date) DO NOTHING
-      RETURNING id, due_date, state
-    `;
-    if (!created[0]) return { success: true, existing: true, cycleKey: key, message: 'Cycle already planned' };
-    await this.audit(company.id, recurrenceId, id, 'EFI_AUTO_CYCLE_PLANNED', 'admin', {});
-    return { success: true, existing: false, cycleId: id, cycleKey: key, status: 'PLANNED' };
+    const first = new Date(data.dueDate + 'T12:00:00.000Z');
+    const day = Number(recurrence.due_day);
+    if (!Number.isInteger(day) || day < 1 || day > 28) {
+      throw new ConflictException('RECURRENCE_DUE_DAY_INVALID');
+    }
+    const nextDate = new Date(Date.UTC(first.getUTCFullYear(),
+      first.getUTCMonth() + 1, day, 12, 0, 0)).toISOString().slice(0, 10);
+
+    // Lock the same existing recurrence row used by legacy Smart Billing.
+    // Insert cycle and advance the due pointer in ONE database transaction.
+    const outcome = await prisma.$transaction(async tx => {
+      const locked = await tx.$queryRaw<any[]>`
+        SELECT id, status, next_charge_date
+        FROM smart_billing_recurrences
+        WHERE id = ${recurrenceId} AND partner_id = ${company.id}
+        FOR UPDATE
+      `;
+      if (!locked[0] || locked[0].status !== 'ACTIVE' ||
+          this.isoDate(locked[0].next_charge_date) !== data.dueDate) {
+        throw new ConflictException('RECURRENCE_ADVANCED_OR_PAUSED');
+      }
+      const created = await tx.$queryRaw<any[]>`
+        INSERT INTO ng_efi_auto_cycles
+          (id, partner_id, recurrence_id, authorization_id,
+           due_date, amount_cents, state, idempotency_key)
+        VALUES
+          (${cycleId}, ${company.id}, ${recurrenceId}, ${a.id},
+           ${data.dueDate}::date, ${data.amountCents}::bigint,
+           'PLANNED', ${key})
+        ON CONFLICT (partner_id, recurrence_id, due_date) DO NOTHING
+        RETURNING id
+      `;
+      await tx.$executeRaw`
+        UPDATE smart_billing_recurrences
+        SET next_charge_date=${nextDate}::date, updated_at=now()
+        WHERE id=${recurrenceId} AND partner_id=${company.id}
+          AND next_charge_date=${data.dueDate}::date
+      `;
+      return { created: Boolean(created[0]), cycleId: created[0]?.id || null };
+    });
+
+    if (outcome.created) {
+      await this.audit(company.id, recurrenceId, cycleId,
+        'EFI_AUTO_CYCLE_PLANNED', 'admin', { nextDueDate: nextDate });
+    }
+    return {
+      success: true, existing: !outcome.created,
+      cycleId: outcome.cycleId, cycleKey: key,
+      status: 'PLANNED', nextChargeDate: nextDate,
+      message: 'Scheduled in NextGen only; no Pix sent to Efí.'
+    };
   }
 
   /**
