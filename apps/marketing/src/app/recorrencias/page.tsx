@@ -195,16 +195,17 @@ export default function RecorrenciasPage() {
 
         <section className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-blue-300/20 bg-blue-300/10 p-6">
           <div>
-            <h2 className="text-xl font-black">Pix Automático com autorização bancária</h2>
+            <h2 className="text-xl font-black">Pix Automático com autorização bancária e repasse D+1</h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-white/60">
-              Veja como ficará a ativação de cobranças recorrentes pela Efí.
-              A jornada ainda está em homologação: nenhum débito é realizado pela prévia.
+              O pagador autoriza uma vez no banco. Após o recebimento confirmado na conta NextGen e a conciliação,
+              a empresa tem crédito previsto em D+1 dia útil bancário. Jornada ainda em homologação, sem débitos pela prévia.
             </p>
           </div>
           <a href="/recorrencias/pix-automatico"
             className="rounded-xl border border-blue-300/40 px-5 py-3 text-sm font-black text-blue-100 hover:bg-blue-300/10">
             Ver fluxo de ativação →
           </a>
+          <a href="/pix-automatico" className="text-sm font-bold text-blue-200 underline underline-offset-4">Entenda o repasse D+1</a>
         </section>
 
         <section className="mt-8 grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
