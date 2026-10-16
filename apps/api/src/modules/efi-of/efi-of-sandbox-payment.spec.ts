@@ -47,7 +47,7 @@ describe('Efí automatic Pix sandbox sender - safe no-network unit tests', () =>
     });
     const response = await service.sendAutomaticPaymentSandbox(request);
     expect(response).toEqual({ status: 'pendente', endToEndId: 'TEST_REF' });
-    const opts = spy.mock.calls[0][0];
+    const opts = spy.mock.calls[0][0] as any;
     expect(opts.path).toBe('/v1/pagamentos-automaticos/pix');
     expect(opts.extraHeaders['x-idempotency-key']).toBe(request.idempotencyKey);
     expect(opts.body.pagamento.valor).toBe('350.00');
