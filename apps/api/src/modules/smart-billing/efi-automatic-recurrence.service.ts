@@ -567,6 +567,49 @@ export class EfiAutomaticRecurrenceService {
     }
   }
 
+  /**
+   * Reconcile a previously submitted sandbox cycle with Efí API status.
+   * 'aceito' is still NOT evidence of receivable settlement in the NextGen
+   * ledger. Settlement requires an independent incoming Pix confirmation.
+   */
+  async refreshSandboxCycleStatus(partnerSlug: string, cycleId: string) {
+    this.assertSandbox();
+    const company = await this.partner(partnerSlug);
+    const found = await prisma.$queryRaw<any[]>`
+      SELECT c.id,c.partner_id,c.recurrence_id,c.due_date,c.state,
+             c.payment_reference,a.provider_adhesion_id
+      FROM ng_efi_auto_cycles c
+      JOIN ng_efi_auto_authorizations a
+        ON a.id=c.authorization_id AND a.partner_id=c.partner_id
+      WHERE c.id=${cycleId} AND c.partner_id=${company.id}
+      LIMIT 1
+    `;
+    const cycle = found[0];
+    if (!cycle) throw new NotFoundException('EFI_CYCLE_NOT_FOUND');
+    if (!cycle.payment_reference || !cycle.provider_adhesion_id) {
+      throw new ConflictException('EFI_BANK_PAYMENT_REFERENCE_NOT_AVAILABLE');
+    }
+    const result = await this.efi.getAutomaticSandboxPaymentStatus({
+      adhesionId: cycle.provider_adhesion_id,
+      endToEndId: cycle.payment_reference,
+      requestedDate: this.isoDate(cycle.due_date)
+    });
+    const next = ['rejeitado','cancelado'].includes(result.status) ? 'FAILED'
+      : ['pendente','agendado','aceito'].includes(result.status) ? 'SCHEDULED'
+      : 'REVIEW';
+    const updated = await prisma.$queryRaw<any[]>`
+      UPDATE ng_efi_auto_cycles SET state=${next}, updated_at=now()
+      WHERE id=${cycleId} AND partner_id=${company.id}
+        AND state IN ('SCHEDULED','REVIEW')
+      RETURNING id
+    `;
+    if (!updated[0]) throw new ConflictException('EFI_CYCLE_NOT_REFRESHABLE');
+    await this.audit(company.id, cycle.recurrence_id, cycleId,
+      'EFI_AUTO_SANDBOX_STATUS_CHECKED', 'bank-query', { bankStatus: result.status, nextState: next });
+    return { success: true, sandbox: true, cycleId, status: next,
+      bankStatus: result.status, settled: false };
+  }
+
   async listCycles(partnerSlug: string) {
     this.assertEnabled();
     const company = await this.partner(partnerSlug);
