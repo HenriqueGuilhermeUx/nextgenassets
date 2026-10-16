@@ -84,16 +84,37 @@ export class SmartBillingRecurrencesController {
     const today = body.today || new Date().toISOString().slice(0, 10);
     const limit = Math.min(Math.max(Number(body.limit) || 50, 1), 200);
 
-    const rows = await prisma.$queryRaw<any[]>`
-      SELECT r.*, c.name AS customer_name, c.email AS customer_email, c.phone AS customer_phone
-      FROM smart_billing_recurrences r
-      JOIN smart_billing_customers c ON c.id = r.customer_id
-      WHERE r.partner_id = ${partner.id}
-        AND r.status = 'ACTIVE'
-        AND r.next_charge_date <= ${today}::date
-      ORDER BY r.next_charge_date ASC
-      LIMIT ${limit}
-    `;
+    // Do not issue a manual Pix invoice for a recurrence with a registered
+    // bank-authorization intent. The fallback must be a separate confirmed action.
+    // This branch only takes effect after enabling the feature AND applying the
+    // accompanying staging migration; the legacy behavior remains unchanged
+    // while the flag is off.
+    const automaticOptIn = process.env.NEXTGEN_EFI_AUTOMATIC_ENABLED === 'true';
+    const rows = automaticOptIn
+      ? await prisma.$queryRaw<any[]>`
+          SELECT r.*, c.name AS customer_name, c.email AS customer_email, c.phone AS customer_phone
+          FROM smart_billing_recurrences r
+          JOIN smart_billing_customers c ON c.id = r.customer_id
+          WHERE r.partner_id = ${partner.id}
+            AND r.status = 'ACTIVE'
+            AND r.next_charge_date <= ${today}::date
+            AND NOT EXISTS (
+              SELECT 1 FROM ng_efi_auto_authorizations a
+              WHERE a.partner_id = r.partner_id AND a.recurrence_id = r.id
+            )
+          ORDER BY r.next_charge_date ASC
+          LIMIT ${limit}
+        `
+      : await prisma.$queryRaw<any[]>`
+          SELECT r.*, c.name AS customer_name, c.email AS customer_email, c.phone AS customer_phone
+          FROM smart_billing_recurrences r
+          JOIN smart_billing_customers c ON c.id = r.customer_id
+          WHERE r.partner_id = ${partner.id}
+            AND r.status = 'ACTIVE'
+            AND r.next_charge_date <= ${today}::date
+          ORDER BY r.next_charge_date ASC
+          LIMIT ${limit}
+        `;
 
     if (dryRun) {
       return {
