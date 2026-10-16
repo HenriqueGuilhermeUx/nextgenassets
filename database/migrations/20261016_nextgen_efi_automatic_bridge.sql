@@ -96,7 +96,8 @@ CREATE TABLE IF NOT EXISTS ng_efi_auto_provider_events (
 );
 
 -- Defensive default: no privileges to PUBLIC.
-REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC;
+REVOKE ALL ON TABLE ng_efi_auto_authorizations, ng_efi_auto_cycles,
+  ng_efi_auto_attempts, ng_efi_auto_audit, ng_efi_auto_provider_events FROM PUBLIC;
 -- IMPORTANT: Do not enable unrestricted client access through database roles.
 -- Access to these tables is intended through authenticated server-only APIs.
 
