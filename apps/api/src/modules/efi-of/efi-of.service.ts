@@ -323,6 +323,40 @@ export class EfiOFService {
   }
 
   /**
+   * Official Efí API lookup (server-to-server over verified TLS).
+   * Unlike the legacy exploratory getAdesao(), this requires inicio/fim and
+   * matches the exact external ID. A missing match is NEVER an authorization.
+   * Does not follow pagination: absent entries fail closed for review.
+   */
+  async getAutomaticAdhesionOfficial(externalId: string, createdAt: Date):
+    Promise<{ status: string; externalId: string }> {
+    if (!externalId || externalId.length > 200 || !/^urn:efi:[a-zA-Z0-9-]+$/.test(externalId)) {
+      throw new Error('INVALID_EFI_ADHESION_ID');
+    }
+    if (!(createdAt instanceof Date) || !Number.isFinite(createdAt.getTime())) {
+      throw new Error('INVALID_EFI_ADHESION_CREATION_DATE');
+    }
+    const from = new Date(createdAt);
+    from.setUTCDate(from.getUTCDate() - 1);
+    const to = new Date(createdAt);
+    to.setUTCDate(to.getUTCDate() + 1);
+    const inicio = from.toISOString().slice(0, 10);
+    const fim = to.toISOString().slice(0, 10);
+    const token = await this.ensureToken();
+    const res = await this.mTLSRequest({
+      method: 'GET',
+      path: `/v1/pagamentos-automaticos/adesao?inicio=${inicio}&fim=${fim}`,
+      extraHeaders: { Authorization: `Bearer ${token}` }
+    });
+    if (res.status < 200 || res.status >= 300 || !Array.isArray(res.data?.adesoes)) {
+      throw new Error(`EFI_ADHESION_QUERY_HTTP_${res.status}`);
+    }
+    const match = res.data.adesoes.find((x: any) => x?.identificadorAdesao === externalId);
+    if (!match) throw new Error('EFI_ADHESION_NOT_FOUND_IN_VERIFIED_QUERY');
+    return { status: String(match.status || '').toLowerCase(), externalId };
+  }
+
+  /**
    * Busca status de uma adesão. A Efí criou por POST /adesao, mas a consulta não usa path param.
    * Esta função tenta as variações por query string e retorna qual funcionou.
    */
