@@ -341,6 +341,51 @@ export class EfiAutomaticRecurrenceService {
     return { success: true, existing: false, cycleId: id, cycleKey: key, status: 'PLANNED' };
   }
 
+  /**
+   * Batch planning only, internal authenticated operations endpoint.
+   * Does NOT initiate debits, move the recurrence pointer, or mark charges paid.
+   * Authorization must already be independently verified by Efí.
+   */
+  async planDueCycles(partnerSlug: string, asOf?: string, batchSize?: number) {
+    this.assertEnabled();
+    const company = await this.partner(partnerSlug);
+    const date = asOf || new Date().toISOString().slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date + 'T00:00:00Z')))
+      throw new BadRequestException('INVALID_AS_OF_DATE');
+    const limit = Math.min(100, Math.max(1, Number(batchSize) || 25));
+    const due = await prisma.$queryRaw<any[]>`
+      SELECT r.id
+      FROM smart_billing_recurrences r
+      INNER JOIN ng_efi_auto_authorizations a
+        ON a.partner_id = r.partner_id AND a.recurrence_id = r.id
+      WHERE r.partner_id = ${company.id}
+        AND r.status = 'ACTIVE'
+        AND r.next_charge_date <= ${date}::date
+        AND a.status = 'AUTHORIZED' AND a.verified_at IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM ng_efi_auto_cycles c
+          WHERE c.partner_id = r.partner_id
+            AND c.recurrence_id = r.id
+            AND c.due_date = r.next_charge_date
+        )
+      ORDER BY r.next_charge_date ASC
+      LIMIT ${limit}
+    `;
+    const planned: any[] = [];
+    const errors: any[] = [];
+    for (const row of due) {
+      try {
+        const result = await this.planNextCycle(partnerSlug, row.id);
+        planned.push({ recurrenceId: row.id, ...result });
+      } catch (error: any) {
+        errors.push({ recurrenceId: row.id, code: error?.message || 'PLANNING_ERROR' });
+      }
+    }
+    return { success: errors.length === 0, asOf: date, eligible: due.length,
+      planned: planned.length, failed: errors.length, cycles: planned, errors,
+      message: 'Only records planned. No Pix sent; no bank debit performed.' };
+  }
+
   async listCycles(partnerSlug: string) {
     this.assertEnabled();
     const company = await this.partner(partnerSlug);
