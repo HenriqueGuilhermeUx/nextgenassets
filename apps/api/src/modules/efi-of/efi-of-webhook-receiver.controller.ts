@@ -23,7 +23,7 @@ export class EfiOFWebhookReceiverController {
    */
   private assertHmac(req: Request) {
     const expected = process.env.EFI_OF_WEBHOOK_HMAC;
-    if (!expected || expected.length < 32) {
+    if (!expected || expected.length < 32 || /SUBSTITUA|PLACEHOLDER|TROCAR|EXAMPLE|XXXXX/i.test(expected)) {
       throw new ServiceUnavailableException('EFI_WEBHOOK_AUTH_NOT_CONFIGURED');
     }
     const hmac = req.query?.hmac;
