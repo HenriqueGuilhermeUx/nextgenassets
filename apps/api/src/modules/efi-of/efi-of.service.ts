@@ -10,6 +10,7 @@ import * as https from 'https';
 import { loadEfiCaBundle } from './efi-ca-bundle';
 import { buildEfiOFConfig, EfiOFConfig } from '../../config/efi-of.config';
 import { parseVerifiedEfiAdhesion, VerifiedAdhesionTerms } from './efi-automatic-consent-validation';
+import { parseEfiAutomaticPaymentQuery, VerifiedAutomaticPaymentStatus } from './efi-automatic-payment-status';
 
 @Injectable()
 export class EfiOFService {
@@ -422,13 +423,15 @@ export class EfiOFService {
     adhesionId: string;
     endToEndId: string;
     requestedDate: string;
-  }): Promise<{ status: string; endToEndId: string }> {
+    expectedAmountCents: number;
+  }): Promise<VerifiedAutomaticPaymentStatus> {
     if (new URL(this.cfg.apiUrl).hostname !== 'openfinance-h.api.efipay.com.br' ||
         process.env.NEXTGEN_EFI_AUTOMATIC_SANDBOX_REQUESTS !== 'true') {
       throw new Error('EFI_SANDBOX_PAYMENT_QUERY_DISABLED');
     }
     if (!/^urn:efi:[a-zA-Z0-9-]+$/.test(input.adhesionId) ||
         !/^[A-Za-z0-9-]{8,120}$/.test(input.endToEndId) ||
+        !Number.isSafeInteger(input.expectedAmountCents) || input.expectedAmountCents <= 0 ||
         !/^\d{4}-\d{2}-\d{2}$/.test(input.requestedDate)) {
       throw new Error('INVALID_EFI_SANDBOX_STATUS_LOOKUP');
     }
@@ -442,16 +445,11 @@ export class EfiOFService {
     if (result.status < 200 || result.status >= 300) {
       throw new Error(`EFI_SANDBOX_STATUS_HTTP_${result.status}`);
     }
-    const roots = Array.isArray(result.data) ? result.data : [result.data];
-    const found = roots.find((entry: any) => entry?.identificadorAdesao === input.adhesionId &&
-      Array.isArray(entry?.pagamentos) &&
-      entry.pagamentos.some((p: any) => p?.endToEndId === input.endToEndId));
-    if (!found) throw new Error('EFI_SANDBOX_PAYMENT_NOT_FOUND');
-    const payment = found.pagamentos.find((p: any) => p?.endToEndId === input.endToEndId);
-    if (!payment || typeof payment.status !== 'string') {
-      throw new Error('EFI_SANDBOX_PAYMENT_UNVERIFIED_STATUS');
-    }
-    return { status: payment.status.toLowerCase(), endToEndId: input.endToEndId };
+    return parseEfiAutomaticPaymentQuery(result.data, {
+      adhesionId: input.adhesionId,
+      endToEndId: input.endToEndId,
+      amountCents: input.expectedAmountCents
+    });
   }
 
   /**
