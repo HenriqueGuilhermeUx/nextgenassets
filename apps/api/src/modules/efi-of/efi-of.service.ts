@@ -9,6 +9,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as https from 'https';
 import { loadEfiCaBundle } from './efi-ca-bundle';
 import { buildEfiOFConfig, EfiOFConfig } from '../../config/efi-of.config';
+import { parseVerifiedEfiAdhesion, VerifiedAdhesionTerms } from './efi-automatic-consent-validation';
 
 @Injectable()
 export class EfiOFService {
@@ -329,7 +330,7 @@ export class EfiOFService {
    * Does not follow pagination: absent entries fail closed for review.
    */
   async getAutomaticAdhesionOfficial(externalId: string, createdAt: Date):
-    Promise<{ status: string; externalId: string }> {
+    Promise<VerifiedAdhesionTerms> {
     if (!externalId || externalId.length > 200 || !/^urn:efi:[a-zA-Z0-9-]+$/.test(externalId)) {
       throw new Error('INVALID_EFI_ADHESION_ID');
     }
@@ -353,7 +354,7 @@ export class EfiOFService {
     }
     const match = res.data.adesoes.find((x: any) => x?.identificadorAdesao === externalId);
     if (!match) throw new Error('EFI_ADHESION_NOT_FOUND_IN_VERIFIED_QUERY');
-    return { status: String(match.status || '').toLowerCase(), externalId };
+    return parseVerifiedEfiAdhesion(match);
   }
 
   /**
