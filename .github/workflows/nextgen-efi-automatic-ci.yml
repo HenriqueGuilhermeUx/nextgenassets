@@ -37,6 +37,7 @@ jobs:
       - name: Efí authorization and sandbox tests
         working-directory: apps/api
         run: |
+          npx jest --runInBand centralized-d1-policy
           npx jest --runInBand efi-automatic-consent-validation
           npx jest --runInBand efi-automatic-recurrence.bridge
           npx jest --runInBand efi-of-sandbox-payment
