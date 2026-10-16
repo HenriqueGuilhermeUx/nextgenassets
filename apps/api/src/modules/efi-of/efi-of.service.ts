@@ -358,6 +358,63 @@ export class EfiOFService {
   }
 
   /**
+   * Submit exactly one scheduled payment to Efí SANDBOX only.
+   * HTTP 200/201 means submitted, NOT settled or paid.
+   * Caller must atomically claim its cycle before invoking this method.
+   */
+  async sendAutomaticPaymentSandbox(input: {
+    adhesionId: string;
+    amountCents: number;
+    dueDate: string;
+    idempotencyKey: string;
+    description: string;
+    cityIbge?: string;
+  }): Promise<{ status: string; endToEndId: string | null }> {
+    const server = new URL(this.cfg.apiUrl);
+    if (server.hostname !== 'openfinance-h.api.efipay.com.br' ||
+        process.env.NEXTGEN_EFI_AUTOMATIC_SANDBOX_PAYMENTS !== 'true') {
+      throw new Error('EFI_SANDBOX_PAYMENTS_DISABLED');
+    }
+    if (!/^urn:efi:[a-zA-Z0-9-]+$/.test(input.adhesionId) ||
+        !Number.isSafeInteger(input.amountCents) || input.amountCents <= 0 ||
+        !/^\\d{4}-\\d{2}-\\d{2}$/.test(input.dueDate) ||
+        !/^[a-zA-Z0-9-]{32,128}$/.test(input.idempotencyKey)) {
+      throw new Error('INVALID_EFI_AUTOMATIC_PAYMENT_REQUEST');
+    }
+    const token = await this.ensureToken();
+    const payload = {
+      identificadorAdesao: input.adhesionId,
+      pagamento: {
+        valor: (input.amountCents / 100).toFixed(2),
+        data: input.dueDate,
+        ...(input.cityIbge ? { codigoCidadeIBGE: input.cityIbge } : {}),
+        infoPagador: input.description.slice(0, 120)
+      }
+    };
+    const res = await this.mTLSRequest({
+      method: 'POST',
+      path: '/v1/pagamentos-automaticos/pix',
+      body: payload,
+      extraHeaders: {
+        Authorization: `Bearer ${token}`,
+        'x-idempotency-key': input.idempotencyKey
+      }
+    });
+    if (res.status < 200 || res.status >= 300) {
+      throw new Error(`EFI_AUTOMATIC_SUBMIT_HTTP_${res.status}`);
+    }
+    const data = res.data;
+    if (!data || data.identificadorAdesao !== input.adhesionId ||
+        typeof data.status !== 'string') {
+      throw new Error('EFI_AUTOMATIC_PAYMENT_UNVERIFIED_RESPONSE');
+    }
+    return {
+      status: data.status.toLowerCase(),
+      endToEndId: typeof data.endToEndId === 'string' ? data.endToEndId : null
+    };
+  }
+
+  /**
    * Busca status de uma adesão. A Efí criou por POST /adesao, mas a consulta não usa path param.
    * Esta função tenta as variações por query string e retorna qual funcionou.
    */
