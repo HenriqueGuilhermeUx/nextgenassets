@@ -265,6 +265,82 @@ export class EfiAutomaticRecurrenceService {
     };
   }
 
+  /**
+   * Only provider HTTPS API confirmation may set the bank authorization status.
+   * No request body can mark an authorization as bank-authorized.
+   */
+  async syncVerifiedBankAuthorization(partnerSlug: string, authorizationId: string) {
+    this.assertSandbox();
+    const company = await this.partner(partnerSlug);
+    const rows = await prisma.$queryRaw<any[]>`
+      SELECT * FROM ng_efi_auto_authorizations
+      WHERE partner_id = ${company.id} AND id = ${authorizationId} LIMIT 1
+    `;
+    const a = rows[0];
+    if (!a || !a.provider_adhesion_id) throw new NotFoundException('EFI_BANK_ADHESION_NOT_CREATED');
+    const bank = await this.efi.getAutomaticAdhesionOfficial(a.provider_adhesion_id, new Date(a.created_at));
+    const map: Record<string, string> = {
+      'autorizado': 'AUTHORIZED', 'authorized': 'AUTHORIZED', 'ativo': 'AUTHORIZED', 'ativa': 'AUTHORIZED',
+      'revogado': 'REVOKED', 'revoked': 'REVOKED', 'cancelado': 'REVOKED', 'cancelada': 'REVOKED',
+      'rejeitado': 'REJECTED', 'rejected': 'REJECTED',
+      'expirado': 'EXPIRED', 'expired': 'EXPIRED',
+      'pendente': 'AUTHORIZATION_PENDING', 'pending': 'AUTHORIZATION_PENDING'
+    };
+    const status = map[bank.status];
+    if (!status) throw new ServiceUnavailableException('UNKNOWN_EFI_BANK_AUTHORIZATION_STATUS');
+    const verifiedAt = status === 'AUTHORIZED' ? new Date() : null;
+    const updated = await prisma.$queryRaw<any[]>`
+      UPDATE ng_efi_auto_authorizations
+      SET status = ${status}, provider_status = ${bank.status},
+          verified_at = ${verifiedAt}, updated_at=now()
+      WHERE partner_id = ${company.id} AND id = ${authorizationId}
+        AND status NOT IN ('REVOKED','EXPIRED','REJECTED')
+      RETURNING *
+    `;
+    if (!updated[0]) throw new ConflictException('TERMINAL_AUTHORIZATION_CANNOT_BE_REACTIVATED');
+    await this.audit(company.id, a.recurrence_id, a.id, 'EFI_AUTO_AUTHORIZATION_VERIFIED', 'bank-query', { status });
+    return { success: true, authorization: this.redacted(updated[0]) };
+  }
+
+  /**
+   * Creates ONLY a planned cycle. Never sends Pix or marks a charge as paid.
+   * Unique DB constraint prevents double cycles under scheduler concurrency.
+   */
+  async planNextCycle(partnerSlug: string, recurrenceId: string) {
+    this.assertEnabled();
+    const company = await this.partner(partnerSlug);
+    const recurrence = await this.recurrence(company.id, recurrenceId);
+    const data = this.snapshot(recurrence, company.id, company.id);
+    const authRows = await prisma.$queryRaw<any[]>`
+      SELECT * FROM ng_efi_auto_authorizations
+      WHERE partner_id = ${company.id} AND recurrence_id = ${recurrenceId} LIMIT 1
+    `;
+    const a = authRows[0];
+    if (!a) throw new ConflictException('NO_EFI_AUTHORIZATION');
+    assertConsentEligibleForCycle(data, {
+      recurrenceId, tenantId: company.id,
+      status: a.status === 'AUTHORIZED' ? 'AUTHORIZED' : 'PENDING',
+      externalAdhesionId: a.provider_adhesion_id || undefined,
+      verifiedAt: a.verified_at ? new Date(a.verified_at).toISOString() : undefined,
+      maxPaymentCents: Number(a.amount_cap_cents),
+      allowRetry: Boolean(a.retry_allowed)
+    });
+    const id = `eac_${randomUUID().replace(/-/g, '')}`;
+    const key = recurrenceCycleKey(data);
+    const created = await prisma.$queryRaw<any[]>`
+      INSERT INTO ng_efi_auto_cycles
+        (id, partner_id, recurrence_id, authorization_id, due_date, amount_cents, state, idempotency_key)
+      VALUES
+        (${id}, ${company.id}, ${recurrenceId}, ${a.id}, ${data.dueDate}::date,
+         ${data.amountCents}::bigint, 'PLANNED', ${key})
+      ON CONFLICT (partner_id,recurrence_id,due_date) DO NOTHING
+      RETURNING id, due_date, state
+    `;
+    if (!created[0]) return { success: true, existing: true, cycleKey: key, message: 'Cycle already planned' };
+    await this.audit(company.id, recurrenceId, id, 'EFI_AUTO_CYCLE_PLANNED', 'admin', {});
+    return { success: true, existing: false, cycleId: id, cycleKey: key, status: 'PLANNED' };
+  }
+
   async listCycles(partnerSlug: string) {
     this.assertEnabled();
     const company = await this.partner(partnerSlug);
