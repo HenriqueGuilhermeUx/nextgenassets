@@ -45,6 +45,11 @@ export class EfiAutomaticRecurrenceController {
     return this.bridge.planDueCycles(body?.partnerSlug, body?.asOf, body?.limit);
   }
 
+  @Post('cycles/:id/submit-sandbox')
+  submitSandbox(@Param('id') id: string, @Body() body: any) {
+    return this.bridge.submitCycleSandbox(body?.partnerSlug, id);
+  }
+
   @Post('cycles/preview')
   previewCycle(@Body() body: any) {
     return this.bridge.previewNextCycle(body?.partnerSlug, body?.recurrenceId);
