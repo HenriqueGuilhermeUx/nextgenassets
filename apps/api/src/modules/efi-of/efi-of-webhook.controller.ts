@@ -19,7 +19,7 @@ export class EfiOFWebhookController {
 
   @Post()
   async handle(@Body() body: any, @Req() req: Request) {
-    logger.log(`📥 Efi OF webhook: ${JSON.stringify(body).substring(0, 500)}`);
+    logger.log('Efí Open Finance callback received (payload omitted)');
     return { received: true };
   }
 }
