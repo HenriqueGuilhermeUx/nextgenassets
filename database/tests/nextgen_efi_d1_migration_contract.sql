@@ -82,6 +82,28 @@ BEGIN
     RAISE EXCEPTION 'FAILED_TO_BLOCK_DUPLICATE_PAYOUT';
   EXCEPTION WHEN unique_violation THEN NULL; END;
 
+  -- A payment owned by merchant-alpha must not be allocatable to merchant-beta.
+  BEGIN
+    INSERT INTO ng_efi_central_receipts
+      (id,partner_id,cycle_id,incoming_e2e_id,bank_account_fingerprint,
+       bank_settled_at,bank_verified_at,gross_amount_cents,reconciliation_status,bank_evidence_ref)
+    VALUES
+      ('receipt-cross-tenant','merchant-beta','cycle-1','bank-e2e-cross',
+       'receiver-fingerprint',now(),now(),35000,'BANK_RECEIVED','bank-ledger-ref');
+    RAISE EXCEPTION 'FAILED_TO_BLOCK_CROSS_TENANT_RECEIPT';
+  EXCEPTION WHEN foreign_key_violation THEN NULL; END;
+
+  -- A payout owned by merchant-beta may not use merchant-alpha's receipt.
+  BEGIN
+    INSERT INTO ng_efi_central_payouts
+      (id,partner_id,receipt_id,base_business_date,scheduled_business_date,
+       calendar_source,calendar_version,amount_cents,idempotency_key,status)
+    VALUES
+      ('payout-cross-tenant','merchant-beta','receipt-1','2026-10-16','2026-10-19',
+       'VERIFIED_BANK_CALENDAR','test-calendar',34949,'payout-cross-idem','SCHEDULED');
+    RAISE EXCEPTION 'FAILED_TO_BLOCK_CROSS_TENANT_PAYOUT';
+  EXCEPTION WHEN foreign_key_violation THEN NULL; END;
+
   -- Bank confirmation cannot be asserted without verified outgoing evidence.
   BEGIN
     UPDATE ng_efi_central_payouts SET status='BANK_CONFIRMED'
