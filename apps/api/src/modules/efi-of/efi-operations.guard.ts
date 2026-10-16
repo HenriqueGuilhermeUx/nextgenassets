@@ -10,7 +10,7 @@ import { timingSafeEqual } from 'crypto';
 export class EfiOperationsGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const configured = process.env.NEXTGEN_ADMIN_TOKEN;
-    if (!configured || configured.length < 32) {
+    if (!configured || configured.length < 32 || /SUBSTITUA|PLACEHOLDER|TROCAR|EXAMPLE|XXXXX/i.test(configured)) {
       throw new ServiceUnavailableException('EFI_OPERATIONS_AUTH_NOT_CONFIGURED');
     }
     const req = context.switchToHttp().getRequest();
