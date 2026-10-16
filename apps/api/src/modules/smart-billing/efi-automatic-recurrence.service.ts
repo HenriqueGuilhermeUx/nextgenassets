@@ -2,6 +2,7 @@ import { ConflictException, Injectable, NotFoundException, ServiceUnavailableExc
 import { PrismaClient } from '@prisma/client';
 import { createHash, randomUUID } from 'crypto';
 import { EfiOFService } from '../efi-of/efi-of.service';
+import { assertVerifiedEfiAdhesionMatches } from '../efi-of/efi-automatic-consent-validation';
 import { assertConsentEligibleForCycle, NextgenRecurrenceSnapshot, VerifiedConsentSnapshot, recurrenceCycleKey } from './efi-automatic-recurrence.bridge';
 
 const prisma = new PrismaClient();
@@ -279,6 +280,24 @@ export class EfiAutomaticRecurrenceService {
     const a = rows[0];
     if (!a || !a.provider_adhesion_id) throw new NotFoundException('EFI_BANK_ADHESION_NOT_CREATED');
     const bank = await this.efi.getAutomaticAdhesionOfficial(a.provider_adhesion_id, new Date(a.requested_at || a.created_at));
+    // Bank-authorized terms must match this tenant's recorded authorization.
+    // A valid bank status with another payee/value/date is never sufficient.
+    const recurring = await this.recurrence(company.id, a.recurrence_id);
+    const snapshot = this.snapshot(recurring, company.id, company.id);
+    if (!snapshot.endsOn || !a.beneficiary_fingerprint) {
+      throw new ConflictException('EFI_EXPECTED_AUTHORIZATION_TERMS_MISSING');
+    }
+    assertVerifiedEfiAdhesionMatches(bank, {
+      providerId: a.provider_adhesion_id,
+      localReference: `nextgen-${snapshot.id}`,
+      amountCents: Number(a.amount_cap_cents),
+      interval: ({
+        DAILY: 'DIARIO', WEEKLY: 'SEMANAL', MONTHLY: 'MENSAL', YEARLY: 'ANUAL'
+      } as const)[snapshot.frequency],
+      startsOn: snapshot.startsOn,
+      expiresOn: snapshot.endsOn,
+      beneficiaryFingerprint: a.beneficiary_fingerprint
+    });
     const map: Record<string, string> = {
       'autorizado': 'AUTHORIZED', 'authorized': 'AUTHORIZED', 'ativo': 'AUTHORIZED', 'ativa': 'AUTHORIZED',
       'revogado': 'REVOKED', 'revoked': 'REVOKED', 'cancelado': 'REVOKED', 'cancelada': 'REVOKED',
