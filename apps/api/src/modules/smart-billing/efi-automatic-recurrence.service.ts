@@ -214,7 +214,7 @@ export class EfiAutomaticRecurrenceService {
         SET provider_adhesion_id = ${response.identificadorAdesao},
             redirect_uri = ${response.redirectURI},
             status = 'AUTHORIZATION_PENDING',
-            beneficiary_fingerprint = ${beneficiaryFingerprint},
+            requested_at = now(), beneficiary_fingerprint = ${beneficiaryFingerprint},
             updated_at = now()
         WHERE id = ${intent.id} AND partner_id = ${company.id} AND status='REQUESTING'
       `;
@@ -278,7 +278,7 @@ export class EfiAutomaticRecurrenceService {
     `;
     const a = rows[0];
     if (!a || !a.provider_adhesion_id) throw new NotFoundException('EFI_BANK_ADHESION_NOT_CREATED');
-    const bank = await this.efi.getAutomaticAdhesionOfficial(a.provider_adhesion_id, new Date(a.created_at));
+    const bank = await this.efi.getAutomaticAdhesionOfficial(a.provider_adhesion_id, new Date(a.requested_at || a.created_at));
     const map: Record<string, string> = {
       'autorizado': 'AUTHORIZED', 'authorized': 'AUTHORIZED', 'ativo': 'AUTHORIZED', 'ativa': 'AUTHORIZED',
       'revogado': 'REVOKED', 'revoked': 'REVOKED', 'cancelado': 'REVOKED', 'cancelada': 'REVOKED',
