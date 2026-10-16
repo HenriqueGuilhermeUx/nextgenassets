@@ -7,7 +7,7 @@ BEGIN;
 CREATE TABLE IF NOT EXISTS ng_efi_central_receipts (
   id text PRIMARY KEY,
   partner_id text NOT NULL,
-  cycle_id text NOT NULL REFERENCES ng_efi_auto_cycles(id),
+  cycle_id text NOT NULL,
   -- Incoming Pix to verified NextGen Efí bank account (never authorization/issuance id).
   incoming_e2e_id text NOT NULL UNIQUE,
   bank_account_fingerprint text NOT NULL,
@@ -29,7 +29,10 @@ CREATE TABLE IF NOT EXISTS ng_efi_central_receipts (
   CONSTRAINT ng_efi_central_receipts_net_positive
     CHECK(gross_amount_cents > provider_fee_cents + retained_fee_cents),
   CONSTRAINT ng_efi_central_receipts_status_check
-    CHECK(reconciliation_status IN ('BANK_RECEIVED','RECONCILED','HELD','DISPUTED'))
+    CHECK(reconciliation_status IN ('BANK_RECEIVED','RECONCILED','HELD','DISPUTED')),
+  CONSTRAINT ng_efi_receipts_cycle_tenant_fk FOREIGN KEY(cycle_id,partner_id)
+    REFERENCES ng_efi_auto_cycles(id,partner_id),
+  CONSTRAINT ng_efi_receipts_id_partner_unique UNIQUE(id,partner_id)
 );
 
 CREATE INDEX IF NOT EXISTS ng_efi_central_receipts_partner_status
@@ -38,7 +41,7 @@ CREATE INDEX IF NOT EXISTS ng_efi_central_receipts_partner_status
 CREATE TABLE IF NOT EXISTS ng_efi_central_payouts (
   id text PRIMARY KEY,
   partner_id text NOT NULL,
-  receipt_id text NOT NULL UNIQUE REFERENCES ng_efi_central_receipts(id),
+  receipt_id text NOT NULL UNIQUE,
   -- Date calculated by a validated BR banking holiday calendar (São Paulo timezone).
   base_business_date date NOT NULL,
   scheduled_business_date date NOT NULL,
@@ -64,7 +67,9 @@ CREATE TABLE IF NOT EXISTS ng_efi_central_payouts (
         AND bank_transfer_evidence_ref IS NOT NULL AND credited_at IS NOT NULL)
   ),
   CONSTRAINT ng_efi_central_payout_business_date_check
-    CHECK(scheduled_business_date > base_business_date)
+    CHECK(scheduled_business_date > base_business_date),
+  CONSTRAINT ng_efi_payout_receipt_tenant_fk FOREIGN KEY(receipt_id,partner_id)
+    REFERENCES ng_efi_central_receipts(id,partner_id)
 );
 
 CREATE INDEX IF NOT EXISTS ng_efi_central_payouts_partner_due
