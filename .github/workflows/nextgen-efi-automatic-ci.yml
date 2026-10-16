@@ -1,0 +1,47 @@
+name: NextGen Efí Automatic Bridge CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/**'
+      - 'database/migrations/20261016_nextgen_efi_automatic_bridge.sql'
+      - '.github/workflows/nextgen-efi-automatic-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  efi-automatic:
+    name: NestJS build and Efí safety unit tests
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'feature/nextgen-efi-auto-recurring-bridge'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      NODE_ENV: test
+      NEXTGEN_EFI_AUTOMATIC_ENABLED: 'false'
+      NEXTGEN_EFI_AUTOMATIC_SANDBOX_REQUESTS: 'false'
+      NEXTGEN_EFI_AUTOMATIC_SANDBOX_PAYMENTS: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Generate Prisma client
+        working-directory: apps/api
+        run: npx prisma generate
+      - name: Efí authorization and sandbox tests
+        working-directory: apps/api
+        run: |
+          npx jest --runInBand efi-automatic-consent-validation
+          npx jest --runInBand efi-automatic-recurrence.bridge
+          npx jest --runInBand efi-of-sandbox-payment
+          npx jest --runInBand efi-operations.guard
+          npx jest --runInBand efi-of-webhook-receiver.controller
+      - name: Build NestJS API
+        working-directory: apps/api
+        run: npm run build
