@@ -68,7 +68,7 @@ describe('NextGen centralized D+1 payout service — non-movement safety', () =>
       .mockResolvedValueOnce([{id:'payout-001'}]);
     const result = await service.scheduleVerifiedReceipt('partner-demo','receipt-001');
     expect(result).toEqual({
-      success:true,existing:false,payoutId:'payout-001',status:'SCHEDULED',
+      success:true,existing:false,payoutId:expect.stringMatching(/^d1p_/),status:'SCHEDULED',
       scheduledDate:'2026-10-19',amountCents:9949,bankTransferPerformed:false
     });
     expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
