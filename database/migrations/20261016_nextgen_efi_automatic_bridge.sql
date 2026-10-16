@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS ng_efi_auto_authorizations (
   provider text NOT NULL DEFAULT 'EFI_OF',
   provider_adhesion_id text,
   redirect_uri text,
+  requested_at timestamptz,
   status text NOT NULL DEFAULT 'DRAFT',
   amount_cap_cents bigint NOT NULL CHECK (amount_cap_cents > 0),
   retry_allowed boolean NOT NULL DEFAULT false,
