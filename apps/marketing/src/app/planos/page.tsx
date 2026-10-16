@@ -19,6 +19,18 @@ export default function PlanosPage() {
           <p className="mt-3 max-w-4xl text-white/65">O cliente paga pela operação de recebimentos, automação, cobrança e repasse. A NextGen não precisa virar pedágio em cada Pix.</p>
         </section>
 
+        <section className="mt-8 rounded-3xl border border-blue-300/20 bg-blue-300/10 p-6">
+          <h2 className="text-2xl font-black">Novo Pix Automático NextGen: repasse previsto em D+1 útil</h2>
+          <p className="mt-3 max-w-4xl text-sm leading-7 text-white/70">
+            No novo modelo centralizado, o Pix é recebido primeiro na conta NextGen.
+            Depois da confirmação bancária e conciliação, o crédito à empresa está previsto para o dia útil bancário seguinte.
+            A operação está em homologação e ainda não substitui os prazos dos contratos e planos atuais exibidos abaixo.
+          </p>
+          <a href="/pix-automatico" className="mt-4 inline-flex rounded-xl bg-blue-300 px-5 py-3 text-sm font-black text-slate-950">
+            Entenda o Pix Automático e D+1
+          </a>
+        </section>
+
         <div className="mt-10 grid gap-6 lg:grid-cols-4">
           {plans.map(([name, price, volume, payout, features]: any) => (
             <div key={name} className="rounded-3xl border border-white/10 bg-white/10 p-6">
@@ -36,8 +48,8 @@ export default function PlanosPage() {
 
         <section className="mt-10 rounded-3xl border border-blue-400/20 bg-blue-400/10 p-8">
           <h2 className="text-3xl font-black">Modelo de margem</h2>
-          <p className="mt-4 text-white/60">A margem vem da assinatura, dos recursos premium, do volume excedente e de pedidos de repasse antecipado. O agrupamento de repasses reduz custo operacional e torna o produto viável.</p>
-          <div className="mt-5 rounded-2xl bg-slate-950 p-5 text-sm text-emerald-200">Assinatura + recebimentos incluídos + repasse programado + antecipação opcional</div>
+          <p className="mt-4 text-white/60">A margem prevista vem da assinatura, dos recursos premium e do volume excedente. O Pix Automático terá condições próprias após homologação. O agrupamento de repasses reduz custo operacional e torna o produto viável.</p>
+          <div className="mt-5 rounded-2xl bg-slate-950 p-5 text-sm text-emerald-200">Assinatura + recebimentos incluídos + serviços operacionais adicionais</div>
         </section>
 
         <section className="mt-8 rounded-3xl border border-white/10 bg-white/10 p-8">
