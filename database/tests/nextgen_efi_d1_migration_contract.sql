@@ -42,6 +42,23 @@ BEGIN
   IF net <> 34949 THEN RAISE EXCEPTION 'INCORRECT_NET_AMOUNT: %', net; END IF;
 END $$;
 
+-- Verify the partner ownership FK BEFORE inserting the legitimate payout.
+-- Otherwise UNIQUE(receipt_id) may fail first and mask tenant isolation.
+DO $
+BEGIN
+  -- A payout owned by merchant-beta may not use merchant-alpha's receipt.
+  BEGIN
+    INSERT INTO ng_efi_central_payouts
+      (id,partner_id,receipt_id,base_business_date,scheduled_business_date,
+       calendar_source,calendar_version,amount_cents,idempotency_key,status)
+    VALUES
+      ('payout-cross-tenant','merchant-beta','receipt-1','2026-10-16','2026-10-19',
+       'VERIFIED_BANK_CALENDAR','test-calendar',34949,'payout-cross-idem','SCHEDULED');
+    RAISE EXCEPTION 'FAILED_TO_BLOCK_CROSS_TENANT_PAYOUT';
+  EXCEPTION WHEN foreign_key_violation THEN NULL; END;
+
+END $;
+
 INSERT INTO ng_efi_central_payouts
 (id,partner_id,receipt_id,base_business_date,scheduled_business_date,calendar_source,
  calendar_version,amount_cents,idempotency_key,status)
@@ -91,17 +108,6 @@ BEGIN
       ('receipt-cross-tenant','merchant-beta','cycle-1','bank-e2e-cross',
        'receiver-fingerprint',now(),now(),35000,'BANK_RECEIVED','bank-ledger-ref');
     RAISE EXCEPTION 'FAILED_TO_BLOCK_CROSS_TENANT_RECEIPT';
-  EXCEPTION WHEN foreign_key_violation THEN NULL; END;
-
-  -- A payout owned by merchant-beta may not use merchant-alpha's receipt.
-  BEGIN
-    INSERT INTO ng_efi_central_payouts
-      (id,partner_id,receipt_id,base_business_date,scheduled_business_date,
-       calendar_source,calendar_version,amount_cents,idempotency_key,status)
-    VALUES
-      ('payout-cross-tenant','merchant-beta','receipt-1','2026-10-16','2026-10-19',
-       'VERIFIED_BANK_CALENDAR','test-calendar',34949,'payout-cross-idem','SCHEDULED');
-    RAISE EXCEPTION 'FAILED_TO_BLOCK_CROSS_TENANT_PAYOUT';
   EXCEPTION WHEN foreign_key_violation THEN NULL; END;
 
   -- Bank confirmation cannot be asserted without verified outgoing evidence.
