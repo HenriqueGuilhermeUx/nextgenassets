@@ -193,6 +193,20 @@ export default function RecorrenciasPage() {
           </div>
         </section>
 
+        <section className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-blue-300/20 bg-blue-300/10 p-6">
+          <div>
+            <h2 className="text-xl font-black">Pix Automático com autorização bancária</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-white/60">
+              Veja como ficará a ativação de cobranças recorrentes pela Efí.
+              A jornada ainda está em homologação: nenhum débito é realizado pela prévia.
+            </p>
+          </div>
+          <a href="/recorrencias/pix-automatico"
+            className="rounded-xl border border-blue-300/40 px-5 py-3 text-sm font-black text-blue-100 hover:bg-blue-300/10">
+            Ver fluxo de ativação →
+          </a>
+        </section>
+
         <section className="mt-8 grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
           <div className="rounded-3xl border border-white/10 bg-white/10 p-6">
             <h2 className="text-2xl font-black text-emerald-300">Nova recorrência</h2>
