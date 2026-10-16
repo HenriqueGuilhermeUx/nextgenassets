@@ -14,10 +14,24 @@ permissions:
 
 jobs:
   efi-automatic:
-    name: NestJS build and Efí safety unit tests
+    name: NestJS build, bank policy and migration contract tests
     if: github.event_name == 'workflow_dispatch' || github.head_ref == 'feature/nextgen-efi-auto-recurring-bridge'
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 18
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ng_test
+          POSTGRES_PASSWORD: ng_ci_ephemeral_only
+          POSTGRES_DB: ng_bridge_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ng_test -d ng_bridge_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       NODE_ENV: test
       NEXTGEN_EFI_AUTOMATIC_ENABLED: 'false'
@@ -43,6 +57,19 @@ jobs:
           npx jest --runInBand efi-of-sandbox-payment
           npx jest --runInBand efi-operations.guard
           npx jest --runInBand efi-of-webhook-receiver.controller
+      - name: Validate Efí and D+1 migrations on ephemeral Postgres
+        env:
+          PGPASSWORD: ng_ci_ephemeral_only
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: ng_test
+          PGDATABASE: ng_bridge_ci
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+          psql -v ON_ERROR_STOP=1 -f database/migrations/20261016_nextgen_efi_automatic_bridge.sql
+          psql -v ON_ERROR_STOP=1 -f database/migrations/20261016_nextgen_centralized_d1_payout.sql
+          psql -v ON_ERROR_STOP=1 -f database/tests/nextgen_efi_d1_migration_contract.sql
       - name: Build NestJS API
         working-directory: apps/api
         run: npm run build
