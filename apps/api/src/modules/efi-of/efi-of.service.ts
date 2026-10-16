@@ -29,7 +29,7 @@ export class EfiOFService {
     return new https.Agent({
       pfx,
       passphrase: this.cfg.certPassphrase || '',
-      rejectUnauthorized: false
+      rejectUnauthorized: true
     });
   }
 
@@ -58,10 +58,8 @@ export class EfiOFService {
         pfx,
         passphrase: this.cfg.certPassphrase || '',
         ca,
-        rejectUnauthorized: false,
-        secureOptions: require('constants').SSL_OP_LEGACY_SERVER_CONNECT || 0,
-        ciphers: 'DEFAULT:@SECLEVEL=0',
-        servername: opts.hostname
+        rejectUnauthorized: true,
+                servername: opts.hostname
       }, () => {
         const tlsInfo = {
           authorized: socket.authorized,
@@ -75,8 +73,10 @@ export class EfiOFService {
           } : null
         };
 
-        if (!socket.authorized && !opts.hostname.includes('efi')) {
-          this.logger.warn(`⚠️ TLS não autorizado: ${socket.authorizationError}`);
+        if (!socket.authorized) {
+          socket.destroy();
+          resolve({ status: 0, error: 'EFI_TLS_PEER_NOT_AUTHORIZED' });
+          return;
         }
 
         const req = http.request({
@@ -136,9 +136,9 @@ export class EfiOFService {
     try {
       const isHomolog = url.hostname.includes('-h.');
       ca = loadEfiCaBundle(isHomolog);
-      this.logger.log(`🔐 mTLS CA bundle loaded (embutido): ${isHomolog ? 'homolog' : 'prod'} (${ca.length} bytes)`);
+      this.logger.log(`🔐 mTLS CA bundle loaded (${isHomolog ? 'homolog' : 'prod'})`);
     } catch (e: any) {
-      this.logger.warn(`⚠️ Erro ao carregar CA bundle Efi: ${e.message}`);
+      throw new Error('EFI_CA_BUNDLE_UNAVAILABLE');
     }
 
     const agent = new https.Agent({
@@ -149,9 +149,7 @@ export class EfiOFService {
       timeout: 60000,
       maxVersion: 'TLSv1.3',
       minVersion: 'TLSv1.2',
-      secureOptions: require('constants').SSL_OP_LEGACY_SERVER_CONNECT || 0,
-      ciphers: 'DEFAULT:@SECLEVEL=0',
-      rejectUnauthorized: false
+      rejectUnauthorized: true
     });
 
     return new Promise((resolve, reject) => {
@@ -176,7 +174,7 @@ export class EfiOFService {
         res.on('end', () => {
           const buffer = Buffer.concat(chunks);
           const data = buffer.toString('utf-8');
-          this.logger.log(`📥 Efi response: ${res.statusCode} (${buffer.length} bytes): ${data.substring(0, 200)}`);
+          this.logger.log(`Efí response status=${res.statusCode}, bytes=${buffer.length}`);
           try {
             const parsed = JSON.parse(data);
             resolve({ status: res.statusCode || 0, data: parsed, text: data });
@@ -228,7 +226,7 @@ export class EfiOFService {
     });
 
     if (res.status < 200 || res.status >= 300) {
-      throw new Error(`Efi OAuth error: ${res.status} - ${res.text}`);
+      throw new Error(`EFI_OAUTH_HTTP_${res.status}`);
     }
 
     const data = res.data;
@@ -262,9 +260,11 @@ export class EfiOFService {
     expiracao?: string;
     descricao?: string;
     permiteRetentativa?: boolean;
+    idProprio?: string;
+    idempotencyKey?: string;
   }): Promise<{ identificadorAdesao: string; redirectURI: string }> {
     const token = await this.ensureToken();
-    const idempotencyKey = require('crypto').randomUUID();
+    const idempotencyKey = opts.idempotencyKey || require('crypto').randomUUID();
 
     const body = {
       pagador: {
@@ -286,9 +286,12 @@ export class EfiOFService {
       assinatura: {
         expiracao: opts.expiracao || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         descricao: opts.descricao || 'Pagamento NextGen Assets',
-        idProprio: `nextgen-${Date.now()}`,
+        idProprio: opts.idProprio || `nextgen-${Date.now()}`,
         configuracao: {
           automatico: {
+            ...(opts.valorFixo ? { valorFixo: opts.valorFixo } : {}),
+            ...(opts.valorMinimo ? { valorMinimo: opts.valorMinimo } : {}),
+            ...(opts.valorMaximo ? { valorMaximo: opts.valorMaximo } : {}),
             intervalo: opts.intervalo,
             dataInicio: opts.dataInicio,
             permiteRetentativa: opts.permiteRetentativa ?? false
@@ -308,7 +311,7 @@ export class EfiOFService {
     });
 
     if (res.status < 200 || res.status >= 300) {
-      throw new Error(`Efi createConsent error: ${res.status} - ${res.text}`);
+      throw new Error(`EFI_ADHESION_HTTP_${res.status}`);
     }
 
     const data = res.data;
@@ -401,7 +404,7 @@ export class EfiOFService {
     });
 
     if (res.status < 200 || res.status >= 300) {
-      throw new Error(`Efi initiatePayment error: ${res.status} - ${res.text}`);
+      throw new Error(`EFI_PAYMENT_HTTP_${res.status}`);
     }
 
     const data = res.data;
@@ -416,7 +419,7 @@ export class EfiOFService {
   async testConnection(): Promise<{ ok: boolean; token?: string; error?: string }> {
     try {
       const token = await this.refreshToken();
-      return { ok: true, token: token.substring(0, 30) + '...' };
+      return { ok: Boolean(token) };
     } catch (err: any) {
       return { ok: false, error: err.message };
     }
