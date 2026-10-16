@@ -73,6 +73,36 @@ npm run build
 
 Rodar build Next.js para `apps/marketing`. CI tem de ficar verde antes do merge.
 
+## Progresso recente — 16/10/2026
+
+- O parser da consulta oficial de adesão agora compara, antes de autorizar o contrato, `identificadorAdesao`, `idProprio`, favorecido por fingerprint, valor fixo, intervalo, primeira data e expiração. Divergências falham fechado.
+- O cadastro de recorrência atual passou a respeitar `months` (1–120) e persistir `end_date`. O agendador de Pix manual não deve gerar depois de `end_date`.
+- No bridge Efí, o primeiro vencimento, frequência e expiração são fixados no registro da adesão; alterações posteriores invalidam a elegibilidade.
+- O planner passa o `next_charge_date` para o mês seguinte **na mesma transação** em que registra o ciclo, sob `FOR UPDATE` e índice único por contrato/empresa/data.
+- Existe envio de um ciclo para a **sandbox Efí somente**, com trava de estado, tentativa única, idempotência, consulta bancária recente, status `SCHEDULED` ou `REVIEW` e **nunca `SETTLED` por HTTP 200**. Exige uma terceira flag `NEXTGEN_EFI_AUTOMATIC_SANDBOX_PAYMENTS=true`.
+- Os endpoints antigos de diagnóstico Efí passaram a exigir token de operações, exceto `/return`, que não devolve parâmetros de URL.
+- Foi retirado um hash de demonstração da configuração de webhook. Exigir um segredo real de 32+ caracteres configurado na Efí/Render.
+- Foram escritos novos testes unitários para validação de dados oficiais e envio sandbox sem rede. **Eles ainda não foram executados no CI/backend**.
+
+### Regras adicionais para sandbox
+
+Não habilite `NEXTGEN_EFI_AUTOMATIC_SANDBOX_PAYMENTS` junto com `NEXTGEN_EFI_AUTOMATIC_ENABLED` antes de confirmar `EFI_OF_API_URL`, `EFI_OAUTH_URL` e certificados estritamente de homologação. Rode primeiro somente o fluxo de cadastro de autorização, consulta e planejamento.
+
+Uma requisição de envio pode ficar em `REVIEW` se a Efí responder com estado desconhecido ou se houver falha de transporte/banco. **Nunca retry automático** nessa condição; consultar a Efí pelo ID externo e evidência de liquidação antes de nova tentativa.
+
+`ng_efi_auto_cycles` é o histórico de planejamento e submissão; ele não é extrato bancário e não deve gerar crédito ao cliente até confirmação independente de liquidação.
+
+### Testes de desenvolvimento
+
+```bash
+cd apps/api
+npm ci
+npm test -- --runInBand efi-automatic
+npm test -- --runInBand efi-of-sandbox-payment
+npm test -- --runInBand efi-operations.guard
+npm run build
+```
+
 ## Riscos não resolvidos (bloqueiam produção)
 
 - Endpoint de pagamento real `POST /v1/pagamentos-automaticos/pix` ainda não está conectado ao scheduler NextGen.
