@@ -576,7 +576,7 @@ export class EfiAutomaticRecurrenceService {
     this.assertSandbox();
     const company = await this.partner(partnerSlug);
     const found = await prisma.$queryRaw<any[]>`
-      SELECT c.id,c.partner_id,c.recurrence_id,c.due_date,c.state,
+      SELECT c.id,c.partner_id,c.recurrence_id,c.due_date,c.state,c.amount_cents,
              c.payment_reference,a.provider_adhesion_id
       FROM ng_efi_auto_cycles c
       JOIN ng_efi_auto_authorizations a
@@ -592,9 +592,11 @@ export class EfiAutomaticRecurrenceService {
     const result = await this.efi.getAutomaticSandboxPaymentStatus({
       adhesionId: cycle.provider_adhesion_id,
       endToEndId: cycle.payment_reference,
-      requestedDate: this.isoDate(cycle.due_date)
+      requestedDate: this.isoDate(cycle.due_date),
+      expectedAmountCents: Number(cycle.amount_cents)
     });
-    const next = ['rejeitado','cancelado'].includes(result.status) ? 'FAILED'
+    const next = result.hasRefunds ? 'REVIEW'
+      : ['rejeitado','cancelado'].includes(result.status) ? 'FAILED'
       : ['pendente','agendado','aceito'].includes(result.status) ? 'SCHEDULED'
       : 'REVIEW';
     const updated = await prisma.$queryRaw<any[]>`
@@ -605,9 +607,9 @@ export class EfiAutomaticRecurrenceService {
     `;
     if (!updated[0]) throw new ConflictException('EFI_CYCLE_NOT_REFRESHABLE');
     await this.audit(company.id, cycle.recurrence_id, cycleId,
-      'EFI_AUTO_SANDBOX_STATUS_CHECKED', 'bank-query', { bankStatus: result.status, nextState: next });
+      'EFI_AUTO_SANDBOX_STATUS_CHECKED', 'bank-query', { bankStatus: result.status, refundPresent: result.hasRefunds, nextState: next });
     return { success: true, sandbox: true, cycleId, status: next,
-      bankStatus: result.status, settled: false };
+      bankStatus: result.status, refundPresent: result.hasRefunds, settled: false };
   }
 
   async listCycles(partnerSlug: string) {
