@@ -43,6 +43,17 @@ export default function PixAutomaticoPage() {
           </p>
         </header>
 
+        <section className="mt-6 rounded-2xl border border-emerald-300/20 bg-emerald-300/10 p-6">
+          <h2 className="text-xl font-black text-emerald-200">Repasse centralizado previsto em D+1 útil</h2>
+          <p className="mt-2 text-sm leading-7 text-white/70">
+            Após o pagador autorizar no banco, as mensalidades são processadas na conta recebedora NextGen.
+            O crédito à empresa está previsto para o próximo dia útil bancário após o Pix recebido e conciliado.
+            Finais de semana, feriados, falhas bancárias e verificações podem alterar a previsão.
+          </p>
+          <a className="mt-3 inline-block text-sm font-bold text-emerald-200 underline underline-offset-4"
+            href="/pix-automatico">Leia a explicação completa sobre o dinheiro e o D+1</a>
+        </section>
+
         <div className="mt-7 flex flex-wrap gap-3">
           <button type="button" onClick={() => setView('empresa')}
             className={`rounded-xl px-5 py-3 text-sm font-black ${view === 'empresa' ? 'bg-emerald-400 text-slate-950' : 'border border-white/15 bg-white/5 text-white'}`}>
