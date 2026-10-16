@@ -421,6 +421,113 @@ export class EfiAutomaticRecurrenceService {
       message: 'Only records planned. No Pix sent; no bank debit performed.' };
   }
 
+  /**
+   * SANDBOX-only first cycle submission. This is NEVER enabled on production
+   * servers or merchant-facing endpoints. Bank settlement is not inferred.
+   * Retry on provider timeout is forbidden until reconciliation determines
+   * whether a transfer was already scheduled.
+   */
+  async submitCycleSandbox(partnerSlug: string, cycleId: string) {
+    this.assertSandbox();
+    if (process.env.NEXTGEN_EFI_AUTOMATIC_SANDBOX_PAYMENTS !== 'true') {
+      throw new ServiceUnavailableException('EFI_SANDBOX_PAYMENT_DISPATCH_DISABLED');
+    }
+    const company = await this.partner(partnerSlug);
+    if (!cycleId || cycleId.length > 128) throw new BadRequestException('INVALID_CYCLE_ID');
+    const found = await prisma.$queryRaw<any[]>`
+      SELECT c.*, a.provider_adhesion_id, a.status AS authorization_status,
+             a.amount_cap_cents, a.consented_first_due_on, a.consented_expires_on,
+             a.consented_interval, r.title AS recurrence_title
+      FROM ng_efi_auto_cycles c
+      JOIN ng_efi_auto_authorizations a ON a.id = c.authorization_id
+        AND a.partner_id = c.partner_id AND a.recurrence_id = c.recurrence_id
+      JOIN smart_billing_recurrences r ON r.id = c.recurrence_id
+        AND r.partner_id = c.partner_id
+      WHERE c.id = ${cycleId} AND c.partner_id = ${company.id}
+      LIMIT 1
+    `;
+    const cycle = found[0];
+    if (!cycle) throw new NotFoundException('EFI_CYCLE_NOT_FOUND');
+    if (cycle.state !== 'PLANNED') throw new ConflictException('EFI_CYCLE_ALREADY_CLAIMED');
+
+    // Refresh official authorization status and terms before ANY provider call.
+    const bank = await this.syncVerifiedBankAuthorization(partnerSlug, cycle.authorization_id);
+    if (bank.authorization.status !== 'AUTHORIZED') {
+      throw new ConflictException('EFI_BANK_CONSENT_NOT_AUTHORIZED');
+    }
+    if (!cycle.provider_adhesion_id || cycle.consented_interval !== 'MENSAL' ||
+        Number(cycle.amount_cents) !== Number(cycle.amount_cap_cents) ||
+        !cycle.consented_first_due_on || !cycle.consented_expires_on ||
+        this.isoDate(cycle.due_date) < this.isoDate(cycle.consented_first_due_on) ||
+        this.isoDate(cycle.due_date) > this.isoDate(cycle.consented_expires_on)) {
+      throw new ConflictException('EFI_CYCLE_OUTSIDE_BANK_CONSENT');
+    }
+
+    // Atomic compare-and-swap: competing dispatchers cannot submit twice.
+    const claim = await prisma.$queryRaw<any[]>`
+      UPDATE ng_efi_auto_cycles SET state='SUBMITTING', attempted_at=now(), updated_at=now()
+      WHERE id = ${cycleId} AND partner_id = ${company.id} AND state='PLANNED'
+      RETURNING id
+    `;
+    if (!claim[0]) throw new ConflictException('EFI_CYCLE_ALREADY_CLAIMED');
+    const attemptId = 'eat_' + randomUUID().replace(/-/g, '');
+    const stableKey = createHash('sha256').update(cycle.idempotency_key + '|attempt-1').digest('hex');
+    try {
+      await prisma.$executeRaw`
+        INSERT INTO ng_efi_auto_attempts
+          (id,cycle_id,attempt_no,idempotency_key,state)
+        VALUES (${attemptId},${cycleId},1,${stableKey},'SUBMITTING')
+      `;
+    } catch (e) {
+      // Claimed cycle remains SUBMITTING for manual operator review.
+      throw new ServiceUnavailableException('EFI_CYCLE_ATTEMPT_PERSISTENCE_UNCERTAIN');
+    }
+
+    try {
+      const response = await this.efi.sendAutomaticPaymentSandbox({
+        adhesionId: cycle.provider_adhesion_id,
+        amountCents: Number(cycle.amount_cents),
+        dueDate: this.isoDate(cycle.due_date),
+        idempotencyKey: stableKey,
+        description: String(cycle.recurrence_title || 'Mensalidade NextGen').slice(0, 120),
+        cityIbge: process.env.NEXTGEN_EFI_IBGE_CODE || undefined
+      });
+      // Only payment issuance accepted; never mark paid/settled here.
+      const state = ['pendente','aceito','agendado'].includes(response.status)
+        ? 'SCHEDULED' : 'REVIEW';
+      await prisma.$executeRaw`
+        UPDATE ng_efi_auto_cycles
+        SET state=${state}, payment_reference=${response.endToEndId},
+            updated_at=now() WHERE id=${cycleId} AND partner_id=${company.id}
+            AND state='SUBMITTING'
+      `;
+      await prisma.$executeRaw`
+        UPDATE ng_efi_auto_attempts
+        SET state=${state}, provider_reference=${response.endToEndId},
+            updated_at=now() WHERE id=${attemptId} AND state='SUBMITTING'
+      `;
+      await this.audit(company.id, cycle.recurrence_id, cycle.id,
+        'EFI_AUTO_SANDBOX_CYCLE_SUBMITTED', 'system', { state });
+      return { success: true, sandbox: true, cycleId, state,
+        bankState: response.status, bankReferencePresent: Boolean(response.endToEndId),
+        settled: false };
+    } catch (e) {
+      // Payment might have been accepted at provider before timeout or
+      // database error. A human must reconcile; NEVER automatically retry.
+      await prisma.$executeRaw`
+        UPDATE ng_efi_auto_cycles SET state='REVIEW', updated_at=now()
+        WHERE id=${cycleId} AND partner_id=${company.id} AND state='SUBMITTING'
+      `;
+      await prisma.$executeRaw`
+        UPDATE ng_efi_auto_attempts SET state='REVIEW', updated_at=now()
+        WHERE id=${attemptId} AND state='SUBMITTING'
+      `;
+      await this.audit(company.id, cycle.recurrence_id, cycle.id,
+        'EFI_AUTO_SANDBOX_SUBMISSION_UNCERTAIN', 'system', {});
+      throw new ServiceUnavailableException('EFI_SUBMISSION_UNCERTAIN_RECONCILE_BEFORE_RETRY');
+    }
+  }
+
   async listCycles(partnerSlug: string) {
     this.assertEnabled();
     const company = await this.partner(partnerSlug);
