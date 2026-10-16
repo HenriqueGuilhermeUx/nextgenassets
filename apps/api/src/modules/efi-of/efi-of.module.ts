@@ -15,13 +15,15 @@ import { PaymentRouterController } from '../smart-billing/payment-router.control
 import { SmartBillingNotificationsController } from '../smart-billing/smart-billing-notifications.controller';
 import { SmartBillingEmailNotificationsController } from '../smart-billing/smart-billing-email-notifications.controller';
 import { SmartBillingRecurrencesController } from '../smart-billing/smart-billing-recurrences.controller';
+import { EfiAutomaticRecurrenceController } from '../smart-billing/efi-automatic-recurrence.controller';
+import { EfiAutomaticRecurrenceService } from '../smart-billing/efi-automatic-recurrence.service';
 import { WooviSubaccountsController } from '../smart-billing/woovi-subaccounts.controller';
 import { SmartBillingBulkController } from '../smart-billing/smart-billing-bulk.controller';
 import { SmartBillingPayoutRequestsController } from '../smart-billing/smart-billing-payout-requests.controller';
 import { WooviPaymentWebhookController } from '../smart-billing/woovi-payment-webhook.controller';
 
 @Module({
-  providers: [EfiOFService, EfiOperationsGuard],
+  providers: [EfiOFService, EfiOperationsGuard, EfiAutomaticRecurrenceService],
   controllers: [
     EfiOFWebhookController,
     EfiOFWebhookReceiverController,
@@ -37,6 +39,7 @@ import { WooviPaymentWebhookController } from '../smart-billing/woovi-payment-we
     SmartBillingNotificationsController,
     SmartBillingEmailNotificationsController,
     SmartBillingRecurrencesController,
+    EfiAutomaticRecurrenceController,
     WooviSubaccountsController,
     SmartBillingBulkController,
     SmartBillingPayoutRequestsController,
