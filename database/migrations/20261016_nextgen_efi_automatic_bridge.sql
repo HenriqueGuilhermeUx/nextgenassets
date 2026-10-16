@@ -53,7 +53,8 @@ CREATE TABLE IF NOT EXISTS ng_efi_auto_cycles (
     state IN ('PLANNED','ELIGIBLE','SUBMITTING','SCHEDULED','SETTLED','FAILED','CANCELLED','REVIEW')
   ),
   CONSTRAINT ng_efi_auto_cycle_unique UNIQUE (partner_id,recurrence_id,due_date),
-  CONSTRAINT ng_efi_auto_cycle_idem_unique UNIQUE (idempotency_key)
+  CONSTRAINT ng_efi_auto_cycle_idem_unique UNIQUE (idempotency_key),
+  CONSTRAINT ng_efi_auto_cycles_id_partner_unique UNIQUE(id, partner_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_ng_efi_cycles_partner_state
