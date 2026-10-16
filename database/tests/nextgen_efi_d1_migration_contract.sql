@@ -44,7 +44,7 @@ END $$;
 
 -- Verify the partner ownership FK BEFORE inserting the legitimate payout.
 -- Otherwise UNIQUE(receipt_id) may fail first and mask tenant isolation.
-DO $
+DO $$
 BEGIN
   -- A payout owned by merchant-beta may not use merchant-alpha's receipt.
   BEGIN
@@ -57,7 +57,7 @@ BEGIN
     RAISE EXCEPTION 'FAILED_TO_BLOCK_CROSS_TENANT_PAYOUT';
   EXCEPTION WHEN foreign_key_violation THEN NULL; END;
 
-END $;
+END $$;
 
 INSERT INTO ng_efi_central_payouts
 (id,partner_id,receipt_id,base_business_date,scheduled_business_date,calendar_source,
