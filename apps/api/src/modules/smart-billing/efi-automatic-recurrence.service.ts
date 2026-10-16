@@ -343,6 +343,15 @@ export class EfiAutomaticRecurrenceService {
     `;
     const a = authRows[0];
     if (!a) throw new ConflictException('NO_EFI_AUTHORIZATION');
+    if (!a.consented_first_due_on || !a.consented_expires_on ||
+        !a.consented_interval || !a.beneficiary_fingerprint ||
+        data.frequency !== 'MONTHLY' || a.consented_interval !== 'MENSAL' ||
+        data.amountCents !== Number(a.amount_cap_cents) ||
+        data.endsOn !== this.isoDate(a.consented_expires_on) ||
+        data.dueDate < this.isoDate(a.consented_first_due_on) ||
+        data.dueDate > this.isoDate(a.consented_expires_on)) {
+      throw new ConflictException('RECURRENCE_TERMS_CHANGED_AFTER_BANK_CONSENT');
+    }
     assertConsentEligibleForCycle(data, {
       recurrenceId, tenantId: company.id,
       status: a.status === 'AUTHORIZED' ? 'AUTHORIZED' : 'PENDING',
