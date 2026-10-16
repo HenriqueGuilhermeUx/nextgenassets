@@ -159,6 +159,9 @@ export class EfiAutomaticRecurrenceService {
     const r = await this.recurrence(company.id, intent.recurrence_id);
     const data = this.snapshot(r, company.id, company.id);
     if (data.status !== 'ACTIVE') throw new ConflictException('RECURRENCE_NOT_ACTIVE');
+    if (data.frequency !== 'MONTHLY' || !data.endsOn) {
+      throw new BadRequestException('EFI_AUTOMATIC_REQUIRES_MONTHLY_FIXED_TERM');
+    }
     if (data.amountCents !== Number(intent.amount_cap_cents))
       throw new ConflictException('RECURRENCE_AMOUNT_CHANGED_CREATE_NEW_CONSENT');
 
@@ -198,7 +201,7 @@ export class EfiAutomaticRecurrenceService {
         intervalo: ({
           DAILY:'DIARIO', WEEKLY:'SEMANAL', MONTHLY:'MENSAL', YEARLY:'ANUAL'
         } as const)[data.frequency],
-        dataInicio: data.startsOn,
+        dataInicio: data.dueDate,
         expiracao: data.endsOn || undefined,
         descricao: data.title,
         permiteRetentativa: false,
@@ -216,6 +219,9 @@ export class EfiAutomaticRecurrenceService {
             redirect_uri = ${response.redirectURI},
             status = 'AUTHORIZATION_PENDING',
             requested_at = now(), beneficiary_fingerprint = ${beneficiaryFingerprint},
+            consented_first_due_on = ${data.dueDate}::date,
+            consented_expires_on = ${data.endsOn}::date,
+            consented_interval = 'MENSAL',
             updated_at = now()
         WHERE id = ${intent.id} AND partner_id = ${company.id} AND status='REQUESTING'
       `;
@@ -284,7 +290,8 @@ export class EfiAutomaticRecurrenceService {
     // A valid bank status with another payee/value/date is never sufficient.
     const recurring = await this.recurrence(company.id, a.recurrence_id);
     const snapshot = this.snapshot(recurring, company.id, company.id);
-    if (!snapshot.endsOn || !a.beneficiary_fingerprint) {
+    if (!a.consented_first_due_on || !a.consented_expires_on ||
+        !a.consented_interval || !a.beneficiary_fingerprint) {
       throw new ConflictException('EFI_EXPECTED_AUTHORIZATION_TERMS_MISSING');
     }
     assertVerifiedEfiAdhesionMatches(bank, {
@@ -294,8 +301,8 @@ export class EfiAutomaticRecurrenceService {
       interval: ({
         DAILY: 'DIARIO', WEEKLY: 'SEMANAL', MONTHLY: 'MENSAL', YEARLY: 'ANUAL'
       } as const)[snapshot.frequency],
-      startsOn: snapshot.startsOn,
-      expiresOn: snapshot.endsOn,
+      startsOn: this.isoDate(a.consented_first_due_on),
+      expiresOn: this.isoDate(a.consented_expires_on),
       beneficiaryFingerprint: a.beneficiary_fingerprint
     });
     const map: Record<string, string> = {
