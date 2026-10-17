@@ -38,6 +38,23 @@
 - Evidência bancária de Pix OUT e de crédito na conta da empresa ANTES de publicar oferta de repasse D+1 como disponibilidade geral.
 - Migrar e liberar por feature flag e tenant piloto, preservando Pix comum e contratos legados. O estado de produção permanece separado da PR rascunho.
 
-## Lacuna bloqueadora atual
+## Estado executado — 2026-10-17 (somente homologação)
 
-Apesar de backend Render e CI terem sido identificados, **não estão disponíveis neste inventário**: (a) localização da base NextGen de homologação, (b) credenciais/certificado exclusivamente sandbox Efí, (c) confirmação de escopos automáticos habilitados e (d) aprovação de eventual custo de novo serviço/DB no Render. Não usar produção como substituta para cobrir essas lacunas.
+- Neon conectado, organização Free, projeto EXCLUSIVO `nextgen-efi-automatic-homolog` (`misty-bonus-57896528`), PostgreSQL 16 em `aws-us-west-2`, branch `br-nameless-boat-arrg6x01`, banco `nextgen_homolog`. Nenhum recurso de outro produto reutilizado.
+- SQL-base da API gerado pelo **Prisma CLI real** em CI `38989120894`, PR #8, commit `f44d26ea4fec22e62708db4454c43877137d069f`: 75 instruções DDL aplicadas no Neon sem comandos destrutivos, 11 tabelas Prisma e 13 tipos enum.
+- Migrações `20261016_nextgen_efi_automatic_bridge.sql` e `20261016_nextgen_centralized_d1_payout.sql` aplicadas em transação no **mesmo banco de homologação**, criando 8 tabelas específicas. `20260910_nextgen_smart_operations.sql` também aplicada, criando 10 tabelas Smart Operations. Verificação final: **29 tabelas**, sem parceiros nem usuários reais.
+- Render staging exclusivo `nextgen-efi-automatic-homolog` (`srv-db9bnsdg1s2s738485pg`), URL `https://nextgen-efi-automatic-homolog.onrender.com`, branch da PR #8, auto deploy DESLIGADO. `DATABASE_URL` apontado exclusivamente para Neon `nextgen_homolog` através de variável secreta no Render, sem expor credenciais no repositório.
+- Segurança: `NEXTGEN_DISABLE_BACKGROUND_WORKERS=true`, `NEXTGEN_EFI_AUTOMATIC_ENABLED=false`, `NEXTGEN_EFI_AUTOMATIC_SANDBOX_REQUESTS=false`, `NEXTGEN_EFI_AUTOMATIC_SANDBOX_PAYMENTS=false`, `NEXTGEN_CENTRALIZED_D1_ENABLED=false`. Variáveis existentes mescladas, não sobrescritas.
+- Deploy de homologação iniciado automaticamente após alteração do ambiente: `dep-db9cjrm1egvs73eonchg` no commit `f44d26e`. A confirmação **live/health** deve ser verificada no Render; início de deploy não significa sucesso.
+- CI `38989120894` concluído com sucesso: 46 testes de serviços/guards/hooks bancários, build NestJS, build marketing e contrato SQL de Efí/D+1 em Postgres efêmero. Nada disso prova uma transação bancária real.
+
+**Operação segura futura:** NÃO rodar `prisma db push` indiscriminadamente nesse banco, porque há 18 tabelas SQL que não estão declaradas no `schema.prisma` e o Prisma poderá tentar removê-las. Não usar `--accept-data-loss`, `migrate reset`, importação de dados de produção ou credenciais produtivas. O SQL-base do Prisma foi criado em banco inicialmente isolado, somente com as oito tabelas Efí já aplicadas.
+
+## Pendências reais de homologação bancária
+
+- Confirmar disponibilidade de certificado e credenciais **exclusivamente Efí sandbox**, escopos Pix Automático, URL/callback mTLS, consentimento e pagamentos fictícios.
+- Confirmar token administrativo exclusivo e forte para testes autenticados. Na ausência dele, endpoints internos devem falhar fechados.
+- Após verificação do Render live, executar testes HTTP de saúde, isolamento, autorização, idempotência e callbacks inválidos.
+- Recebimento e repasse reais D+1 seguem bloqueados: falta integração bancária Pix OUT comprovada e validação contratual/compliance pela Efí; **nenhuma operação com dinheiro**.
+
+Produção `nga-api`, cron jobs e `main` continuam preservados. Não concluir merge enquanto as pendências acima não estiverem homologadas.
