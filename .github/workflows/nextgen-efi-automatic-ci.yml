@@ -52,6 +52,14 @@ jobs:
       - name: Generate Prisma client
         working-directory: apps/api
         run: npx prisma generate
+      - name: Generate Prisma baseline DDL (read-only export for isolated staging)
+        working-directory: apps/api
+        run: |
+          npx prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script > /tmp/nextgen-prisma-baseline.sql
+          test -s /tmp/nextgen-prisma-baseline.sql
+          echo NEXTGEN_PRISMA_BASELINE_BEGIN
+          cat /tmp/nextgen-prisma-baseline.sql
+          echo NEXTGEN_PRISMA_BASELINE_END
       - name: Efí authorization and sandbox tests
         working-directory: apps/api
         run: |
