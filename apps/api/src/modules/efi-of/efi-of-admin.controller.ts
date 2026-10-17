@@ -9,16 +9,18 @@
 //  GET  /v1/admin/efi-of/adhesion/:identificadorAdesao
 // ============================================
 
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { EfiOFService } from './efi-of.service';
+import { EfiOperationsGuard } from './efi-operations.guard';
 
 const prisma = new PrismaClient();
 
 type AccountType = 'TRAN' | 'CACC' | 'SVGS';
 
 @Controller('admin/efi-of')
+@UseGuards(EfiOperationsGuard)
 export class EfiOFAdminController {
   constructor(private readonly efiOF: EfiOFService) {}
 
