@@ -57,9 +57,8 @@ jobs:
         run: |
           npx prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script > /tmp/nextgen-prisma-baseline.sql
           test -s /tmp/nextgen-prisma-baseline.sql
-          echo NEXTGEN_PRISMA_BASELINE_BEGIN
-          cat /tmp/nextgen-prisma-baseline.sql
-          echo NEXTGEN_PRISMA_BASELINE_END
+          echo 'Prisma base DDL generated for ephemeral CI only'
+          sha256sum /tmp/nextgen-prisma-baseline.sql
       - name: Efí authorization and sandbox tests
         working-directory: apps/api
         run: |
@@ -81,6 +80,9 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client
+          # Create the real Prisma schema before applying SQL modules, to detect drift.
+          psql -v ON_ERROR_STOP=1 -f /tmp/nextgen-prisma-baseline.sql
+          psql -v ON_ERROR_STOP=1 -f database/migrations/20260910_nextgen_smart_operations.sql
           psql -v ON_ERROR_STOP=1 -f database/migrations/20261016_nextgen_efi_automatic_bridge.sql
           psql -v ON_ERROR_STOP=1 -f database/migrations/20261016_nextgen_centralized_d1_payout.sql
           psql -v ON_ERROR_STOP=1 -f database/tests/nextgen_efi_d1_migration_contract.sql
