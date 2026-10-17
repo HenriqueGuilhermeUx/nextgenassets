@@ -9,6 +9,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as https from 'https';
 import { loadEfiCaBundle } from './efi-ca-bundle';
 import { buildEfiOFConfig, EfiOFConfig } from '../../config/efi-of.config';
+import { parseVerifiedEfiAdhesion, VerifiedAdhesionTerms } from './efi-automatic-consent-validation';
+import { parseEfiAutomaticPaymentQuery, VerifiedAutomaticPaymentStatus } from './efi-automatic-payment-status';
 
 @Injectable()
 export class EfiOFService {
@@ -29,7 +31,7 @@ export class EfiOFService {
     return new https.Agent({
       pfx,
       passphrase: this.cfg.certPassphrase || '',
-      rejectUnauthorized: false
+      rejectUnauthorized: true
     });
   }
 
@@ -58,10 +60,8 @@ export class EfiOFService {
         pfx,
         passphrase: this.cfg.certPassphrase || '',
         ca,
-        rejectUnauthorized: false,
-        secureOptions: require('constants').SSL_OP_LEGACY_SERVER_CONNECT || 0,
-        ciphers: 'DEFAULT:@SECLEVEL=0',
-        servername: opts.hostname
+        rejectUnauthorized: true,
+                servername: opts.hostname
       }, () => {
         const tlsInfo = {
           authorized: socket.authorized,
@@ -75,8 +75,10 @@ export class EfiOFService {
           } : null
         };
 
-        if (!socket.authorized && !opts.hostname.includes('efi')) {
-          this.logger.warn(`⚠️ TLS não autorizado: ${socket.authorizationError}`);
+        if (!socket.authorized) {
+          socket.destroy();
+          resolve({ status: 0, error: 'EFI_TLS_PEER_NOT_AUTHORIZED' });
+          return;
         }
 
         const req = http.request({
@@ -136,9 +138,9 @@ export class EfiOFService {
     try {
       const isHomolog = url.hostname.includes('-h.');
       ca = loadEfiCaBundle(isHomolog);
-      this.logger.log(`🔐 mTLS CA bundle loaded (embutido): ${isHomolog ? 'homolog' : 'prod'} (${ca.length} bytes)`);
+      this.logger.log(`🔐 mTLS CA bundle loaded (${isHomolog ? 'homolog' : 'prod'})`);
     } catch (e: any) {
-      this.logger.warn(`⚠️ Erro ao carregar CA bundle Efi: ${e.message}`);
+      throw new Error('EFI_CA_BUNDLE_UNAVAILABLE');
     }
 
     const agent = new https.Agent({
@@ -149,9 +151,7 @@ export class EfiOFService {
       timeout: 60000,
       maxVersion: 'TLSv1.3',
       minVersion: 'TLSv1.2',
-      secureOptions: require('constants').SSL_OP_LEGACY_SERVER_CONNECT || 0,
-      ciphers: 'DEFAULT:@SECLEVEL=0',
-      rejectUnauthorized: false
+      rejectUnauthorized: true
     });
 
     return new Promise((resolve, reject) => {
@@ -176,7 +176,7 @@ export class EfiOFService {
         res.on('end', () => {
           const buffer = Buffer.concat(chunks);
           const data = buffer.toString('utf-8');
-          this.logger.log(`📥 Efi response: ${res.statusCode} (${buffer.length} bytes): ${data.substring(0, 200)}`);
+          this.logger.log(`Efí response status=${res.statusCode}, bytes=${buffer.length}`);
           try {
             const parsed = JSON.parse(data);
             resolve({ status: res.statusCode || 0, data: parsed, text: data });
@@ -228,7 +228,7 @@ export class EfiOFService {
     });
 
     if (res.status < 200 || res.status >= 300) {
-      throw new Error(`Efi OAuth error: ${res.status} - ${res.text}`);
+      throw new Error(`EFI_OAUTH_HTTP_${res.status}`);
     }
 
     const data = res.data;
@@ -262,9 +262,11 @@ export class EfiOFService {
     expiracao?: string;
     descricao?: string;
     permiteRetentativa?: boolean;
+    idProprio?: string;
+    idempotencyKey?: string;
   }): Promise<{ identificadorAdesao: string; redirectURI: string }> {
     const token = await this.ensureToken();
-    const idempotencyKey = require('crypto').randomUUID();
+    const idempotencyKey = opts.idempotencyKey || require('crypto').randomUUID();
 
     const body = {
       pagador: {
@@ -286,9 +288,12 @@ export class EfiOFService {
       assinatura: {
         expiracao: opts.expiracao || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         descricao: opts.descricao || 'Pagamento NextGen Assets',
-        idProprio: `nextgen-${Date.now()}`,
+        idProprio: opts.idProprio || `nextgen-${Date.now()}`,
         configuracao: {
           automatico: {
+            ...(opts.valorFixo ? { valorFixo: opts.valorFixo } : {}),
+            ...(opts.valorMinimo ? { valorMinimo: opts.valorMinimo } : {}),
+            ...(opts.valorMaximo ? { valorMaximo: opts.valorMaximo } : {}),
             intervalo: opts.intervalo,
             dataInicio: opts.dataInicio,
             permiteRetentativa: opts.permiteRetentativa ?? false
@@ -308,7 +313,7 @@ export class EfiOFService {
     });
 
     if (res.status < 200 || res.status >= 300) {
-      throw new Error(`Efi createConsent error: ${res.status} - ${res.text}`);
+      throw new Error(`EFI_ADHESION_HTTP_${res.status}`);
     }
 
     const data = res.data;
@@ -317,6 +322,134 @@ export class EfiOFService {
       identificadorAdesao: data.identificadorAdesao,
       redirectURI: data.redirectURI
     };
+  }
+
+  /**
+   * Official Efí API lookup (server-to-server over verified TLS).
+   * Unlike the legacy exploratory getAdesao(), this requires inicio/fim and
+   * matches the exact external ID. A missing match is NEVER an authorization.
+   * Does not follow pagination: absent entries fail closed for review.
+   */
+  async getAutomaticAdhesionOfficial(externalId: string, createdAt: Date):
+    Promise<VerifiedAdhesionTerms> {
+    if (!externalId || externalId.length > 200 || !/^urn:efi:[a-zA-Z0-9-]+$/.test(externalId)) {
+      throw new Error('INVALID_EFI_ADHESION_ID');
+    }
+    if (!(createdAt instanceof Date) || !Number.isFinite(createdAt.getTime())) {
+      throw new Error('INVALID_EFI_ADHESION_CREATION_DATE');
+    }
+    const from = new Date(createdAt);
+    from.setUTCDate(from.getUTCDate() - 1);
+    const to = new Date(createdAt);
+    to.setUTCDate(to.getUTCDate() + 1);
+    const inicio = from.toISOString().slice(0, 10);
+    const fim = to.toISOString().slice(0, 10);
+    const token = await this.ensureToken();
+    const res = await this.mTLSRequest({
+      method: 'GET',
+      path: `/v1/pagamentos-automaticos/adesao?inicio=${inicio}&fim=${fim}`,
+      extraHeaders: { Authorization: `Bearer ${token}` }
+    });
+    if (res.status < 200 || res.status >= 300 || !Array.isArray(res.data?.adesoes)) {
+      throw new Error(`EFI_ADHESION_QUERY_HTTP_${res.status}`);
+    }
+    const match = res.data.adesoes.find((x: any) => x?.identificadorAdesao === externalId);
+    if (!match) throw new Error('EFI_ADHESION_NOT_FOUND_IN_VERIFIED_QUERY');
+    return parseVerifiedEfiAdhesion(match);
+  }
+
+  /**
+   * Submit exactly one scheduled payment to Efí SANDBOX only.
+   * HTTP 200/201 means submitted, NOT settled or paid.
+   * Caller must atomically claim its cycle before invoking this method.
+   */
+  async sendAutomaticPaymentSandbox(input: {
+    adhesionId: string;
+    amountCents: number;
+    dueDate: string;
+    idempotencyKey: string;
+    description: string;
+    cityIbge?: string;
+  }): Promise<{ status: string; endToEndId: string | null }> {
+    const server = new URL(this.cfg.apiUrl);
+    if (server.hostname !== 'openfinance-h.api.efipay.com.br' ||
+        process.env.NEXTGEN_EFI_AUTOMATIC_SANDBOX_PAYMENTS !== 'true') {
+      throw new Error('EFI_SANDBOX_PAYMENTS_DISABLED');
+    }
+    if (!/^urn:efi:[a-zA-Z0-9-]+$/.test(input.adhesionId) ||
+        !Number.isSafeInteger(input.amountCents) || input.amountCents <= 0 ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(input.dueDate) ||
+        !/^[a-zA-Z0-9-]{32,128}$/.test(input.idempotencyKey)) {
+      throw new Error('INVALID_EFI_AUTOMATIC_PAYMENT_REQUEST');
+    }
+    const token = await this.ensureToken();
+    const payload = {
+      identificadorAdesao: input.adhesionId,
+      pagamento: {
+        valor: (input.amountCents / 100).toFixed(2),
+        data: input.dueDate,
+        ...(input.cityIbge ? { codigoCidadeIBGE: input.cityIbge } : {}),
+        infoPagador: input.description.slice(0, 120)
+      }
+    };
+    const res = await this.mTLSRequest({
+      method: 'POST',
+      path: '/v1/pagamentos-automaticos/pix',
+      body: payload,
+      extraHeaders: {
+        Authorization: `Bearer ${token}`,
+        'x-idempotency-key': input.idempotencyKey
+      }
+    });
+    if (res.status < 200 || res.status >= 300) {
+      throw new Error(`EFI_AUTOMATIC_SUBMIT_HTTP_${res.status}`);
+    }
+    const data = res.data;
+    if (!data || data.identificadorAdesao !== input.adhesionId ||
+        typeof data.status !== 'string') {
+      throw new Error('EFI_AUTOMATIC_PAYMENT_UNVERIFIED_RESPONSE');
+    }
+    return {
+      status: data.status.toLowerCase(),
+      endToEndId: typeof data.endToEndId === 'string' ? data.endToEndId : null
+    };
+  }
+
+  /**
+   * Read-only status lookup for a previously submitted sandbox payment.
+   * This is NOT proof that the beneficiary received funds.
+   */
+  async getAutomaticSandboxPaymentStatus(input: {
+    adhesionId: string;
+    endToEndId: string;
+    requestedDate: string;
+    expectedAmountCents: number;
+  }): Promise<VerifiedAutomaticPaymentStatus> {
+    if (new URL(this.cfg.apiUrl).hostname !== 'openfinance-h.api.efipay.com.br' ||
+        process.env.NEXTGEN_EFI_AUTOMATIC_SANDBOX_REQUESTS !== 'true') {
+      throw new Error('EFI_SANDBOX_PAYMENT_QUERY_DISABLED');
+    }
+    if (!/^urn:efi:[a-zA-Z0-9-]+$/.test(input.adhesionId) ||
+        !/^[A-Za-z0-9-]{8,120}$/.test(input.endToEndId) ||
+        !Number.isSafeInteger(input.expectedAmountCents) || input.expectedAmountCents <= 0 ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(input.requestedDate)) {
+      throw new Error('INVALID_EFI_SANDBOX_STATUS_LOOKUP');
+    }
+    const token = await this.ensureToken();
+    const date = encodeURIComponent(input.requestedDate);
+    const result = await this.mTLSRequest({
+      method: 'GET',
+      path: `/v1/pagamentos-automaticos/pix?inicio=${date}&fim=${date}`,
+      extraHeaders: { Authorization: `Bearer ${token}` }
+    });
+    if (result.status < 200 || result.status >= 300) {
+      throw new Error(`EFI_SANDBOX_STATUS_HTTP_${result.status}`);
+    }
+    return parseEfiAutomaticPaymentQuery(result.data, {
+      adhesionId: input.adhesionId,
+      endToEndId: input.endToEndId,
+      amountCents: input.expectedAmountCents
+    });
   }
 
   /**
@@ -401,7 +534,7 @@ export class EfiOFService {
     });
 
     if (res.status < 200 || res.status >= 300) {
-      throw new Error(`Efi initiatePayment error: ${res.status} - ${res.text}`);
+      throw new Error(`EFI_PAYMENT_HTTP_${res.status}`);
     }
 
     const data = res.data;
@@ -416,7 +549,7 @@ export class EfiOFService {
   async testConnection(): Promise<{ ok: boolean; token?: string; error?: string }> {
     try {
       const token = await this.refreshToken();
-      return { ok: true, token: token.substring(0, 30) + '...' };
+      return { ok: Boolean(token) };
     } catch (err: any) {
       return { ok: false, error: err.message };
     }

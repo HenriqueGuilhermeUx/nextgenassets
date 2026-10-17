@@ -38,7 +38,7 @@ const revenue = [
   ['Assinatura mensal', 'Receita previsível por plano, sem pedágio NextGen por Pix no plano base.'],
   ['Excedente de volume', 'Cobranças acima do limite mensal podem entrar como pacote adicional.'],
   ['Comunicação premium', 'Régua avançada, recuperação de pagamentos e campanhas de reativação.'],
-  ['Repasse antecipado', 'Produto extra para empresas que querem sair da agenda padrão do plano.']
+  ['Pix Automático (em homologação)', 'Autorização bancária única e repasse centralizado previsto em D+1 dia útil após conciliação.']
 ];
 
 const routes = [
@@ -61,6 +61,7 @@ export default function Home() {
             <div className="hidden gap-6 text-sm text-white/70 md:flex">
               <a href="#produto" className="hover:text-white">Produto</a>
               <a href="#como-funciona" className="hover:text-white">Como funciona</a>
+              <a href="/pix-automatico" className="hover:text-white">Pix Automático D+1</a>
               <a href="#usos" className="hover:text-white">Quem usa</a>
               <a href="#precos" className="hover:text-white">Preços</a>
             </div>
@@ -126,6 +127,27 @@ export default function Home() {
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="border-b border-blue-100 bg-blue-50 px-6 py-12">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-6">
+          <div className="max-w-3xl">
+            <p className="text-sm font-black uppercase tracking-wider text-blue-700">Novidade em homologação</p>
+            <h2 className="mt-2 text-3xl font-black text-slate-950">Pix Automático com repasse previsto em D+1 útil</h2>
+            <p className="mt-3 leading-7 text-slate-600">
+              O pagador autoriza uma vez no próprio banco. A NextGen acompanha as mensalidades,
+              recebe os pagamentos na conta centralizadora e, após confirmação e conciliação,
+              programa o crédito da empresa para o próximo dia útil bancário.
+            </p>
+            <p className="mt-2 text-xs text-slate-500">
+              Produto em homologação. D+1 é a previsão de repasse para valores recebidos e conciliados,
+              sujeita a feriados, validações e condições contratuais.
+            </p>
+          </div>
+          <a href="/pix-automatico" className="rounded-xl bg-blue-900 px-6 py-4 font-bold text-white hover:bg-blue-800">
+            Entenda como funciona
+          </a>
         </div>
       </section>
 

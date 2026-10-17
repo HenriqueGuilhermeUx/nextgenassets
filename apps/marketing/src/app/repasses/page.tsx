@@ -91,6 +91,16 @@ export default function RepassesPage() {
         <h1 className="mt-4 text-4xl font-black md:text-5xl">Repasses</h1>
         <p className="mt-3 max-w-4xl text-white/60">Acompanhe saldo estimado da subconta, agenda do plano e pedidos de repasse antecipado.</p>
 
+        <section className="mt-6 rounded-2xl border border-blue-300/25 bg-blue-300/10 p-5">
+          <h2 className="text-lg font-black text-blue-100">Pix Automático NextGen — novo modelo D+1</h2>
+          <p className="mt-2 text-sm leading-6 text-white/65">
+            Para a modalidade de recebimento centralizado em homologação, o repasse à empresa é previsto em
+            D+1 dia útil bancário após o Pix ser recebido na conta NextGen e conciliado.
+            Os prazos mostrados abaixo continuam sendo os do módulo legado de subcontas, e não a confirmação de um repasse bancário D+1.
+          </p>
+          <a href="/pix-automatico" className="mt-3 inline-block text-sm font-bold text-blue-200 underline underline-offset-4">Como funcionará o repasse D+1</a>
+        </section>
+
         <section className="mt-8 grid gap-4 md:grid-cols-4">
           <Metric title="Saldo confirmado" value={balanceData.confirmed || 'R$ 0,00'} />
           <Metric title="Reservado" value={balanceData.reserved || 'R$ 0,00'} />

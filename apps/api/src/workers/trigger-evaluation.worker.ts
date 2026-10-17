@@ -12,6 +12,9 @@ export class TriggerEvaluationWorker {
 
   @Process('evaluate')
   async handleEvaluate(job: Job) {
+    if (process.env.NEXTGEN_DISABLE_BACKGROUND_WORKERS === 'true') {
+      return { shouldFire: false, reason: 'BACKGROUND_WORKERS_DISABLED' };
+    }
     const { triggerId } = job.data;
     this.logger.log(`[Worker] Evaluating trigger ${triggerId}`);
 

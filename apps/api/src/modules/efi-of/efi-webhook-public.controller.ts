@@ -21,7 +21,7 @@ export class EfiWebhookPublicController {
     const event = body.evento || body.event || body.type || 'pix';
     const txid = body.txid || body.pix?.[0]?.txid;
     logger.log(`📥 Efi webhook: ${event} | txid: ${txid || '-'}`);
-    logger.log(`Body: ${JSON.stringify(body).substring(0, 300)}`);
+    // Avoid logging raw callback data (may contain account identifiers).
 
     try {
       // PIX RECEBIDO (webhook /pix)
