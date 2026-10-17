@@ -10,9 +10,14 @@ const https = require('https');
 
 // ===== CONFIGURAÇÃO DAS SUAS CREDENCIAIS =====
 const CERTIFICADO_NOME = 'producao-687781-Notarize.p12';
-const CLIENT_ID = process.env.EFI_CLIENT_ID || 'Client_Id_41cae23c-21b2-4891-9476-6821b401e95e';
-const CLIENT_SECRET = process.env.EFI_CLIENT_SECRET || 'Client_Secret_0ed22b4a-6c8a-4a87-9a78-4ea69a3a93cb';
+const CLIENT_ID = process.env.EFI_CLIENT_ID || '';
+const CLIENT_SECRET = process.env.EFI_CLIENT_SECRET || '';
 // ============================================
+
+// No embedded credential fallback: leaked keys must be rotated in the Efí dashboard.
+if (!CLIENT_ID || !CLIENT_SECRET) {
+    throw new Error('EFI_CLIENT_ID and EFI_CLIENT_SECRET must be supplied via environment');
+}
 
 // Transforma as credenciais em formato Base64 exigido pela Efí
 const credenciais = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64');
@@ -55,7 +60,7 @@ async function testarConexao() {
 
         if (resposta.data.access_token) {
             console.log("\n✅ SUCESSO! Conexão autenticada com a Efí.");
-            console.log("🔑 Access Token:", resposta.data.access_token.substring(0, 30) + "...");
+            console.log('OAuth mTLS token issued (value never logged)');
             console.log("⏰ Expira em:", resposta.data.expires_in, "segundos");
             console.log("🚀 Suas chaves estão prontas para Open Finance!");
             
