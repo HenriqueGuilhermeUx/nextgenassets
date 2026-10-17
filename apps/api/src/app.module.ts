@@ -146,10 +146,12 @@ import { MarketWatcherWorker } from './workers/market-watcher.worker';
     MarketDataService,
     BankTransferService,
     TriggerEngine,
-    // Legacy worker providers are entirely excluded in isolated banking staging.
-    ...(process.env.NEXTGEN_DISABLE_BACKGROUND_WORKERS === 'true'
-      ? []
-      : [TriggerEvaluationWorker, TriggerCronWorker, RoundUpAggregatorWorker, MarketWatcherWorker]),
+    // Keep providers injectable: AggregatorAdminController depends on RoundUpAggregatorWorker.
+    // Their execution is blocked individually and the ScheduleModule is disabled in staging.
+    TriggerEvaluationWorker,
+    TriggerCronWorker,
+    RoundUpAggregatorWorker,
+    MarketWatcherWorker,
     // Notifications
     NotificationsService,
     WhatsAppService,
