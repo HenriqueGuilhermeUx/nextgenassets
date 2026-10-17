@@ -43,7 +43,8 @@ jobs:
         run: npx prisma generate
       - name: Test fail-closed Efí admin guard
         working-directory: apps/api
-        run: npx jest --runInBand --preset ts-jest efi-operations.guard.spec.ts
+        run: |
+          npx jest --runInBand --preset ts-jest efi-operations.guard.spec.ts
           npx jest --runInBand --preset ts-jest efi-prod-security.spec.ts
       - name: Check no hardcoded Efí credentials in connection script
         run: |
