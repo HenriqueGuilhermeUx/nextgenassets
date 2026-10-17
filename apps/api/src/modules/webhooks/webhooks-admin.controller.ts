@@ -67,26 +67,9 @@ export class WebhooksAdminController {
    * Body: { sql: string }
    */
   @Post('migrate')
-  async runMigration(@Body() body: { sql: string }) {
-    const { PrismaClient } = require('@prisma/client');
-    const prisma = new PrismaClient();
-    try {
-      // Executa SQL bruto
-      const result = await prisma.$executeRawUnsafe(body.sql);
-      return {
-        success: true,
-        rowsAffected: result,
-        message: 'Migration executada'
-      };
-    } catch (err: any) {
-      return {
-        success: false,
-        error: err.message,
-        code: err.code
-      };
-    } finally {
-      await prisma.$disconnect();
-    }
+  async runMigration(@Body() _body: { sql: string }) {
+    // Never accept arbitrary SQL by HTTP. Migrations belong in version-controlled CI.
+    return { success: false, error: 'AD_HOC_SQL_MIGRATIONS_DISABLED' };
   }
 
   /**

@@ -7,6 +7,13 @@ on:
       - 'apps/api/src/modules/webhooks/webhooks-admin.controller.ts'
       - 'apps/api/src/modules/efi-of/efi-operations.guard.ts'
       - 'apps/api/src/modules/efi-of/efi-operations.guard.spec.ts'
+      - 'apps/api/src/modules/efi-of/efi-of-debug.controller.ts'
+      - 'apps/api/src/modules/efi-of/efi-of-admin.controller.ts'
+      - 'apps/api/src/modules/efi-of/efi-of.module.ts'
+      - 'apps/api/src/modules/efi-of/efi-of.service.ts'
+      - 'apps/api/src/modules/efi-of/efi-of-webhook-receiver.controller.ts'
+      - 'apps/api/src/modules/efi-of/efi-webhook-public.controller.ts'
+      - 'apps/api/src/modules/efi-of/efi-prod-security.spec.ts'
       - 'scripts/efi/teste_efi.js'
       - '.github/workflows/nextgen-efi-production-hardening-ci.yml'
   workflow_dispatch:
@@ -37,6 +44,7 @@ jobs:
       - name: Test fail-closed Efí admin guard
         working-directory: apps/api
         run: npx jest --runInBand --preset ts-jest efi-operations.guard.spec.ts
+          npx jest --runInBand --preset ts-jest efi-prod-security.spec.ts
       - name: Check no hardcoded Efí credentials in connection script
         run: |
           if grep -Eq 'Client_(Id|Secret)_[a-zA-Z0-9-]{16,}' scripts/efi/teste_efi.js; then

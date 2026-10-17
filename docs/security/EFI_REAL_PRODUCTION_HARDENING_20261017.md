@@ -24,3 +24,11 @@ Fontes: https://dev.efipay.com.br/docs/api-open-finance/credenciais/ e https://d
 
 ## Status
 A PR é exclusivamente uma **proposta de segurança**. Não foi realizado GET autenticado de banco, OAuth com credenciais de produção, criação de mandato, pagamento ou transferência real. A `NEXTGEN_EFI_AUTOMATIC_ENABLED` deve permanecer DESLIGADA no ambiente de testes e o estado da produção deve ser preservado.
+
+## Correções preparadas em DRAFT — ainda sem deploy
+- Rotas administrativas Efí Open Finance passam a exigir `NEXTGEN_ADMIN_TOKEN`, exceto GET `/v1/admin/efi-of/return` (callback do navegador) que agora não reflete códigos/parâmetros recebidos.
+- Diagnóstico OAuth não retorna token nem prefixo de token. O hash de webhook Open Finance é obtido somente do `EFI_OF_WEBHOOK_HMAC`, sem valores fixos ou enviados pelo body.
+- Callbacks Pix exigem `EFI_PIX_WEBHOOK_HMAC` (hash configurado previamente na URL cadastrada da Efí); callbacks Open Finance exigem `EFI_OF_WEBHOOK_HMAC`. Requer também revisão de mTLS/proxy e replay. Sem configuração, falham fechados.
+- Callbacks deixam de ativar consentimentos/creditar pagamentos somente pelo evento. Passam a registrar **auditoria redigida**, aguardando reconciliação bancária independente. A versão desta PR ainda **não possui reconciliador real**; não mesclar sem implementar a reconciliação ou planejar transição operacional.
+- Endpoint HTTP de SQL arbitrário `POST /v1/admin/webhooks/migrate` desativado. Substituir por migrações versionadas e auditadas.
+- É indispensável rotacionar credenciais expostas no repositório público e adaptar consumidores que usavam rotas sem autenticação. Não trocar URLs de webhook de produção sem confirmação da configuração de hash e plano de rollback.
