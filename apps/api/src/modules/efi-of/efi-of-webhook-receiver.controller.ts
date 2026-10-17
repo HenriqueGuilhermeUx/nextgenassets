@@ -49,9 +49,14 @@ export class EfiOFWebhookReceiverController {
   @Post()
   async handle(@Body() body: any = {}, @Req() req: Request) {
     this.assertHmac(req);
-    const event = body.event || body.type || body.evento || 'unknown';
-    const data = body.data || body;
-    logger.log(`📥 Efi OF webhook: ${event}`);
+    const payload = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
+    const eventRaw = payload.event || payload.type || payload.evento;
+    // Callback metadata is untrusted: never reflect arbitrary text into logs or the response.
+    const event = typeof eventRaw === 'string' && /^[A-Za-z0-9._-]{1,80}$/.test(eventRaw)
+      ? eventRaw : 'unknown';
+    const data = payload.data && typeof payload.data === 'object' && !Array.isArray(payload.data)
+      ? payload.data : payload;
+    logger.log('Efí OF webhook received');
     // Never log webhook bodies, PII, tokens or consent metadata.
 
     try {
@@ -139,7 +144,7 @@ export class EfiOFWebhookReceiverController {
         const paymentId = data.paymentId || data.identificadorPagamento || data.idPagamento;
         const endToEndId = data.endToEndId;
         const amount = data.payment?.amount || data.amount || data.valor;
-        logger.log(`💸 Payment completed: ${paymentId} R$ ${amount}`);
+        logger.log('Efí payment callback received; settlement not verified');
         
         await prisma.auditLog.create({
           data: {
@@ -152,8 +157,7 @@ export class EfiOFWebhookReceiverController {
               paymentId,
               endToEndId,
               amount: amount ? parseFloat(amount) : null,
-              event,
-              raw: body
+              event
             } as any
           } as any
         });
@@ -167,19 +171,11 @@ export class EfiOFWebhookReceiverController {
         event,
         ts: Date.now()
       };
-    } catch (err: any) {
-      logger.error(`Erro: ${err.message}`);
-      return {
-        success: true,
-        received: true,
-        service: 'efi-of-public-webhook',
-        type: 'webhook-error-handled',
-        event,
-        error: err.message,
-        ts: Date.now()
-      };
-    } finally {
-      await prisma.$disconnect();
+    } catch (_err: unknown) {
+      // Do not acknowledge an event that failed to persist: the bank must see a non-2xx.
+      // Never return or log provider payloads, identifiers, or DB error messages.
+      logger.error('EFI_OF_WEBHOOK_PROCESSING_FAILED');
+      throw new ServiceUnavailableException('EFI_OF_WEBHOOK_PROCESSING_FAILED');
     }
   }
 }
