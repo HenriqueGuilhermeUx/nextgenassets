@@ -33,6 +33,11 @@ export class RoundUpAggregatorWorker implements OnModuleInit {
   }
 
   start() {
+    // Isolated bank sandbox must never activate legacy background automation.
+    if (process.env.NEXTGEN_DISABLE_BACKGROUND_WORKERS === 'true') {
+      this.logger.log('Legacy worker disabled for isolated homologation');
+      return;
+    }
     if (this.intervalHandle) return;
     this.logger.log('🪙 Round-up aggregator started (DEMO: a cada 5 min, PROD: 23:55)');
 
@@ -63,6 +68,7 @@ export class RoundUpAggregatorWorker implements OnModuleInit {
   }
 
   public async aggregate(isDemo = false) {
+    if (process.env.NEXTGEN_DISABLE_BACKGROUND_WORKERS === 'true') return;
     const now = new Date();
     const hour = now.getHours();
     const minute = now.getMinutes();
