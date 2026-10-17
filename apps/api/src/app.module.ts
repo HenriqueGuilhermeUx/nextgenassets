@@ -85,7 +85,7 @@ import { MarketWatcherWorker } from './workers/market-watcher.worker';
       { name: 'trigger-evaluation' },
       { name: 'trigger-execution' }
     ),
-    ScheduleModule.forRoot(),
+    ...(process.env.NEXTGEN_DISABLE_BACKGROUND_WORKERS === 'true' ? [] : [ScheduleModule.forRoot()]),
     WooviModule,
     KlaviModule,
     EfiOFModule,
@@ -146,11 +146,10 @@ import { MarketWatcherWorker } from './workers/market-watcher.worker';
     MarketDataService,
     BankTransferService,
     TriggerEngine,
-    // Workers
-    TriggerEvaluationWorker,
-    TriggerCronWorker,
-    RoundUpAggregatorWorker,
-    MarketWatcherWorker,
+    // Legacy worker providers are entirely excluded in isolated banking staging.
+    ...(process.env.NEXTGEN_DISABLE_BACKGROUND_WORKERS === 'true'
+      ? []
+      : [TriggerEvaluationWorker, TriggerCronWorker, RoundUpAggregatorWorker, MarketWatcherWorker]),
     // Notifications
     NotificationsService,
     WhatsAppService,
