@@ -5,6 +5,7 @@ import { EfiOFDebugController } from './efi-of-debug.controller';
 import { EfiOFService } from './efi-of.service';
 import { EfiOFWebhookReceiverController } from './efi-of-webhook-receiver.controller';
 import { EfiWebhookPublicController } from './efi-webhook-public.controller';
+import { EfiOFWebhookController } from './efi-of-webhook.controller';
 
 describe('Efí real: safe authentication and callback contract', () => {
   const originalOf = process.env.EFI_OF_WEBHOOK_HMAC;
@@ -43,6 +44,8 @@ describe('Efí real: safe authentication and callback contract', () => {
     await expect(new EfiWebhookPublicController().handle({ pix: [] }, { query: {} } as any))
       .rejects.toThrow('EFI_PIX_CALLBACK_UNAUTHORIZED');
     await expect(new EfiOFWebhookReceiverController().handle({}, { query: {} } as any))
+      .rejects.toThrow('EFI_OF_CALLBACK_UNAUTHORIZED');
+    await expect(new EfiOFWebhookController().handle({}, { query: {} } as any))
       .rejects.toThrow('EFI_OF_CALLBACK_UNAUTHORIZED');
   });
 

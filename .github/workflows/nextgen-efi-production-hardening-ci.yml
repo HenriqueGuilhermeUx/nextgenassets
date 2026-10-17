@@ -12,6 +12,7 @@ on:
       - 'apps/api/src/modules/efi-of/efi-of.module.ts'
       - 'apps/api/src/modules/efi-of/efi-of.service.ts'
       - 'apps/api/src/modules/efi-of/efi-of-webhook-receiver.controller.ts'
+      - 'apps/api/src/modules/efi-of/efi-of-webhook.controller.ts'
       - 'apps/api/src/modules/efi-of/efi-webhook-public.controller.ts'
       - 'apps/api/src/modules/efi-of/efi-prod-security.spec.ts'
       - 'scripts/efi/teste_efi.js'

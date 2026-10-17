@@ -32,3 +32,5 @@ A PR é exclusivamente uma **proposta de segurança**. Não foi realizado GET au
 - Callbacks deixam de ativar consentimentos/creditar pagamentos somente pelo evento. Passam a registrar **auditoria redigida**, aguardando reconciliação bancária independente. A versão desta PR ainda **não possui reconciliador real**; não mesclar sem implementar a reconciliação ou planejar transição operacional.
 - Endpoint HTTP de SQL arbitrário `POST /v1/admin/webhooks/migrate` desativado. Substituir por migrações versionadas e auditadas.
 - É indispensável rotacionar credenciais expostas no repositório público e adaptar consumidores que usavam rotas sem autenticação. Não trocar URLs de webhook de produção sem confirmação da configuração de hash e plano de rollback.
+
+- A rota legada `POST /v1/webhooks/efi-of` passa a delegar ao mesmo receptor autenticado por HMAC, sem logs de payload nem confirmação falsa. É necessário cadastrar o HMAC correto antes do merge.
