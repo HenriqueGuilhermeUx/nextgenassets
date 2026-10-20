@@ -11,6 +11,7 @@ import { loadEfiCaBundle } from './efi-ca-bundle';
 import { buildEfiOFConfig, EfiOFConfig } from '../../config/efi-of.config';
 import { parseVerifiedEfiAdhesion, VerifiedAdhesionTerms } from './efi-automatic-consent-validation';
 import { parseEfiAutomaticPaymentQuery, VerifiedAutomaticPaymentStatus } from './efi-automatic-payment-status';
+import { assertEfiProductionReadOnly } from './efi-production-read-only.policy';
 
 @Injectable()
 export class EfiOFService {
@@ -445,6 +446,49 @@ export class EfiOFService {
     if (result.status < 200 || result.status >= 300) {
       throw new Error(`EFI_SANDBOX_STATUS_HTTP_${result.status}`);
     }
+    return parseEfiAutomaticPaymentQuery(result.data, {
+      adhesionId: input.adhesionId,
+      endToEndId: input.endToEndId,
+      amountCents: input.expectedAmountCents
+    });
+  }
+
+  /**
+   * Efí PRODUCTION: read-only lookup of an EXISTING payment. No POST/PATCH/PUT,
+   * no Pix execution or balance writes. A successful GET/status 'aceito'
+   * is NOT proof of bank credit or settlement.
+   */
+  async getAutomaticProductionPaymentStatus(input: {
+    adhesionId: string;
+    endToEndId: string;
+    requestedDate: string;
+    expectedAmountCents: number;
+  }): Promise<VerifiedAutomaticPaymentStatus> {
+    assertEfiProductionReadOnly();
+    if (this.cfg.apiUrl !== 'https://openfinance.api.efipay.com.br' ||
+        this.cfg.oauthUrl !== 'https://openfinance.api.efipay.com.br/v1/oauth/token') {
+      throw new Error('EFI_PRODUCTION_PAYMENT_READ_HOST_INVALID');
+    }
+    if (!/^urn:efi:[a-zA-Z0-9-]{8,170}$/.test(input.adhesionId) ||
+        !/^[A-Za-z0-9-]{8,120}$/.test(input.endToEndId) ||
+        !Number.isSafeInteger(input.expectedAmountCents) || input.expectedAmountCents <= 0 ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(input.requestedDate) ||
+        !Number.isFinite(new Date(input.requestedDate + 'T12:00:00.000Z').getTime()) ||
+        new Date(input.requestedDate + 'T12:00:00.000Z').toISOString().slice(0,10) !== input.requestedDate) {
+      throw new Error('EFI_PRODUCTION_PAYMENT_READ_INVALID');
+    }
+    const token = await this.ensureToken();
+    const date = encodeURIComponent(input.requestedDate);
+    const result = await this.mTLSRequest({
+      method: 'GET',
+      path: `/v1/pagamentos-automaticos/pix?inicio=${date}&fim=${date}`,
+      extraHeaders: { Authorization: `Bearer ${token}` }
+    });
+    if (result.status < 200 || result.status >= 300) {
+      throw new Error(`EFI_PRODUCTION_PAYMENT_READ_HTTP_${result.status}`);
+    }
+    // This parser matches exact mandate + E2E + BRL amount and fails on
+    // duplicate references or inconsistent bank amounts. No local mutation.
     return parseEfiAutomaticPaymentQuery(result.data, {
       adhesionId: input.adhesionId,
       endToEndId: input.endToEndId,

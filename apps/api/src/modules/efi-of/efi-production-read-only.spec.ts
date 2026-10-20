@@ -15,7 +15,7 @@ const envKeys = [
 
 describe('Efí real read-only isolated lookup — NO NETWORK, NO MONEY', () => {
   const original = Object.fromEntries(envKeys.map(key => [key, process.env[key]]));
-  const efi = { getAutomaticAdhesionOfficial: jest.fn(), createConsent: jest.fn(),
+  const efi = { getAutomaticAdhesionOfficial: jest.fn(), getAutomaticProductionPaymentStatus: jest.fn(), createConsent: jest.fn(),
     sendAutomaticPaymentSandbox: jest.fn(), initiatePayment: jest.fn() };
   const service = new EfiProductionReadOnlyService(efi as unknown as EfiOFService);
   const args = ['urn:efi:12345678-abcd-1234-efab-123456789abc', '2026-10-19'] as const;
@@ -105,6 +105,75 @@ describe('Efí real read-only isolated lookup — NO NETWORK, NO MONEY', () => {
     });
     await expect(service.lookupAdhesion(...args))
       .rejects.toThrow('EFI_PRODUCTION_READ_ONLY_QUERY_REQUIRES_REVIEW');
+  });
+  it('payment lookup is disabled by default and never calls Efí', async () => {
+    await expect(service.lookupPayment({
+      adhesionId: args[0], endToEndId: 'E00038166201907261559y6j6',
+      requestedDate: '2026-10-19', amountCents: 199
+    })).rejects.toThrow('EFI_PRODUCTION_READ_ONLY_DISABLED');
+    expect(efi.getAutomaticProductionPaymentStatus).not.toHaveBeenCalled();
+  });
+  it('rejects invalid dates, payment identifiers and amount before bank calls', async () => {
+    enableReadOnly();
+    const valid = {
+      adhesionId: args[0], endToEndId: 'E00038166201907261559y6j6',
+      requestedDate: '2026-10-19', amountCents: 199
+    };
+    await expect(service.lookupPayment({...valid,requestedDate:'2026-02-30'}))
+      .rejects.toThrow('EFI_PRODUCTION_READ_ONLY_PAYMENT_INVALID');
+    await expect(service.lookupPayment({...valid,amountCents:0}))
+      .rejects.toThrow('EFI_PRODUCTION_READ_ONLY_PAYMENT_INVALID');
+    await expect(service.lookupPayment({...valid, endToEndId:'bad'}))
+      .rejects.toThrow('EFI_PRODUCTION_READ_ONLY_PAYMENT_INVALID');
+    expect(efi.getAutomaticProductionPaymentStatus).not.toHaveBeenCalled();
+  });
+  it('reads existing payment status without claiming settlement, balance credit or payout', async () => {
+    enableReadOnly();
+    efi.getAutomaticProductionPaymentStatus.mockResolvedValue({
+      status:'aceito',endToEndId:'E00038166201907261559y6j6',hasRefunds:false
+    });
+    const result = await service.lookupPayment({
+      adhesionId:args[0],endToEndId:'E00038166201907261559y6j6',
+      requestedDate:'2026-10-19',amountCents:199
+    });
+    expect(result).toEqual({
+      success:true,bankPaymentFound:true,exactBankReferenceAndAmountMatched:true,
+      bankReportedStatus:'aceito',refundReported:false,
+      bankCreditReconciled:false,settlementVerified:false,receiptCreated:false,
+      payoutExecuted:false,customerRecordModified:false
+    });
+    expect(efi.getAutomaticProductionPaymentStatus).toHaveBeenCalledTimes(1);
+    expect(efi.createConsent).not.toHaveBeenCalled();
+    expect(efi.initiatePayment).not.toHaveBeenCalled();
+    expect(efi.sendAutomaticPaymentSandbox).not.toHaveBeenCalled();
+  });
+  it('shows refunds as requiring review, never successful settlement', async () => {
+    enableReadOnly();
+    efi.getAutomaticProductionPaymentStatus.mockResolvedValue({
+      status:'aceito',endToEndId:'E00038166201907261559y6j6',hasRefunds:true
+    });
+    const response = await service.lookupPayment({
+      adhesionId:args[0],endToEndId:'E00038166201907261559y6j6',
+      requestedDate:'2026-10-19',amountCents:199
+    });
+    expect(response.refundReported).toBe(true);
+    expect(response.settlementVerified).toBe(false);
+  });
+  it('fails closed on unknown payment statuses and hides provider errors', async () => {
+    enableReadOnly();
+    const valid = {
+      adhesionId:args[0],endToEndId:'E00038166201907261559y6j6',
+      requestedDate:'2026-10-19',amountCents:199
+    };
+    efi.getAutomaticProductionPaymentStatus.mockResolvedValue({
+      status:'accepted\\ncpf=12345678901',hasRefunds:false
+    });
+    await expect(service.lookupPayment(valid))
+      .rejects.toThrow('EFI_PRODUCTION_READ_ONLY_PAYMENT_REQUIRES_REVIEW');
+    efi.getAutomaticProductionPaymentStatus.mockRejectedValue(
+      new Error('CPF=12345678901 bank token=SENSITIVE'));
+    await expect(service.lookupPayment(valid))
+      .rejects.toThrow('EFI_PRODUCTION_READ_ONLY_PAYMENT_REQUIRES_REVIEW');
   });
   it('redacts bank errors rather than echoing PII or raw tokens', async () => {
     enableReadOnly();

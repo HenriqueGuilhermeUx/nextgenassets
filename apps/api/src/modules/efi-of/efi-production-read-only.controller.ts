@@ -18,4 +18,9 @@ export class EfiProductionReadOnlyController {
   lookup(@Body() body: any) {
     return this.service.lookupAdhesion(body?.adhesionId, body?.createdOn);
   }
+
+  @Post('lookup-payment')
+  lookupPayment(@Body() body: any) {
+    return this.service.lookupPayment(body || {});
+  }
 }
