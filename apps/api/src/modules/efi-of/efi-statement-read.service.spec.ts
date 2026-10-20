@@ -5,7 +5,8 @@ import { EfiOperationsGuard } from './efi-operations.guard';
 
 const keys=['NEXTGEN_EFI_STATEMENT_READ_ENABLED','NEXTGEN_EFI_PRODUCTION_READ_ONLY_ENABLED',
   'NEXTGEN_DISABLE_BACKGROUND_WORKERS','NEXTGEN_CENTRALIZED_D1_ENABLED',
-  'NEXTGEN_EFI_AUTOMATIC_ENABLED','NEXTGEN_EFI_AUTOMATIC_SANDBOX_PAYMENTS',
+  'NEXTGEN_EFI_AUTOMATIC_ENABLED','NEXTGEN_EFI_AUTOMATIC_SANDBOX_REQUESTS',
+  'NEXTGEN_EFI_AUTOMATIC_SANDBOX_PAYMENTS',
   'EFI_PIX_READ_API_URL','EFI_PIX_READ_CLIENT_ID','EFI_PIX_READ_CLIENT_SECRET',
   'EFI_PIX_READ_CERTIFICATE_BASE64','EFI_STATEMENT_BANK_CODE',
   'EFI_STATEMENT_AGENCY','EFI_STATEMENT_ACCOUNT'] as const;
@@ -29,6 +30,28 @@ describe('Efí production reconciliation report: bank mock only',()=>{
   afterAll(()=>{for(const k of keys){if(original[k]===undefined)delete process.env[k];else process.env[k]=original[k];}});
   it('requires operator authentication on all report routes',()=>{
     expect(Reflect.getMetadata(GUARDS_METADATA,EfiStatementReadController)).toContain(EfiOperationsGuard);
+  });
+  it('exposes offline readiness booleans only, without keys, names or secrets',()=>{
+    const fn=jest.spyOn(service,'request');
+    process.env.EFI_PIX_READ_CLIENT_SECRET='Private-Secret-Do-Not-Log-123';
+    process.env.EFI_STATEMENT_ACCOUNT='000012345678';
+    const snapshot=service.configurationPreflight();
+    expect(snapshot).toMatchObject({bankingCredentialsTested:false,
+      bankConnectionVerified:false,paymentInitiated:false,payoutAuthorized:false});
+    expect(snapshot.configuredOnly).toBe(false);
+    expect(JSON.stringify(snapshot)).not.toContain('Private-Secret-Do-Not-Log-123');
+    expect(JSON.stringify(snapshot)).not.toContain('000012345678');
+    expect(fn).not.toHaveBeenCalled();
+  });
+  it('reports all offline config checks but never asserts bank connectivity',()=>{
+    enable();
+    const cfg=service.configurationPreflight();
+    expect(cfg).toMatchObject({configuredOnly:true,flagsEnabled:true,
+      workersDisabled:true,paymentsDisabled:true,hostVerified:true,
+      credentialsPresent:true,accountConfigured:true,bankConnectionVerified:false});
+    process.env.NEXTGEN_EFI_AUTOMATIC_SANDBOX_REQUESTS='true';
+    expect(service.configurationPreflight()).toMatchObject({
+      paymentsDisabled:false,configuredOnly:false});
   });
   it('is disabled by default before even calling OAuth',async()=>{
     const fn=jest.spyOn(service,'request');
@@ -59,6 +82,11 @@ describe('Efí production reconciliation report: bank mock only',()=>{
     const body=JSON.parse(String(req.mock.calls[1][3]));
     expect(body.dataMovimento).toBe('2026-10-18');
     expect(body.tipoRegistros.tarifaPixRecebido).toBe(true);
+    expect(body.tipoRegistros.estornoTarifaPixRecebido).toBe(true);
+    expect(body.tipoRegistros.pixEnviadoDadosBancarios).toBe(true);
+    expect(body.tipoRegistros.transferenciaEnviada).toBe(true);
+    expect(body.tipoRegistros.saldoDiaAnterior).toBe(true);
+    expect(Object.keys(body.tipoRegistros)).toHaveLength(18);
     expect(JSON.stringify(result)).not.toContain('TOKEN_PRIVATE');
   });
   it('refuses an unconfigured or caller-overridden receiving bank account without OAuth',async()=>{

@@ -9,6 +9,44 @@ import { EfiStatementPreview, parseEfiPixStatementV5 } from './efi-statement-v5-
  */
 @Injectable()
 export class EfiStatementReadService {
+  /**
+   * Operator-only offline readiness status. Never returns account numbers,
+   * fingerprints, OAuth values, certificate details or customer data.
+   * Does not perform TLS or banking requests; flags are not proof of access.
+   */
+  configurationPreflight() {
+    const e=process.env;
+    const workersDisabled=e.NEXTGEN_DISABLE_BACKGROUND_WORKERS==='true';
+    const paymentsDisabled=[
+      'NEXTGEN_CENTRALIZED_D1_ENABLED','NEXTGEN_EFI_AUTOMATIC_ENABLED',
+      'NEXTGEN_EFI_AUTOMATIC_SANDBOX_REQUESTS',
+      'NEXTGEN_EFI_AUTOMATIC_SANDBOX_PAYMENTS'
+    ].every(key=>e[key]!=='true');
+    const hostVerified=e.EFI_PIX_READ_API_URL==='https://pix.api.efipay.com.br';
+    const credentialsPresent=Boolean(
+      e.EFI_PIX_READ_CLIENT_ID&&e.EFI_PIX_READ_CLIENT_SECRET&&
+      e.EFI_PIX_READ_CERTIFICATE_BASE64&&e.EFI_PIX_READ_CERTIFICATE_BASE64.length>=256
+    );
+    const accountConfigured=Boolean(
+      e.EFI_STATEMENT_BANK_CODE&&/^[0-9]{1,4}$/.test(e.EFI_STATEMENT_BANK_CODE) &&
+      e.EFI_STATEMENT_AGENCY&&/^[0-9]{1,4}$/.test(e.EFI_STATEMENT_AGENCY) &&
+      e.EFI_STATEMENT_ACCOUNT&&/^[0-9]{2,20}$/.test(e.EFI_STATEMENT_ACCOUNT)
+    );
+    const flagsEnabled=e.NEXTGEN_EFI_STATEMENT_READ_ENABLED==='true' &&
+      e.NEXTGEN_EFI_PRODUCTION_READ_ONLY_ENABLED==='true';
+    return {
+      operation:'EFI_STATEMENT_OFFLINE_PREFLIGHT',
+      flagsEnabled,workersDisabled,paymentsDisabled,
+      hostVerified,credentialsPresent,accountConfigured,
+      configuredOnly:flagsEnabled && workersDisabled && paymentsDisabled &&
+        hostVerified && credentialsPresent && accountConfigured,
+      bankingCredentialsTested:false,
+      bankConnectionVerified:false,
+      paymentInitiated:false,
+      payoutAuthorized:false
+    };
+  }
+
   private preflight() {
     const e=process.env;
     if(e.NEXTGEN_EFI_STATEMENT_READ_ENABLED!=='true' ||
@@ -16,6 +54,7 @@ export class EfiStatementReadService {
        e.NEXTGEN_DISABLE_BACKGROUND_WORKERS!=='true' ||
        e.NEXTGEN_CENTRALIZED_D1_ENABLED==='true' ||
        e.NEXTGEN_EFI_AUTOMATIC_ENABLED==='true' ||
+       e.NEXTGEN_EFI_AUTOMATIC_SANDBOX_REQUESTS==='true' ||
        e.NEXTGEN_EFI_AUTOMATIC_SANDBOX_PAYMENTS==='true')
       throw new ServiceUnavailableException('EFI_STATEMENT_READER_DISABLED');
     if(e.EFI_PIX_READ_API_URL!=='https://pix.api.efipay.com.br')
@@ -115,9 +154,17 @@ export class EfiStatementReadService {
       const response=await this.request('POST','/v2/gn/relatorios/extrato-conciliacao',{
         Authorization:'Bearer '+token,'Content-Type':'application/json'
       },JSON.stringify({dataMovimento:date,tipoRegistros:{
-        pixRecebido:true,pixDevolucaoEnviada:true,pixDevolucaoRecebida:true,
-        tarifaPixRecebido:true,estornoTarifaPixRecebido:true,
-        splitPixDevolucaoEnviada:true
+        // Request all movement families so missing refunds, Pix OUT and
+        // transfers cannot be hidden by a partial report configuration.
+        pixRecebido:true,pixEnviadoChave:true,pixEnviadoDadosBancarios:true,
+        estornoPixEnviado:true,pixDevolucaoEnviada:true,pixDevolucaoRecebida:true,
+        splitPixDevolucaoEnviada:true,
+        tarifaPixEnviado:true,tarifaPixRecebido:true,
+        estornoTarifaPixEnviado:true,estornoTarifaPixRecebido:true,
+        saldoDiaAnterior:true,saldoDia:true,
+        transferenciaRecebida:true,transferenciaEnviada:true,
+        estornoTransferenciaEnviada:true,tarifaTransferenciaEnviada:true,
+        estornoTarifaTransferenciaEnviada:true
       }}));
       if(response.status!==202)throw new Error('EFI_STATEMENT_EXPECTED_202');
       const summary=this.safeResponse(JSON.parse(response.data.toString('utf8')));
