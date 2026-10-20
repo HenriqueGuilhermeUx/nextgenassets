@@ -1,78 +1,45 @@
-// ============================================
-//  EFI WEBHOOK PUBLIC (mTLS)
-//  Recebe webhooks Efi (Pix, Pix Automático, Open Finance)
-//  Rota real com prefixo global: /v1/webhooks/efi-public?ignorar=
-//  Suporta ambos: webhook PIX + webhook OF
-// ============================================
-
-import { Controller, Post, Body, Logger, Req, Get } from '@nestjs/common';
-import { Request } from 'express';
+import { Body, Controller, Get, Logger, Post, Req, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
+import { randomUUID, timingSafeEqual } from 'crypto';
+import { Request } from 'express';
 
 const logger = new Logger('EfiWebhookPublic');
 const prisma = new PrismaClient();
 
 @Controller('webhooks/efi-public')
 export class EfiWebhookPublicController {
-  
-  // Aceita POST em vários paths (Efi manda em /pix, /rec, /cobr)
-  @Post(['pix', 'rec', 'cobr', ''])
-  async handle(@Body() body: any, @Req() req: Request) {
-    const event = body.evento || body.event || body.type || 'pix';
-    const txid = body.txid || body.pix?.[0]?.txid;
-    logger.log(`📥 Efi webhook: ${event} | txid: ${txid || '-'}`);
-    logger.log(`Body: ${JSON.stringify(body).substring(0, 300)}`);
-
-    try {
-      // PIX RECEBIDO (webhook /pix)
-      if (body.pix && Array.isArray(body.pix)) {
-        for (const pix of body.pix) {
-          await prisma.auditLog.create({
-            data: {
-              action: 'EFI_PIX_RECEIVED',
-              resource: 'pix',
-              resourceId: pix.txid || pix.endToEndId || `pix-${Date.now()}`,
-              actor: 'webhook:efi',
-              metadata: {
-                provider: 'efi',
-                txid: pix.txid,
-                valor: pix.valor,
-                horario: pix.horario,
-                endToEndId: pix.endToEndId,
-                chave: pix.chave
-              } as any
-            } as any
-          });
-          logger.log(`💰 Pix received: txid=${pix.txid} R$ ${pix.valor}`);
-        }
-      }
-
-      // OPEN FINANCE (consent / payment)
-      if (body.event && (body.event.includes('consent') || body.event.includes('payment'))) {
-        await prisma.auditLog.create({
-          data: {
-            action: `EFI_OF_${body.event.toUpperCase()}`,
-            resource: 'open-finance',
-            resourceId: body.data?.consentId || body.data?.paymentId || body.data?.identificadorAdesao || `efi-of-${Date.now()}`,
-            actor: 'webhook:efi-of',
-            metadata: body.data as any
-          } as any
-        });
-        logger.log(`🏦 OF event: ${body.event}`);
-      }
-
-      return { status: 200, received: true };
-    } catch (err: any) {
-      logger.error(`Erro: ${err.message}`);
-      return { status: 200, error: err.message };
-    } finally {
-      await prisma.$disconnect();
+  private assertHmac(req: Request): void {
+    const expected = process.env.EFI_PIX_WEBHOOK_HMAC;
+    if (!expected || expected.length < 32 || /SUBSTITUA|PLACEHOLDER|TROCAR|EXAMPLE|XXXXX/i.test(expected)) {
+      throw new ServiceUnavailableException('EFI_PIX_CALLBACK_SECRET_NOT_CONFIGURED');
+    }
+    const supplied = req.query?.hmac;
+    if (typeof supplied !== 'string' || supplied.length !== expected.length ||
+        !timingSafeEqual(Buffer.from(supplied), Buffer.from(expected))) {
+      throw new UnauthorizedException('EFI_PIX_CALLBACK_UNAUTHORIZED');
     }
   }
-  
-  // Health check
-  @Get()
-  health() {
-    return { status: 'ok', service: 'efi-webhook-public' };
+
+  @Post(['pix', 'rec', 'cobr', ''])
+  async handle(@Body() body: any = {}, @Req() req: Request) {
+    this.assertHmac(req);
+    const payload = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
+    const eventRaw = payload.evento ?? payload.event ?? payload.type ?? (Array.isArray(payload.pix) ? 'pix' : 'unknown');
+    const event = typeof eventRaw === 'string' && /^[a-zA-Z0-9._-]{1,80}$/.test(eventRaw) ? eventRaw : 'unknown';
+    // Never trust incoming callbacks to credit balances without independent bank verification.
+    try {
+      await prisma.auditLog.create({ data: {
+        actor: 'webhook:efi', action: 'EFI_PIX_CALLBACK_RECONCILIATION_PENDING',
+        resource: 'efi-pix-callback', resourceId: randomUUID(),
+        metadata: { provider: 'efi', event, bankVerified: false, mutationApplied: false }
+      } as any });
+      logger.log('Efí Pix callback pending bank verification');
+      return { received: true, event, bankPaymentConfirmed: false };
+    } catch (_error: unknown) {
+      logger.error('EFI_PIX_CALLBACK_AUDIT_UNAVAILABLE');
+      throw new ServiceUnavailableException('EFI_PIX_CALLBACK_PERSIST_FAILED');
+    }
   }
+  @Get()
+  health() { return { status: 'ok', service: 'efi-webhook-public' }; }
 }

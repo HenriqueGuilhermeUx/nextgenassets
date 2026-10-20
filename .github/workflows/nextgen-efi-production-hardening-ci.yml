@@ -1,0 +1,58 @@
+name: NextGen Efí Production Admin Hardening CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/modules/webhooks/webhooks-admin.controller.ts'
+      - 'apps/api/src/modules/efi-of/efi-operations.guard.ts'
+      - 'apps/api/src/modules/efi-of/efi-operations.guard.spec.ts'
+      - 'apps/api/src/modules/efi-of/efi-of-debug.controller.ts'
+      - 'apps/api/src/modules/efi-of/efi-of-admin.controller.ts'
+      - 'apps/api/src/modules/efi-of/efi-of.module.ts'
+      - 'apps/api/src/modules/efi-of/efi-of.service.ts'
+      - 'apps/api/src/modules/efi-of/efi-of-webhook-receiver.controller.ts'
+      - 'apps/api/src/modules/efi-of/efi-of-webhook.controller.ts'
+      - 'apps/api/src/modules/efi-of/efi-webhook-public.controller.ts'
+      - 'apps/api/src/modules/efi-of/efi-prod-security.spec.ts'
+      - 'scripts/efi/teste_efi.js'
+      - '.github/workflows/nextgen-efi-production-hardening-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  efiprodfix:
+    name: Build and admin-auth tests (no banking requests)
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'security/nextgen-real-efi-admin-lockdown'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NODE_ENV: test
+      NEXTGEN_EFI_AUTOMATIC_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Generate Prisma client
+        working-directory: apps/api
+        run: npx prisma generate
+      - name: Test fail-closed Efí admin guard
+        working-directory: apps/api
+        run: |
+          npx jest --runInBand --preset ts-jest efi-operations.guard.spec.ts
+          npx jest --runInBand --preset ts-jest efi-prod-security.spec.ts
+      - name: Check no hardcoded Efí credentials in connection script
+        run: |
+          if grep -Eq 'Client_(Id|Secret)_[a-zA-Z0-9-]{16,}' scripts/efi/teste_efi.js; then
+            echo 'Embedded Efí credentials detected' >&2
+            exit 1
+          fi
+      - name: Build NestJS API without deploying
+        working-directory: apps/api
+        run: npm run build

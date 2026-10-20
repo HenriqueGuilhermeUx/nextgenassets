@@ -413,12 +413,13 @@ export class EfiOFService {
     };
   }
 
-  async testConnection(): Promise<{ ok: boolean; token?: string; error?: string }> {
+  async testConnection(): Promise<{ ok: boolean; error?: string }> {
     try {
-      const token = await this.refreshToken();
-      return { ok: true, token: token.substring(0, 30) + '...' };
-    } catch (err: any) {
-      return { ok: false, error: err.message };
+      // OAuth/mTLS check; never reveal even a prefix of the bank access token.
+      await this.refreshToken();
+      return { ok: true };
+    } catch (_err: unknown) {
+      return { ok: false, error: 'EFI_OAUTH_MTLS_DIAGNOSTIC_FAILED' };
     }
   }
 }

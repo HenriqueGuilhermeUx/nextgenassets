@@ -4,14 +4,19 @@
 //  WEBHOOKS ADMIN — Registra e testa webhooks da Efí
 // ============================================
 
-import { Controller, Post, Body, Get, Param, Res, Logger } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, Res, Logger, UseGuards } from '@nestjs/common';
 import { Response } from 'express';
 import * as https from 'https';
 import { URL } from 'url';
 import { EfiWebhookRegistrar } from './efi-webhook-registrar.service';
 import { EfiPixAdapter } from '../destinations/providers/efi-pix-adapter';
+import { EfiOperationsGuard } from '../efi-of/efi-operations.guard';
 
+// All administrative operations, including raw SQL and real bank transfers,
+// require an internal token. Until NEXTGEN_ADMIN_TOKEN is configured,
+// fail closed. Never pass it through a browser URL or query string.
 @Controller('admin/webhooks')
+@UseGuards(EfiOperationsGuard)
 export class WebhooksAdminController {
   private DEBUG_LOGS: any[] = [];
   private readonly logger = new Logger(WebhooksAdminController.name);
@@ -62,26 +67,9 @@ export class WebhooksAdminController {
    * Body: { sql: string }
    */
   @Post('migrate')
-  async runMigration(@Body() body: { sql: string }) {
-    const { PrismaClient } = require('@prisma/client');
-    const prisma = new PrismaClient();
-    try {
-      // Executa SQL bruto
-      const result = await prisma.$executeRawUnsafe(body.sql);
-      return {
-        success: true,
-        rowsAffected: result,
-        message: 'Migration executada'
-      };
-    } catch (err: any) {
-      return {
-        success: false,
-        error: err.message,
-        code: err.code
-      };
-    } finally {
-      await prisma.$disconnect();
-    }
+  async runMigration(@Body() _body: { sql: string }) {
+    // Never accept arbitrary SQL by HTTP. Migrations belong in version-controlled CI.
+    return { success: false, error: 'AD_HOC_SQL_MIGRATIONS_DISABLED' };
   }
 
   /**
