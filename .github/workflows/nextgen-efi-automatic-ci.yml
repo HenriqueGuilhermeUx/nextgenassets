@@ -1,0 +1,113 @@
+name: NextGen Efí Automatic Bridge CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/**'
+      - 'database/migrations/20261016_nextgen_efi_automatic_bridge.sql'
+      - 'database/migrations/20261016_nextgen_centralized_d1_payout.sql'
+      - 'database/migrations/20261019_nextgen_efi_receipt_cycle_uniqueness.sql'
+      - 'database/migrations/20261020_nextgen_efi_reconciliation_proof_gate.sql'
+      - 'database/tests/nextgen_efi_d1_migration_contract.sql'
+      - 'apps/marketing/src/app/pix-automatico/**'
+      - 'apps/marketing/src/app/recorrencias/**'
+      - '.github/workflows/nextgen-efi-automatic-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  efi-automatic:
+    name: NestJS build, bank policy and migration contract tests
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'feature/nextgen-efi-auto-recurring-bridge'
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ng_test
+          POSTGRES_PASSWORD: ng_ci_ephemeral_only
+          POSTGRES_DB: ng_bridge_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ng_test -d ng_bridge_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      NODE_ENV: test
+      NEXTGEN_EFI_AUTOMATIC_ENABLED: 'false'
+      NEXTGEN_EFI_AUTOMATIC_SANDBOX_REQUESTS: 'false'
+      NEXTGEN_EFI_AUTOMATIC_SANDBOX_PAYMENTS: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Verify local-only OAuth probe without bank network
+        run: |
+          node --check scripts/efi/verify-readonly-oauth.mjs
+          node --test scripts/efi/verify-readonly-oauth.spec.mjs
+          node --check scripts/efi/verify-readonly-oauth-interactive.mjs
+          node --test scripts/efi/verify-readonly-oauth-interactive.spec.mjs
+      - name: Generate Prisma client
+        working-directory: apps/api
+        run: npx prisma generate
+      - name: Generate Prisma baseline DDL (read-only export for isolated staging)
+        working-directory: apps/api
+        run: |
+          npx prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script > /tmp/nextgen-prisma-baseline.sql
+          test -s /tmp/nextgen-prisma-baseline.sql
+          echo 'Prisma base DDL generated for ephemeral CI only'
+          sha256sum /tmp/nextgen-prisma-baseline.sql
+      - name: Efí authorization and sandbox tests
+        working-directory: apps/api
+        run: |
+          npx jest --runInBand centralized-d1-policy
+          npx jest --runInBand efi-centralized-d1-payout.service
+          npx jest --runInBand efi-automatic-payment-status
+          npx jest --runInBand efi-automatic-consent-validation
+          npx jest --runInBand efi-automatic-recurrence.bridge
+          npx jest --runInBand efi-of-sandbox-payment
+          npx jest --runInBand efi-operations.guard
+          npx jest --runInBand efi-of-webhook-receiver.controller
+          npx jest --runInBand efi-production-read-only
+          npx jest --runInBand efi-incoming-pix-proof
+          npx jest --runInBand efi-pix-incoming-read.service
+          npx jest --runInBand efi-central-receipt-import
+          npx jest --runInBand efi-statement-v5-parser
+          npx jest --runInBand efi-statement-read.service
+      - name: Validate Efí and D+1 migrations on ephemeral Postgres
+        env:
+          PGPASSWORD: ng_ci_ephemeral_only
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: ng_test
+          PGDATABASE: ng_bridge_ci
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+          # Create the real Prisma schema before applying SQL modules, to detect drift.
+          psql -v ON_ERROR_STOP=1 -f /tmp/nextgen-prisma-baseline.sql
+          psql -v ON_ERROR_STOP=1 -f database/migrations/20260910_nextgen_smart_operations.sql
+          psql -v ON_ERROR_STOP=1 -f database/migrations/20261016_nextgen_efi_automatic_bridge.sql
+          psql -v ON_ERROR_STOP=1 -f database/migrations/20261016_nextgen_centralized_d1_payout.sql
+          psql -v ON_ERROR_STOP=1 -f database/migrations/20261019_nextgen_efi_receipt_cycle_uniqueness.sql
+          psql -v ON_ERROR_STOP=1 -f database/migrations/20261020_nextgen_efi_reconciliation_proof_gate.sql
+          psql -v ON_ERROR_STOP=1 -f database/tests/nextgen_efi_d1_migration_contract.sql
+      - name: Build NestJS API
+        working-directory: apps/api
+        run: npm run build
+      - name: Build NextGen marketing site (no deploy)
+        working-directory: apps/marketing
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+        run: npm run build
+

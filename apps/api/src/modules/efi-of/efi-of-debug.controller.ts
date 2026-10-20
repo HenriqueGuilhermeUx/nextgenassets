@@ -13,7 +13,8 @@
 //  POST /v1/admin/efi-of/test-consent
 // ============================================
 
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { EfiOperationsGuard } from './efi-operations.guard';
 import { createHash } from 'crypto';
 import * as tls from 'tls';
 import { EfiOFService } from './efi-of.service';
@@ -23,6 +24,7 @@ import { buildEfiOFConfig } from '../../config/efi-of.config';
 export class EfiOFDebugController {
   constructor(private readonly efiOF: EfiOFService) {}
 
+  @UseGuards(EfiOperationsGuard)
   @Get('health')
   health() {
     const cfg = buildEfiOFConfig(process.env);
@@ -46,6 +48,7 @@ export class EfiOFDebugController {
     };
   }
 
+  @UseGuards(EfiOperationsGuard)
   @Get('cert-check')
   certCheck() {
     const cfg = buildEfiOFConfig(process.env);
@@ -87,11 +90,13 @@ export class EfiOFDebugController {
     };
   }
 
+  @UseGuards(EfiOperationsGuard)
   @Get('test-token')
   async testTokenBrowser() {
     return this.efiOF.testConnection();
   }
 
+  @UseGuards(EfiOperationsGuard)
   @Get('participants')
   async participants(@Query('nome') nome?: string) {
     try {
@@ -108,6 +113,7 @@ export class EfiOFDebugController {
     }
   }
 
+  @UseGuards(EfiOperationsGuard)
   @Get('participants-efi')
   async participantsEfi() {
     const nomes = ['efi', 'efipay', 'efi s.a', 'instituicao de pagamento'];
@@ -128,6 +134,7 @@ export class EfiOFDebugController {
     return { success: true, message: 'Procure o identificador aceito em pagador.idParticipante.', results };
   }
 
+  @UseGuards(EfiOperationsGuard)
   @Get('config')
   async getOpenFinanceConfig() {
     try {
@@ -149,6 +156,7 @@ export class EfiOFDebugController {
     }
   }
 
+  @UseGuards(EfiOperationsGuard)
   @Post('config')
   async putOpenFinanceConfig(@Body() body: any) {
     try {
@@ -177,19 +185,23 @@ export class EfiOFDebugController {
   }
 
   @Get('return')
-  returnFromOpenFinance(@Query() query: any) {
+  returnFromOpenFinance() {
+    // This callback is a browser landing page, NOT evidence of authorization.
+    // Do not echo bank authorization codes, state or query parameters.
     return {
       success: true,
-      message: 'Retorno recebido da jornada Open Finance. Guarde os parametros abaixo.',
-      query
+      message: 'Retorno recebido. A confirmação da autorização é consultada diretamente no banco pela NextGen.',
+      bankAuthorizationConfirmed: false
     };
   }
 
+  @UseGuards(EfiOperationsGuard)
   @Post('test-token')
   async testToken() {
     return this.efiOF.testConnection();
   }
 
+  @UseGuards(EfiOperationsGuard)
   @Post('test-consent')
   async testConsent(@Body() body: any) {
     const required = ['idParticipante', 'favorecido', 'intervalo', 'dataInicio'];
@@ -242,14 +254,11 @@ export class EfiOFDebugController {
       'https://api.nextgenassets.com.br/v1/webhooks/efi-of-public';
 
     const securityType = input.securityType || input.webhookSecurityType || 'hmac';
-    const securityHash =
-      input.securityHash ||
-      input.webhookSecurityHash ||
-      input.hash ||
-      input.hmacHash ||
-      process.env.EFI_OF_WEBHOOK_HASH ||
-      process.env.EFI_OF_HMAC_HASH ||
-      '2f7b1d4c8e9a0b3c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d';
+    const securityHash = process.env.EFI_OF_WEBHOOK_HMAC;
+    if (!securityHash || securityHash.length < 32 ||
+        /SUBSTITUA|PLACEHOLDER|TROCAR|EXAMPLE|XXXXX/i.test(securityHash)) {
+      throw new Error('EFI_OF_WEBHOOK_HMAC_MUST_BE_CONFIGURED');
+    }
 
     return this.cleanObject({
       redirectURL,

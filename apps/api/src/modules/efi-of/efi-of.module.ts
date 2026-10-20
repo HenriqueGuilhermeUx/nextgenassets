@@ -1,5 +1,13 @@
 import { Module } from '@nestjs/common';
 import { EfiOFService } from './efi-of.service';
+import { EfiOperationsGuard } from './efi-operations.guard';
+import { EfiProductionReadOnlyController } from './efi-production-read-only.controller';
+import { EfiProductionReadOnlyService } from './efi-production-read-only.service';
+import { EfiPixIncomingReadService } from './efi-pix-incoming-read.service';
+import { EfiCentralReceiptImportService } from './efi-central-receipt-import.service';
+import { EfiCentralReceiptImportController } from './efi-central-receipt-import.controller';
+import { EfiStatementReadService } from './efi-statement-read.service';
+import { EfiStatementReadController } from './efi-statement-read.controller';
 import { EfiOFWebhookController } from './efi-of-webhook.controller';
 import { EfiOFWebhookReceiverController } from './efi-of-webhook-receiver.controller';
 import { EfiWebhookPublicController } from './efi-webhook-public.controller';
@@ -14,19 +22,26 @@ import { PaymentRouterController } from '../smart-billing/payment-router.control
 import { SmartBillingNotificationsController } from '../smart-billing/smart-billing-notifications.controller';
 import { SmartBillingEmailNotificationsController } from '../smart-billing/smart-billing-email-notifications.controller';
 import { SmartBillingRecurrencesController } from '../smart-billing/smart-billing-recurrences.controller';
+import { EfiAutomaticRecurrenceController } from '../smart-billing/efi-automatic-recurrence.controller';
+import { EfiAutomaticRecurrenceService } from '../smart-billing/efi-automatic-recurrence.service';
+import { EfiCentralizedD1PayoutService } from '../smart-billing/efi-centralized-d1-payout.service';
+import { EfiCentralizedD1PayoutController } from '../smart-billing/efi-centralized-d1-payout.controller';
 import { WooviSubaccountsController } from '../smart-billing/woovi-subaccounts.controller';
 import { SmartBillingBulkController } from '../smart-billing/smart-billing-bulk.controller';
 import { SmartBillingPayoutRequestsController } from '../smart-billing/smart-billing-payout-requests.controller';
 import { WooviPaymentWebhookController } from '../smart-billing/woovi-payment-webhook.controller';
 
 @Module({
-  providers: [EfiOFService],
+  providers: [EfiOFService, EfiOperationsGuard, EfiAutomaticRecurrenceService, EfiCentralizedD1PayoutService, EfiProductionReadOnlyService, EfiPixIncomingReadService, EfiCentralReceiptImportService, EfiStatementReadService],
   controllers: [
     EfiOFWebhookController,
     EfiOFWebhookReceiverController,
     EfiWebhookPublicController,
     EfiOFDebugController,
     EfiOFAdminController,
+    EfiProductionReadOnlyController,
+    EfiCentralReceiptImportController,
+    EfiStatementReadController,
     SmartBillingController,
     SmartBillingSettlementsController,
     EfiPixSplitController,
@@ -36,6 +51,8 @@ import { WooviPaymentWebhookController } from '../smart-billing/woovi-payment-we
     SmartBillingNotificationsController,
     SmartBillingEmailNotificationsController,
     SmartBillingRecurrencesController,
+    EfiAutomaticRecurrenceController,
+    EfiCentralizedD1PayoutController,
     WooviSubaccountsController,
     SmartBillingBulkController,
     SmartBillingPayoutRequestsController,

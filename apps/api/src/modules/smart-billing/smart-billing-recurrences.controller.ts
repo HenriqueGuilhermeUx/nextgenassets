@@ -41,6 +41,21 @@ export class SmartBillingRecurrencesController {
     const dueDay = Math.min(Math.max(Number(body.dueDay || body.diaVencimento || 10), 1), 28);
     const startDate = body.startDate || new Date().toISOString().slice(0, 10);
     const nextChargeDate = body.nextChargeDate || this.nextDateFromDueDay(dueDay, startDate);
+    const months = body.months == null ? null : Number(body.months);
+    if (months !== null && (!Number.isInteger(months) || months < 1 || months > 120)) {
+      return { success: false, error: 'INVALID_RECURRENCE_DURATION',
+        message: 'Informe uma duração inteira entre 1 e 120 meses.' };
+    }
+    // Honor the duration sent by the existing vertical UI. Before this
+    // change, months was accepted by the UI but never stored as an end date.
+    const firstDue = new Date(`${nextChargeDate.slice(0, 10)}T12:00:00.000Z`);
+    const computedEnd = months === null ? null
+      : new Date(Date.UTC(firstDue.getUTCFullYear(), firstDue.getUTCMonth() + months - 1,
+          dueDay, 12, 0, 0)).toISOString().slice(0, 10);
+    const endDate = body.endDate || computedEnd;
+    if (endDate && (!/^\d{4}-\d{2}-\d{2}$/.test(endDate) || endDate < nextChargeDate)) {
+      return { success: false, error: 'INVALID_RECURRENCE_END_DATE' };
+    }
     const id = `rec_${randomUUID().replace(/-/g, '')}`;
 
     const inserted = await prisma.$queryRaw<any[]>`
@@ -53,7 +68,7 @@ export class SmartBillingRecurrencesController {
         ${body.description || body.descricao || 'Recorrência NextGen'},
         ${amount}::numeric,
         ${body.frequency || body.frequencia || 'MONTHLY'},
-        ${dueDay}, ${startDate}::date, ${body.endDate || null}, 'ACTIVE', ${nextChargeDate}::date,
+        ${dueDay}, ${startDate}::date, ${endDate}, 'ACTIVE', ${nextChargeDate}::date,
         ${body.provider || 'WOOVI'}, ${JSON.stringify({ rawInput: this.sanitize(body) })}::jsonb
       ) RETURNING *
     `;
@@ -84,16 +99,39 @@ export class SmartBillingRecurrencesController {
     const today = body.today || new Date().toISOString().slice(0, 10);
     const limit = Math.min(Math.max(Number(body.limit) || 50, 1), 200);
 
-    const rows = await prisma.$queryRaw<any[]>`
-      SELECT r.*, c.name AS customer_name, c.email AS customer_email, c.phone AS customer_phone
-      FROM smart_billing_recurrences r
-      JOIN smart_billing_customers c ON c.id = r.customer_id
-      WHERE r.partner_id = ${partner.id}
-        AND r.status = 'ACTIVE'
-        AND r.next_charge_date <= ${today}::date
-      ORDER BY r.next_charge_date ASC
-      LIMIT ${limit}
-    `;
+    // Do not issue a manual Pix invoice for a recurrence with a registered
+    // bank-authorization intent. The fallback must be a separate confirmed action.
+    // This branch only takes effect after enabling the feature AND applying the
+    // accompanying staging migration; the legacy behavior remains unchanged
+    // while the flag is off.
+    const automaticOptIn = process.env.NEXTGEN_EFI_AUTOMATIC_ENABLED === 'true';
+    const rows = automaticOptIn
+      ? await prisma.$queryRaw<any[]>`
+          SELECT r.*, c.name AS customer_name, c.email AS customer_email, c.phone AS customer_phone
+          FROM smart_billing_recurrences r
+          JOIN smart_billing_customers c ON c.id = r.customer_id
+          WHERE r.partner_id = ${partner.id}
+            AND r.status = 'ACTIVE'
+            AND r.next_charge_date <= ${today}::date
+            AND (r.end_date IS NULL OR r.next_charge_date <= r.end_date)
+            AND NOT EXISTS (
+              SELECT 1 FROM ng_efi_auto_authorizations a
+              WHERE a.partner_id = r.partner_id AND a.recurrence_id = r.id
+            )
+          ORDER BY r.next_charge_date ASC
+          LIMIT ${limit}
+        `
+      : await prisma.$queryRaw<any[]>`
+          SELECT r.*, c.name AS customer_name, c.email AS customer_email, c.phone AS customer_phone
+          FROM smart_billing_recurrences r
+          JOIN smart_billing_customers c ON c.id = r.customer_id
+          WHERE r.partner_id = ${partner.id}
+            AND r.status = 'ACTIVE'
+            AND r.next_charge_date <= ${today}::date
+            AND (r.end_date IS NULL OR r.next_charge_date <= r.end_date)
+          ORDER BY r.next_charge_date ASC
+          LIMIT ${limit}
+        `;
 
     if (dryRun) {
       return {

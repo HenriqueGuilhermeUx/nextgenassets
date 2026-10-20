@@ -21,6 +21,11 @@ export class TriggerCronWorker implements OnModuleInit {
   }
 
   start() {
+    // Isolated bank sandbox must never activate legacy background automation.
+    if (process.env.NEXTGEN_DISABLE_BACKGROUND_WORKERS === 'true') {
+      this.logger.log('Legacy worker disabled for isolated homologation');
+      return;
+    }
     if (this.intervalHandle) return;
 
     this.logger.log('⏰ Trigger cron worker started (a cada 1 min)');
@@ -43,6 +48,7 @@ export class TriggerCronWorker implements OnModuleInit {
   }
 
   async evaluateAll() {
+    if (process.env.NEXTGEN_DISABLE_BACKGROUND_WORKERS === 'true') return;
     if (this.isRunning) {
       this.logger.warn('⏭️ Avaliação anterior ainda em andamento, pulando');
       return;

@@ -85,7 +85,7 @@ import { MarketWatcherWorker } from './workers/market-watcher.worker';
       { name: 'trigger-evaluation' },
       { name: 'trigger-execution' }
     ),
-    ScheduleModule.forRoot(),
+    ...(process.env.NEXTGEN_DISABLE_BACKGROUND_WORKERS === 'true' ? [] : [ScheduleModule.forRoot()]),
     WooviModule,
     KlaviModule,
     EfiOFModule,
@@ -146,7 +146,8 @@ import { MarketWatcherWorker } from './workers/market-watcher.worker';
     MarketDataService,
     BankTransferService,
     TriggerEngine,
-    // Workers
+    // Keep providers injectable: AggregatorAdminController depends on RoundUpAggregatorWorker.
+    // Their execution is blocked individually and the ScheduleModule is disabled in staging.
     TriggerEvaluationWorker,
     TriggerCronWorker,
     RoundUpAggregatorWorker,
