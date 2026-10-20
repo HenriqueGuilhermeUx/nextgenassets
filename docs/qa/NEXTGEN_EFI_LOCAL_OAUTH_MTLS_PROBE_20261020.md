@@ -13,3 +13,7 @@ Código de saída: 0 = OAuth e três escopos verificados; 2 = autenticação fei
 Não execute no Render público de homologação nem em GitHub Actions. A regra de acesso a clientes e pagamentos da produção permanece intacta. A ausência de saldo ou de Pix real no processo não prova titularidade da conta; essa validação e o repasse D+1 permanecem bloqueados.
 
 Documentação oficial Efí: https://dev.efipay.com.br/docs/api-pix/credenciais/
+
+## Opção sem PowerShell (Windows CMD ou duplo clique)
+
+Utilize `scripts/efi/INICIAR_TESTE_EFI.cmd` com duplo clique (requer Node.js 20+). O CMD abre o script `verify-readonly-oauth-interactive.mjs`, que pede Client ID, Client Secret oculto, caminho local do P12 e senha do P12 oculta. Nenhum segredo é inserido em variável de ambiente ou argumento do shell. O processo chama exclusivamente a API OAuth HTTPS mTLS Efí e retorna somente os indicadores. O terminal aguarda uma tecla para o operador conseguir copiar o resultado. Alternativa: executar `node scripts/efi/verify-readonly-oauth-interactive.mjs` pelo Prompt de Comando. Não precisa instalar PowerShell ou novas credenciais Efí.
