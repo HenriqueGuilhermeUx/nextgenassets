@@ -76,6 +76,8 @@ jobs:
           npx jest --runInBand efi-incoming-pix-proof
           npx jest --runInBand efi-pix-incoming-read.service
           npx jest --runInBand efi-central-receipt-import
+          npx jest --runInBand efi-statement-v5-parser
+          npx jest --runInBand efi-statement-read.service
       - name: Validate Efí and D+1 migrations on ephemeral Postgres
         env:
           PGPASSWORD: ng_ci_ephemeral_only
