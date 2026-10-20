@@ -30,7 +30,7 @@ export class EfiPixIncomingReadService {
     const url=new URL('https://pix.api.efipay.com.br'+path);
     return new Promise((resolve,reject)=>{
       const req=https.request(url,{
-        method,headers,
+        method,headers:{...headers,'Accept-Encoding':'identity'},
         pfx:Buffer.from(process.env.EFI_PIX_READ_CERTIFICATE_BASE64!,'base64'),
         passphrase:process.env.EFI_PIX_READ_CERT_PASSPHRASE||'',
         rejectUnauthorized:true,
@@ -67,8 +67,8 @@ export class EfiPixIncomingReadService {
     // OAuth token exchange is the ONLY bank POST used by this client.
     const tokenReply=await this.request('POST','/oauth/token',{
       Authorization:'Basic '+basic,
-      'Content-Type':'application/x-www-form-urlencoded'
-    },'grant_type=client_credentials');
+      'Content-Type':'application/json'
+    },JSON.stringify({grant_type:'client_credentials'}));
     const token=tokenReply.payload?.access_token;
     if(typeof token!=='string'||!token)
       throw new Error('EFI_PIX_BANK_OAUTH_INVALID');

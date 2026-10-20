@@ -4,6 +4,7 @@ import { EfiStatementReadService } from './efi-statement-read.service';
 import { EfiOperationsGuard } from './efi-operations.guard';
 
 const keys=['NEXTGEN_EFI_STATEMENT_READ_ENABLED','NEXTGEN_EFI_PRODUCTION_READ_ONLY_ENABLED',
+  'NEXTGEN_EFI_MTLS_PROBE_ENABLED',
   'NEXTGEN_DISABLE_BACKGROUND_WORKERS','NEXTGEN_CENTRALIZED_D1_ENABLED',
   'NEXTGEN_EFI_AUTOMATIC_ENABLED','NEXTGEN_EFI_AUTOMATIC_SANDBOX_REQUESTS',
   'NEXTGEN_EFI_AUTOMATIC_SANDBOX_PAYMENTS',
@@ -67,6 +68,77 @@ describe('Efí production reconciliation report: bank mock only',()=>{
   it('validates movement dates before bank calls',async()=>{
     enable();const fn=jest.spyOn(service,'request');
     await expect(service.requestStatement('2026-02-30')).rejects.toThrow('EFI_STATEMENT_MOVEMENT_DATE_INVALID');
+    expect(fn).not.toHaveBeenCalled();
+  });
+  it('uses Efí JSON client_credentials format and mTLS-only OAuth path',async()=>{
+    enable();
+    const fn=jest.spyOn(service,'request').mockResolvedValue({
+      status:200,data:Buffer.from(JSON.stringify({
+        access_token:'SECRET_OAUTH_PRIVATE',
+        scope:'pix.read gn.reports.read gn.reports.write'
+      }))
+    });
+    const token=await service.oauth();
+    expect(token).toBe('SECRET_OAUTH_PRIVATE');
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(fn.mock.calls[0][0]).toBe('POST');
+    expect(fn.mock.calls[0][1]).toBe('/oauth/token');
+    expect(fn.mock.calls[0][2]['Content-Type']).toBe('application/json');
+    expect(JSON.parse(String(fn.mock.calls[0][3])))
+      .toEqual({grant_type:'client_credentials'});
+  });
+  it('denies the OAuth scope probe unless independently enabled',async()=>{
+    enable();
+    const request=jest.spyOn(service,'request');
+    await expect(service.probeOAuthScopes())
+      .rejects.toThrow('EFI_MTLS_PROBE_DISABLED');
+    expect(request).not.toHaveBeenCalled();
+  });
+  it('returns only permission flags from mocked OAuth and no bank token',async()=>{
+    enable();
+    process.env.NEXTGEN_EFI_MTLS_PROBE_ENABLED='true';
+    const request=jest.spyOn(service,'request').mockResolvedValueOnce({
+      status:200,data:Buffer.from(JSON.stringify({
+        access_token:'SECRET_OAUTH_PRIVATE',
+        scope:'pix.read gn.reports.read gn.reports.write pix.send'
+      }))
+    });
+    const result=await service.probeOAuthScopes();
+    expect(result).toMatchObject({
+      oauthMtlsSucceeded:true,reportAccessReady:true,
+      grantedRequiredScopes:{
+        pixRead:true,reportsRead:true,reportsWrite:true
+      },
+      bankAccountOwnershipVerified:false,bankingDataFetched:false,
+      bankPaymentIssued:false,reportRequested:false,payoutAuthorized:false
+    });
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request.mock.calls[0][1]).toBe('/oauth/token');
+    expect(JSON.stringify(result)).not.toContain('SECRET_OAUTH_PRIVATE');
+    expect(JSON.stringify(result)).not.toContain('pix.send');
+  });
+  it('reports missing access and suppresses malformed or unscoped bank tokens',async()=>{
+    enable();
+    process.env.NEXTGEN_EFI_MTLS_PROBE_ENABLED='true';
+    const fn=jest.spyOn(service,'request').mockResolvedValueOnce({
+      status:200,data:Buffer.from(JSON.stringify({
+        access_token:'PRIVATE_TOKEN',scope:'pix.read gn.reports.read'
+      }))
+    });
+    expect((await service.probeOAuthScopes()).reportAccessReady).toBe(false);
+    fn.mockReset().mockResolvedValueOnce({
+      status:200,data:Buffer.from(JSON.stringify({access_token:'PRIVATE_TOKEN'}))
+    });
+    await expect(service.probeOAuthScopes()).rejects
+      .toThrow('EFI_MTLS_SCOPE_PROBE_REQUIRES_REVIEW');
+  });
+  it('refuses OAuth scope checks while background workers or financial flags run',async()=>{
+    enable();
+    process.env.NEXTGEN_EFI_MTLS_PROBE_ENABLED='true';
+    process.env.NEXTGEN_CENTRALIZED_D1_ENABLED='true';
+    const fn=jest.spyOn(service,'request');
+    await expect(service.probeOAuthScopes()).rejects
+      .toThrow('EFI_STATEMENT_READER_DISABLED');
     expect(fn).not.toHaveBeenCalled();
   });
   it('requests only an Efí report, never a Pix or payout',async()=>{

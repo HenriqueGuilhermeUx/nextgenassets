@@ -143,3 +143,14 @@ A prévia `POST /v1/admin/efi-statement-read/preview` não pode mais escolher um
 Novo endpoint interno **GET `/v1/admin/efi-statement-read/preflight`** sob `EfiOperationsGuard` para verificar somente **flags, ausência de workers, host permitido, presença (não conteúdo) de credenciais/certificado, formato básico de conta recebedora**. Ele retorna exclusivamente booleanos e `bankConnectionVerified:false`. Não acessa Efí, não imprime números de conta nem identifica cliente, não consulta saldo e não executa pagamento.
 
 A solicitação de relatório (somente após opt-in explícito) agora pede TODAS as famílias oficiais `tipoRegistros` da Efí Pix, incluindo saldo, envio, recebimento, devoluções, estornos e transferências. Isto evita chamar de conciliação um arquivo filtrado apenas para PR/TPR que omite movimentações relevantes. A prévia continua conservadora: nenhum CSV, mesmo completo, gera baixa ou autorização D+1. Escopos `gn.reports.read/write` confirmados pelo proprietário; chaves de mTLS ainda NÃO instaladas na homologação.
+
+## Próxima etapa: prova mTLS OAuth SOMENTE token (20/10/2026)
+O proprietário confirmou `pix.read`, `gn.reports.read`, `gn.reports.write` na aplicação Efí atual; isso não confirma as permissões efetivamente concedidas pelo token OAuth. A documentação oficial usa `Content-Type: application/json`, body `{"grant_type":"client_credentials"}` e certificado mTLS para `POST https://pix.api.efipay.com.br/oauth/token`:
+https://dev.efipay.com.br/docs/api-pix/credenciais/
+
+- Padronizadas ambas integrações de leitura da API Pix Efí (leitor Pix recebido e leitor de extrato) para OAuth JSON/mTLS oficial. Incluído `Accept-Encoding: identity` para corpo previsível.
+- Novo `POST /v1/admin/efi-statement-read/probe-oauth` requer `EfiOperationsGuard` e TODAS as flags de leitura controlada existentes, **mais** `NEXTGEN_EFI_MTLS_PROBE_ENABLED=true` (OFF por padrão). Faz APENAS o OAuth; não baixa extrato, não cria relatório, não consulta pagamentos, não escreve banco, não envia Pix. Retorna três booleanos dos escopos necessários, sem token, sem o texto bruto de escopos, sem dados pessoais.
+- Exige identificação da conta recebedora previamente configurada no servidor, e workers/pagamentos financeiros desligados.
+- Falha fechada se o banco omitir `scope`, responder incorretamente ou faltar certificado; mensagens de erro não reproduzem corpo bancário, credenciais ou erro TLS.
+- **NÃO HABILITAR esse endpoint num Render público com credenciais copiadas da produção.** Para homologar autenticação real, preparar serviço de integração restrito, secrets Efí instalados diretamente via gerenciador e IP/acesso privados; não usar arquivos do repositório nem canal de chat.
+- Nenhum token bancário real foi solicitado nesta PR ou nos testes. A execução com a aplicação real depende de um ambiente seguro com credenciais/certificado instalados pelo proprietário.

@@ -11,6 +11,9 @@ export class EfiStatementReadController {
   @Get('preflight')
   preflight(){return this.service.configurationPreflight();}
 
+  @Post('probe-oauth')
+  probeOAuth(){return this.service.probeOAuthScopes();}
+
   @Post('request')
   request(@Body() body:any){return this.service.requestStatement(body?.movementDate);}
 

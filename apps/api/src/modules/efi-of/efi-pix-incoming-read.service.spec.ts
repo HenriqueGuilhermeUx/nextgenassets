@@ -47,6 +47,10 @@ describe('Efí Pix bank-only GET adapter - no live network',()=>{
     expect(request).toHaveBeenCalledTimes(2);
     expect(request.mock.calls[0][0]).toBe('POST');
     expect(request.mock.calls[0][1]).toBe('/oauth/token');
+    expect(request.mock.calls[0][2]['Content-Type']).toBe('application/json');
+    expect(JSON.parse(request.mock.calls[0][3])).toEqual({
+      grant_type:'client_credentials'
+    });
     expect(request.mock.calls[1][0]).toBe('GET');
     expect(request.mock.calls[1][1]).toBe('/v2/pix/'+id);
     expect(JSON.stringify(request.mock.calls[1])).not.toContain('test-only');

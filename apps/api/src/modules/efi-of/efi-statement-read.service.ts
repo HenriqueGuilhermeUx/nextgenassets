@@ -70,7 +70,8 @@ export class EfiStatementReadService {
     const url=new URL('https://pix.api.efipay.com.br'+path);
     return new Promise((resolve,reject)=>{
       const req=https.request(url,{
-        method,headers,timeout:15000,rejectUnauthorized:true,
+        method,headers:{...headers,'Accept-Encoding':'identity'},
+        timeout:15000,rejectUnauthorized:true,
         pfx:Buffer.from(process.env.EFI_PIX_READ_CERTIFICATE_BASE64!,'base64'),
         passphrase:process.env.EFI_PIX_READ_CERT_PASSPHRASE||''
       },res=>{
@@ -95,20 +96,61 @@ export class EfiStatementReadService {
     });
   }
 
-  private async oauth():Promise<string>{
+  private async oauthGrant():Promise<{token:string;scopes:string[]}>{
     const id=process.env.EFI_PIX_READ_CLIENT_ID!;
     const secret=process.env.EFI_PIX_READ_CLIENT_SECRET!;
     const auth=Buffer.from(id+':'+secret).toString('base64');
+    // Documented Efí API Pix OAuth expects application/json with mTLS.
     const response=await this.request('POST','/oauth/token',{
-      Authorization:'Basic '+auth,'Content-Type':'application/x-www-form-urlencoded'
-    },'grant_type=client_credentials');
+      Authorization:'Basic '+auth,'Content-Type':'application/json'
+    },JSON.stringify({grant_type:'client_credentials'}));
     let data:any;
     try{data=JSON.parse(response.data.toString('utf8'));}catch{
       throw new Error('EFI_STATEMENT_OAUTH_INVALID');
     }
     if(response.status!==200 || typeof data.access_token!=='string' || !data.access_token)
       throw new Error('EFI_STATEMENT_OAUTH_INVALID');
-    return data.access_token;
+    return {token:data.access_token,
+      scopes:typeof data.scope==='string'?data.scope.split(/\s+/).filter(Boolean):[]};
+  }
+
+  private async oauth():Promise<string>{
+    return (await this.oauthGrant()).token;
+  }
+
+  /** The ONLY externally reachable call is POST /oauth/token over mTLS.
+   * No Pix read, report generation, transfer or database mutation occurs.
+   * Operator must explicitly switch on NEXTGEN_EFI_MTLS_PROBE_ENABLED.
+   */
+  async probeOAuthScopes(){
+    this.preflight();
+    if(process.env.NEXTGEN_EFI_MTLS_PROBE_ENABLED!=='true')
+      throw new ServiceUnavailableException('EFI_MTLS_PROBE_DISABLED');
+    // Never test against an unidentified destination account.
+    this.receivingAccount();
+    try{
+      const grant=await this.oauthGrant();
+      if(grant.scopes.length===0)
+        throw new Error('EFI_MTLS_SCOPE_CLAIMS_MISSING');
+      const set=new Set(grant.scopes);
+      const flags={
+        pixRead:set.has('pix.read'),
+        reportsRead:set.has('gn.reports.read'),
+        reportsWrite:set.has('gn.reports.write')
+      };
+      return {
+        oauthMtlsSucceeded:true,reportAccessReady:
+          flags.pixRead&&flags.reportsRead&&flags.reportsWrite,
+        grantedRequiredScopes:flags,
+        bankAccountOwnershipVerified:false,
+        bankingDataFetched:false,
+        bankPaymentIssued:false,
+        reportRequested:false,
+        payoutAuthorized:false
+      };
+    }catch(_error:unknown){
+      throw new ServiceUnavailableException('EFI_MTLS_SCOPE_PROBE_REQUIRES_REVIEW');
+    }
   }
   private validDate(value:unknown):value is string {
     if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;
