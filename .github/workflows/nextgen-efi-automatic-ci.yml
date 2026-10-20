@@ -51,6 +51,10 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
+      - name: Verify local-only OAuth probe without bank network
+        run: |
+          node --check scripts/efi/verify-readonly-oauth.mjs
+          node --test scripts/efi/verify-readonly-oauth.spec.mjs
       - name: Generate Prisma client
         working-directory: apps/api
         run: npx prisma generate
