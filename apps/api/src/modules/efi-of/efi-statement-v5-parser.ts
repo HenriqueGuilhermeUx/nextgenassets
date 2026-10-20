@@ -62,17 +62,33 @@ export function parseEfiPixStatementV5(
      header[9]!=='1.0') {
     throw new Error('EFI_STATEMENT_HEADER_OR_ACCOUNT_MISMATCH');
   }
-  if(trailer[0]!=='T' || trailer.length<2 || !/^\d{1,10}$/.test(trailer[1]))
+  if(trailer[0]!=='T' || trailer.length!==13 ||
+     trailer.slice(1).some(n=>!/^\d{1,10}$/.test(n)))
     throw new Error('EFI_STATEMENT_TRAILER_MISSING');
 
   const allowed=new Set(['PR','PEC','PEB','EPE','PDE','PDR','SPDE',
     'TPR','TPE','ETPR','ETPE','SD0','SD1','TFE','TFR','ETFE','TTFE','ETTFE']);
   let receipts=0, chargeRows=0, feeRefundRows=0, pixValue=0, receivedFees=0,
     returnedFees=0, otherMovements=0, hasRefund=false, counted=0;
+  // Official v5.0 trailer T columns after total:
+  // received Pix; sent Pix; refunds; Pix reversals; Pix fees;
+  // Pix fee reversals; incoming transfers; outgoing transfers;
+  // transfer fees; transfer reversals; transfer-fee reversals.
+  const trailerFamilies:string[][]=[
+    ['PR'],['PEC','PEB'],['PDE','PDR','SPDE'],['EPE'],
+    ['TPR','TPE'],['ETPR','ETPE'],['TFR'],['TFE'],
+    ['TTFE'],['ETFE'],['ETTFE']
+  ];
+  const familyCounts=new Array<number>(trailerFamilies.length).fill(0);
   for (const fields of rows.slice(1,-1)) {
     const type=fields[0];
     if(!allowed.has(type))throw new Error('EFI_STATEMENT_UNKNOWN_BLOCK');
-    if(type!=='SD0'&&type!=='SD1') counted++;
+    if(type!=='SD0'&&type!=='SD1') {
+      counted++;
+      const index=trailerFamilies.findIndex(group=>group.includes(type));
+      if(index<0)throw new Error('EFI_STATEMENT_TRAILER_FAMILY_UNKNOWN');
+      familyCounts[index]++;
+    }
     if(type==='PR') {
       if(fields.length!==9&&fields.length!==10) throw new Error('EFI_STATEMENT_PIX_ROW_INVALID');
       if(fields[2]!==expected.endToEndId) {otherMovements++;continue;}
@@ -96,6 +112,8 @@ export function parseEfiPixStatementV5(
     }
   }
   if(Number(trailer[1])!==counted)throw new Error('EFI_STATEMENT_TRAILER_COUNT_MISMATCH');
+  if(familyCounts.some((n,i)=>Number(trailer[i+2])!==n))
+    throw new Error('EFI_STATEMENT_TRAILER_FAMILY_MISMATCH');
   if(receipts!==1)throw new Error('EFI_STATEMENT_PIX_NOT_UNIQUE');
   if(chargeRows>1 || feeRefundRows>1 || returnedFees>receivedFees)
     throw new Error('EFI_STATEMENT_FEE_AMBIGUOUS');

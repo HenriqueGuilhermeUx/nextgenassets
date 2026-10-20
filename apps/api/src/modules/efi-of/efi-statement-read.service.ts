@@ -77,6 +77,20 @@ export class EfiStatementReadService {
     return Number.isFinite(check.getTime()) &&
        check.toISOString().slice(0,10)===value && value<new Date().toISOString().slice(0,10);
   }
+  private receivingAccount():{bankCode:string;agency:string;account:string} {
+    // The CSV must identify the ONE bank account configured by the operator.
+    // Never trust an account number supplied in the incoming HTTP request.
+    const {EFI_STATEMENT_BANK_CODE:bankCode,
+      EFI_STATEMENT_AGENCY:agency,
+      EFI_STATEMENT_ACCOUNT:account}=process.env;
+    if(typeof bankCode!=='string'||!/^[0-9]{1,4}$/.test(bankCode) ||
+       typeof agency!=='string'||!/^[0-9]{1,4}$/.test(agency) ||
+       typeof account!=='string'||!/^[0-9]{2,20}$/.test(account)) {
+      throw new ServiceUnavailableException('EFI_STATEMENT_RECEIVING_ACCOUNT_UNCONFIGURED');
+    }
+    return {bankCode,agency,account};
+  }
+
   private validReportId(value:unknown):value is string{
     return typeof value==='string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value);
   }
@@ -116,10 +130,14 @@ export class EfiStatementReadService {
   async previewStatement(reportId:unknown,body:any){
     this.preflight();
     if(!this.validReportId(reportId) || !this.validDate(body?.date) ||
-       typeof body?.bankCode!=='string'||typeof body?.agency!=='string'||
-       typeof body?.account!=='string'||typeof body?.endToEndId!=='string'||
-       !Number.isSafeInteger(body?.amountCents))
+       typeof body?.endToEndId!=='string'||!(/^[A-Za-z0-9]{32}$/.test(body.endToEndId))||
+       !Number.isSafeInteger(body?.amountCents) || body.amountCents<=0)
       throw new BadRequestException('EFI_STATEMENT_PREVIEW_INVALID_INPUT');
+    const receivingAccount=this.receivingAccount();
+    if((body.bankCode!==undefined&&body.bankCode!==receivingAccount.bankCode)||
+       (body.agency!==undefined&&body.agency!==receivingAccount.agency)||
+       (body.account!==undefined&&body.account!==receivingAccount.account))
+      throw new BadRequestException('EFI_STATEMENT_ACCOUNT_OVERRIDE_FORBIDDEN');
     try{
       const token=await this.oauth();
       const response=await this.request('GET','/v2/gn/relatorios/'+reportId,{
@@ -132,8 +150,7 @@ export class EfiStatementReadService {
       if(response.status!==200)throw new Error('EFI_STATEMENT_DOWNLOAD_NOT_READY');
       const csv=new TextDecoder('utf-8',{fatal:true}).decode(response.data);
       const proof:EfiStatementPreview=parseEfiPixStatementV5(csv,{
-        date:body.date,bankCode:body.bankCode,agency:body.agency,
-        account:body.account,endToEndId:body.endToEndId,
+        date:body.date,...receivingAccount,endToEndId:body.endToEndId,
         amountCents:body.amountCents
       });
       // Even parsed CSV is not enough to lift compliance hold: the report

@@ -4,7 +4,14 @@ const exp={date:'2026-10-18',bankCode:'364',agency:'1',account:'517613',endToEnd
 const ca='CA;Efí;364;1;517613;Cliente Exemplo;2026-10-19;2026-10-18;Extrato de Conciliação API Pix;1.0';
 const pr='PR;123456;'+e2e+';someTxId;100.00;12345678908;;;2026-10-18T14:00:00.000Z;';
 const fee='TPR;654321;'+e2e+';1.00;2026-10-18T14:02:00.000Z';
-const make=(rows:string[])=>[ca,...rows,'T;'+rows.length+';1;0;0;0;0;0'].join('\n');
+const families=[
+  ['PR'],['PEC','PEB'],['PDE','PDR','SPDE'],['EPE'],
+  ['TPR','TPE'],['ETPR','ETPE'],['TFR'],['TFE'],['TTFE'],['ETFE'],['ETTFE']
+];
+const make=(rows:string[])=>{
+  const counts=families.map(types=>rows.filter(r=>types.some(t=>r.startsWith(t+';'))).length);
+  return [ca,...rows,['T',rows.length,...counts].join(';')].join('\n');
+};
 describe('Official Efí Pix statement v5 CSV fail-closed parser, no live bank data',()=>{
   it('reads official PR and TPR blocks with a redacted proof and tentative fee',()=>{
     const proof=parseEfiPixStatementV5(make([pr,fee]),exp);
@@ -24,6 +31,21 @@ describe('Official Efí Pix statement v5 CSV fail-closed parser, no live bank da
       .toThrow('EFI_STATEMENT_TRAILER_COUNT_MISMATCH');
     expect(()=>parseEfiPixStatementV5([ca,pr].join('\n'),exp))
       .toThrow('EFI_STATEMENT_TRAILER_MISSING');
+    expect(()=>parseEfiPixStatementV5([ca,pr,'T;1;1'].join('\n'),exp))
+      .toThrow('EFI_STATEMENT_TRAILER_MISSING');
+  });
+  it('rejects a forged family count even if overall T total is correct',()=>{
+    const original=make([pr,fee]);
+    const t=original.split('\n').at(-1)!;
+    const bad=t.split(';');
+    bad[2]='2';bad[6]='0';
+    expect(()=>parseEfiPixStatementV5(original.replace(t,bad.join(';')),exp))
+      .toThrow('EFI_STATEMENT_TRAILER_FAMILY_MISMATCH');
+  });
+  it('does not count SD0/SD1 balances among banking movement totals',()=>{
+    const rows=[pr,'SD0;200.00;2026-10-17','SD1;300.00;2026-10-18'];
+    const t=[ca,...rows,'T;1;1;0;0;0;0;0;0;0;0;0;0'].join('\n');
+    expect(parseEfiPixStatementV5(t,exp).countPixReceipts).toBe(1);
   });
   it('rejects missing, duplicate and wrong-amount target Pix',()=>{
     expect(()=>parseEfiPixStatementV5(make([fee]),exp))

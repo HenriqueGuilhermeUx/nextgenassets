@@ -7,7 +7,8 @@ const keys=['NEXTGEN_EFI_STATEMENT_READ_ENABLED','NEXTGEN_EFI_PRODUCTION_READ_ON
   'NEXTGEN_DISABLE_BACKGROUND_WORKERS','NEXTGEN_CENTRALIZED_D1_ENABLED',
   'NEXTGEN_EFI_AUTOMATIC_ENABLED','NEXTGEN_EFI_AUTOMATIC_SANDBOX_PAYMENTS',
   'EFI_PIX_READ_API_URL','EFI_PIX_READ_CLIENT_ID','EFI_PIX_READ_CLIENT_SECRET',
-  'EFI_PIX_READ_CERTIFICATE_BASE64'] as const;
+  'EFI_PIX_READ_CERTIFICATE_BASE64','EFI_STATEMENT_BANK_CODE',
+  'EFI_STATEMENT_AGENCY','EFI_STATEMENT_ACCOUNT'] as const;
 const original=Object.fromEntries(keys.map(x=>[x,process.env[x]]));
 const id='abc12345-1234-4abc-8abc-123456789abc';
 function enable(){
@@ -18,7 +19,8 @@ function enable(){
     EFI_PIX_READ_API_URL:'https://pix.api.efipay.com.br',
     EFI_PIX_READ_CLIENT_ID:'mock-id',
     EFI_PIX_READ_CLIENT_SECRET:'mock-secret',
-    EFI_PIX_READ_CERTIFICATE_BASE64:'X'.repeat(270)
+    EFI_PIX_READ_CERTIFICATE_BASE64:'X'.repeat(270),
+    EFI_STATEMENT_BANK_CODE:'364',EFI_STATEMENT_AGENCY:'1',EFI_STATEMENT_ACCOUNT:'517613'
   });
 }
 describe('Efí production reconciliation report: bank mock only',()=>{
@@ -59,13 +61,25 @@ describe('Efí production reconciliation report: bank mock only',()=>{
     expect(body.tipoRegistros.tarifaPixRecebido).toBe(true);
     expect(JSON.stringify(result)).not.toContain('TOKEN_PRIVATE');
   });
+  it('refuses an unconfigured or caller-overridden receiving bank account without OAuth',async()=>{
+    enable();
+    const get=jest.spyOn(service,'oauth');
+    const input={date:'2026-10-18',endToEndId:'E'+'0'.repeat(31),amountCents:10000};
+    delete process.env.EFI_STATEMENT_ACCOUNT;
+    await expect(service.previewStatement(id,input))
+      .rejects.toThrow('EFI_STATEMENT_RECEIVING_ACCOUNT_UNCONFIGURED');
+    enable();
+    await expect(service.previewStatement(id,{...input,account:'999999'}))
+      .rejects.toThrow('EFI_STATEMENT_ACCOUNT_OVERRIDE_FORBIDDEN');
+    expect(get).not.toHaveBeenCalled();
+  });
   it('accepts 202 as pending, not CSV completed',async()=>{
     enable();jest.spyOn(service,'oauth').mockResolvedValue('DUMMY_TOKEN');
     jest.spyOn(service,'request').mockResolvedValue({
       status:202,data:Buffer.from(JSON.stringify({id,status:'EM_PROCESSAMENTO'}))
     });
-    const result=await service.previewStatement(id,{date:'2026-10-18',bankCode:'364',
-      agency:'1',account:'517613',endToEndId:'E'+'0'.repeat(31),amountCents:10000});
+    const result=await service.previewStatement(id,{date:'2026-10-18',
+      endToEndId:'E'+'0'.repeat(31),amountCents:10000});
     expect(result).toEqual({id,status:'EM_PROCESSAMENTO',ready:false,payoutAuthorized:false});
   });
   it('never returns raw CSV or sensitive names even when CSV is valid',async()=>{
@@ -74,11 +88,11 @@ describe('Efí production reconciliation report: bank mock only',()=>{
     const csv=[
       'CA;Efí;364;1;517613;CLIENTE DOCUMENTO 123;2026-10-19;2026-10-18;Extrato de Conciliação API Pix;1.0',
       'PR;1;'+e2e+';txid;100.00;12345678908;;;2026-10-18T14:00:00.000Z;',
-      'TPR;2;'+e2e+';1.00;2026-10-18T15:00:00.000Z','T;2;1'
+      'TPR;2;'+e2e+';1.00;2026-10-18T15:00:00.000Z','T;2;1;0;0;0;1;0;0;0;0;0;0'
     ].join('\n');
     jest.spyOn(service,'request').mockResolvedValue({status:200,data:Buffer.from(csv)});
-    const x=await service.previewStatement(id,{date:'2026-10-18',bankCode:'364',
-      agency:'1',account:'517613',endToEndId:e2e,amountCents:10000});
+    const x=await service.previewStatement(id,{date:'2026-10-18',
+      endToEndId:e2e,amountCents:10000});
     expect(x.proof.tentativeNetCents).toBe(9900);
     expect(x.payoutAuthorized).toBe(false);
     expect(x.complianceReleased).toBe(false);
