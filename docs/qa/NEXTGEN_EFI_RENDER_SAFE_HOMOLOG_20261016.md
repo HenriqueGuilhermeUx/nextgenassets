@@ -58,3 +58,13 @@
 - Recebimento e repasse reais D+1 seguem bloqueados: falta integração bancária Pix OUT comprovada e validação contratual/compliance pela Efí; **nenhuma operação com dinheiro**.
 
 Produção `nga-api`, cron jobs e `main` continuam preservados. Não concluir merge enquanto as pendências acima não estiverem homologadas.
+
+## Decisão atualizada pelo proprietário (2026-10-19) — Efí REAL existente
+
+O usuário confirmou: **conta Efí Empresas**, aplicação Open Finance em **produção com os 4 escopos `gn.opb.automatic.{consent,payment}.{read,write}` ativos**. A mesma aplicação NÃO fornece rotação com convivência de chaves antigas/novas. Portanto não regenerar credenciais atuais, não revogar, não copiar certificados/segredos de `nga-api` para homologação e não reconfigurar os webhooks ativos. A documentação oficial permite outras aplicações independentes na mesma conta Efí, caso precise de troca com sobreposição: https://dev.efipay.com.br/docs/api-open-finance/credenciais/ . A criação desta segunda aplicação depende da escolha de credenciais e do painel Efí; nada foi criado automaticamente.
+
+Para preparar integração sem tocar clientes, adicionamos modo **PRODUCTION READ ONLY (opt-in)** em `/v1/admin/efi-production-read-only` (guardado por `EfiOperationsGuard`): `GET /preflight` valida configuração local sem rede e `POST /lookup-adhesion` permite consultar a Efí através do **GET /v1/pagamentos-automaticos/adesao** usando token OAuth mTLS, sem mutations e sem dados pessoais na resposta. Consulta de autorização bancária NÃO marca contrato interno autorizado. Nenhum Pix, status de pagamento, crédito ou payout é modificado.
+
+A consulta começa desabilitada (`NEXTGEN_EFI_PRODUCTION_READ_ONLY_ENABLED=false`) e **não deverá ser habilitada enquanto o staging estiver sem credenciais próprias ou enquanto o código não tiver sido homologado**. Requer `NEXTGEN_DISABLE_BACKGROUND_WORKERS=true`, todas as flags de débito/D+1 OFF, host HTTPS de produção exato, certificado e credenciais previamente instalados por canal secreto. O serviço de produção `nga-api` NÃO deve ser alterado nesta sprint. A consulta somente será exercida após aprovar origem das credenciais e definir um ambiente de leitura independente.
+
+Antes de qualquer corte de chaves: preparar segunda aplicação na mesma conta para manter a primeira íntegra; definir janela e monitoramento, validar saldo/rotas/callbacks, somente então revogar material comprometido. Quando uma segunda aplicação não for opção, obter suporte Efí para janela assistida — não prometer zero downtime para rotação direta da mesma aplicação.

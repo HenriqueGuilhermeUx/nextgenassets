@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { EfiOFService } from './efi-of.service';
 import { EfiOperationsGuard } from './efi-operations.guard';
+import { EfiProductionReadOnlyController } from './efi-production-read-only.controller';
+import { EfiProductionReadOnlyService } from './efi-production-read-only.service';
 import { EfiOFWebhookController } from './efi-of-webhook.controller';
 import { EfiOFWebhookReceiverController } from './efi-of-webhook-receiver.controller';
 import { EfiWebhookPublicController } from './efi-webhook-public.controller';
@@ -25,13 +27,14 @@ import { SmartBillingPayoutRequestsController } from '../smart-billing/smart-bil
 import { WooviPaymentWebhookController } from '../smart-billing/woovi-payment-webhook.controller';
 
 @Module({
-  providers: [EfiOFService, EfiOperationsGuard, EfiAutomaticRecurrenceService, EfiCentralizedD1PayoutService],
+  providers: [EfiOFService, EfiOperationsGuard, EfiAutomaticRecurrenceService, EfiCentralizedD1PayoutService, EfiProductionReadOnlyService],
   controllers: [
     EfiOFWebhookController,
     EfiOFWebhookReceiverController,
     EfiWebhookPublicController,
     EfiOFDebugController,
     EfiOFAdminController,
+    EfiProductionReadOnlyController,
     SmartBillingController,
     SmartBillingSettlementsController,
     EfiPixSplitController,
