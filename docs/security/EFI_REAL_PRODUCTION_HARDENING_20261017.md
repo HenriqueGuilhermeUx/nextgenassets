@@ -34,3 +34,11 @@ A PR é exclusivamente uma **proposta de segurança**. Não foi realizado GET au
 - É indispensável rotacionar credenciais expostas no repositório público e adaptar consumidores que usavam rotas sem autenticação. Não trocar URLs de webhook de produção sem confirmação da configuração de hash e plano de rollback.
 
 - A rota legada `POST /v1/webhooks/efi-of` passa a delegar ao mesmo receptor autenticado por HMAC, sem logs de payload nem confirmação falsa. É necessário cadastrar o HMAC correto antes do merge.
+
+## Atualização do proprietário — 19/10/2026
+
+O proprietário confirmou que a aplicação Efí cujo Client ID exposto no script antigo termina em `401e95e` **já não existe mais** no painel Efí. Assim, **não pedir a rotação de qualquer aplicação ativa por causa daquele par antigo**. O segredo histórico permanece em commits públicos anteriores, mas não há motivo para desativar a aplicação bancária atualmente em operação por esse episódio. A exclusão/deativação técnica do Client ID antigo deverá ser confirmada pela Efí antes de classificar o incidente como encerrado.
+
+A aplicação ativa existente da NextGen é Efí Empresas e já tem habilitados os escopos `gn.opb.automatic.consent.read/write` e `gn.opb.automatic.payment.read/write` segundo verificação do proprietário. Não pedir uma segunda aplicação como condição automática e **não alterar seus tokens, certificado, callbacks ou permissões no Render de produção**.
+
+Persistem como bloqueios independentes do vazamento antigo: rotas de administração ainda abertas na produção atual, autenticação dos callbacks Pix/Open Finance, migração de consumidores para tokens internos, reconciliação bancária real e testes de regressão antes de mesclar esta PR. A PR #9 continua em rascunho, não mesclada; nunca publicar esta implementação parcial de callbacks, que ainda não tem reconciliador.
