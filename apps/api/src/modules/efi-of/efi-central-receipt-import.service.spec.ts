@@ -182,7 +182,7 @@ describe('Atomic bank receipt QUARANTINE (no real banking calls)',()=>{
   });
   it('blocks changed cycle after bank readback, before any insert',async()=>{
     configure();
-    tx.$queryRaw.mockReset().mockResolvedValueOnce([{...cycle(),payment_reference:'EOTHER'}]);
+    tx.$queryRaw.mockReset().mockResolvedValueOnce([{...cycle(),payment_reference:'E'+ '0'.repeat(31)}]);
     await expect(service.importVerifiedCycle('partner-demo','cycle-01'))
       .rejects.toThrow('EFI_CYCLE_CHANGED_DURING_RECONCILIATION');
     expect(tx.$executeRaw).not.toHaveBeenCalled();
