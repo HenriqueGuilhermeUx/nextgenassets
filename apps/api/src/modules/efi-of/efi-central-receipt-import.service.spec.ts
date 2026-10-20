@@ -27,7 +27,7 @@ const cycle=()=>({
   provider_adhesion_id:adhesion,authorization_status:'AUTHORIZED'
 });
 const bank=()=>({endToEndId:ref,valor:'100.00',horario:'2026-10-19T12:00:00.000Z',
-  chave:'test-cash-in@example.invalid',txid:'test-cycle-01'});
+  chave:'cashin@bank.test',txid:'test-cycle-01'});
 const of=()=>({status:'aceito',endToEndId:ref,hasRefunds:false});
 
 describe('Atomic bank receipt QUARANTINE (no real banking calls)',()=>{
@@ -45,7 +45,7 @@ describe('Atomic bank receipt QUARANTINE (no real banking calls)',()=>{
       EFI_OAUTH_URL:'https://openfinance.api.efipay.com.br/v1/oauth/token',
       EFI_CLIENT_ID:'test-only-of',EFI_CLIENT_SECRET:'test-only-of-secret',
       EFI_CERTIFICATE_BASE64:'X'.repeat(280),
-      EFI_PIX_RECEIVING_KEY:'test-cash-in@example.invalid',
+      EFI_PIX_RECEIVING_KEY:'cashin@bank.test',
       EFI_OF_FAVORECIDO_DOCUMENTO:'00000000000100',
       EFI_OF_FAVORECIDO_CODIGO_BANCO:'09089356',
       EFI_OF_FAVORECIDO_AGENCIA:'0001',
@@ -155,7 +155,7 @@ describe('Atomic bank receipt QUARANTINE (no real banking calls)',()=>{
       }]);
     // Derive stable proof hash from a prior independent readback fixture.
     const proof=(await import('./efi-incoming-pix-proof')).parseVerifiedIncomingPix(
-      bank(),{endToEndId:ref,amountCents:10000,receivingPixKey:'test-cash-in@example.invalid'});
+      bank(),{endToEndId:ref,amountCents:10000,receivingPixKey:'cashin@bank.test'});
     const existing={id:'existing',partner_id:'partner-a',cycle_id:'cycle-01',
       incoming_e2e_id:ref,bank_evidence_ref:proof.bankEvidenceRef,
       gross_amount_cents:10000,reconciliation_status:'BANK_RECEIVED',
