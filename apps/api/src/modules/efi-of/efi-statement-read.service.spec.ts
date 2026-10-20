@@ -54,7 +54,7 @@ describe('Efí production reconciliation report: bank mock only',()=>{
     expect(req).toHaveBeenCalledTimes(2);
     expect(req.mock.calls[0][1]).toBe('/oauth/token');
     expect(req.mock.calls[1][1]).toBe('/v2/gn/relatorios/extrato-conciliacao');
-    const body=JSON.parse(req.mock.calls[1][3]);
+    const body=JSON.parse(String(req.mock.calls[1][3]));
     expect(body.dataMovimento).toBe('2026-10-18');
     expect(body.tipoRegistros.tarifaPixRecebido).toBe(true);
     expect(JSON.stringify(result)).not.toContain('TOKEN_PRIVATE');
