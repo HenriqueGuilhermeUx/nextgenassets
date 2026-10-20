@@ -4,6 +4,8 @@ import { EfiOperationsGuard } from './efi-operations.guard';
 import { EfiProductionReadOnlyController } from './efi-production-read-only.controller';
 import { EfiProductionReadOnlyService } from './efi-production-read-only.service';
 import { EfiPixIncomingReadService } from './efi-pix-incoming-read.service';
+import { EfiCentralReceiptImportService } from './efi-central-receipt-import.service';
+import { EfiCentralReceiptImportController } from './efi-central-receipt-import.controller';
 import { EfiOFWebhookController } from './efi-of-webhook.controller';
 import { EfiOFWebhookReceiverController } from './efi-of-webhook-receiver.controller';
 import { EfiWebhookPublicController } from './efi-webhook-public.controller';
@@ -28,7 +30,7 @@ import { SmartBillingPayoutRequestsController } from '../smart-billing/smart-bil
 import { WooviPaymentWebhookController } from '../smart-billing/woovi-payment-webhook.controller';
 
 @Module({
-  providers: [EfiOFService, EfiOperationsGuard, EfiAutomaticRecurrenceService, EfiCentralizedD1PayoutService, EfiProductionReadOnlyService, EfiPixIncomingReadService],
+  providers: [EfiOFService, EfiOperationsGuard, EfiAutomaticRecurrenceService, EfiCentralizedD1PayoutService, EfiProductionReadOnlyService, EfiPixIncomingReadService, EfiCentralReceiptImportService],
   controllers: [
     EfiOFWebhookController,
     EfiOFWebhookReceiverController,
@@ -36,6 +38,7 @@ import { WooviPaymentWebhookController } from '../smart-billing/woovi-payment-we
     EfiOFDebugController,
     EfiOFAdminController,
     EfiProductionReadOnlyController,
+    EfiCentralReceiptImportController,
     SmartBillingController,
     SmartBillingSettlementsController,
     EfiPixSplitController,

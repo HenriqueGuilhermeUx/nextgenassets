@@ -99,3 +99,15 @@ O segundo fator `assertIncomingPixMatchesAutomaticPayment` exige consulta oficia
 Adicionado `EfiPixIncomingReadService` para **somente leitura** de `GET /v2/pix/:e2eId`, com endpoint de OAuth client_credentials e certificado P12 através do `https.request` nativo com `rejectUnauthorized=true`, sem redirects e sem logs de token ou corpo bancário. Usa credenciais próprias `EFI_PIX_READ_*` (NÃO extrair da produção), escopo oficial `pix.read`, URL exata `https://pix.api.efipay.com.br`, flag `NEXTGEN_EFI_PIX_READ_ENABLED` e workers/pagamentos desligados. O controller interno `POST /v1/admin/efi-production-read-only/preview-incoming` só retorna prévia após a consulta OF + Pix com E2E/valor/chave exatos; nada grava no ledger nem habilita D+1.
 
 Esse cliente e rota continuam SEM credenciais em homologação. A aplicação Efí ativa pode necessitar marcar `pix.read` **na seção API Pix** — os 4 escopos Pix Automático não substituem `pix.read`. Não ativar sem confirmação e sem passar pelo checklist de segurança. Nenhum credencial real ou GET bancário usado nos testes CI.
+
+## Gate de importação de recebimento (nova etapa)
+
+Confirmação do proprietário em 19/10/2026: a aplicação Efí existente possui **`pix.read`**, além dos quatro escopos Open Finance de Pix Automático. Isso é informação confirmada no painel Efí, mas ainda não prova conectividade OAuth/mTLS no serviço de homologação; nenhuma credencial produtiva foi importada para o Neon/Render de testes.
+
+Importação privada `POST /v1/admin/efi-central-receipts/import-verified-cycle`, guardada por `EfiOperationsGuard`, aceita **somente partnerSlug e cycleId**, nunca comprovante financeiro enviado pelo cliente. Com `NEXTGEN_EFI_RECEIPT_IMPORT_ENABLED=true` E `NEXTGEN_EFI_RECEIPT_IMPORT_ENV=isolated-homolog`, workers OFF, funções financeiras OFF e dois leitores Efí explicitamente habilitados com credenciais via secrets isolados, ela:
+
+1. Busca ciclo existente SCHEDULED e autorização AUTHORIZED verificada, tenant correto e E2E/valor bancários previamente registrados; chama **GET** Efí Open Finance e Efí Pix fora da transação, confirma E2E, valor e chave recebedora, ausência de devoluções.
+2. Bloqueia/serializa mesmo ciclo com `SELECT ... FOR UPDATE`, revalida autorização, valor, referência e vencimento; usa restrições UNIQUE(E2E), UNIQUE(partner,cycle), `ON CONFLICT DO NOTHING` + revisão.
+3. Grava apenas comprovante redigido `BANK_RECEIVED` com `compliance_hold=true`, `reconciliation_verified_at=NULL`, `reconciled_reference=NULL` e sem validar tarifas (campos de taxas provisoriamente zero; **nunca calcular repasse a partir deles**). Auditoria e comprovante são atômicos. Repasse D+1 não é criado nem executado.
+
+A segunda reconciliação independente de extrato com taxas, titularidade bancária/compliance ainda é necessária para liberar `RECONCILED` e desbloquear retenções; ainda NÃO há endpoint para isso nem execução Pix OUT real. **Não habilitar a flag acima nem mesclar enquanto não houver comprovação de bank host/certificados, origem das permissões e testes ponta a ponta.**
