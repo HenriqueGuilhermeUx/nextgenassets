@@ -1,10 +1,13 @@
 import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { EfiOFService } from './efi-of.service';
+import { EfiPixIncomingReadService } from './efi-pix-incoming-read.service';
+import { parseVerifiedIncomingPix, assertIncomingPixMatchesAutomaticPayment } from './efi-incoming-pix-proof';
 import { assertEfiProductionReadOnly, efiProductionReadOnlyPreflight } from './efi-production-read-only.policy';
 
 @Injectable()
 export class EfiProductionReadOnlyService {
-  constructor(private readonly efi: EfiOFService) {}
+  constructor(private readonly efi: EfiOFService,
+              private readonly pix: EfiPixIncomingReadService) {}
 
   preflight() {
     return efiProductionReadOnlyPreflight();
@@ -93,6 +96,48 @@ export class EfiProductionReadOnlyService {
       };
     } catch (_err: unknown) {
       throw new ServiceUnavailableException('EFI_PRODUCTION_READ_ONLY_PAYMENT_REQUIRES_REVIEW');
+    }
+  }
+  /** Preview only. Requires independent authenticated readbacks from TWO Efí APIs.
+   * Does not write ledger, activate consent, mark credit or schedule payout. */
+  async previewIncoming(body:{
+    adhesionId?:unknown;endToEndId?:unknown;date?:unknown;amountCents?:unknown;
+  }={}) {
+    assertEfiProductionReadOnly();
+    const {adhesionId,endToEndId,date,amountCents}=body;
+    if(typeof adhesionId!=='string' || !/^urn:efi:[A-Za-z0-9-]{8,170}$/.test(adhesionId) ||
+       typeof endToEndId!=='string' || !/^[A-Za-z0-9]{32}$/.test(endToEndId) ||
+       typeof date!=='string' || !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+       !Number.isFinite(new Date(date+'T12:00:00Z').getTime()) ||
+       new Date(date+'T12:00:00Z').toISOString().slice(0,10)!==date ||
+       !Number.isSafeInteger(amountCents)|| (amountCents as number)<=0)
+      throw new BadRequestException('EFI_RECEIPT_PREVIEW_INVALID_INPUT');
+    const key=process.env.EFI_PIX_RECEIVING_KEY;
+    if(!key)throw new ServiceUnavailableException('EFI_PIX_RECEIVING_KEY_UNVERIFIED');
+    try {
+      const [of,bank]=await Promise.all([
+        this.efi.getAutomaticProductionPaymentStatus({
+          adhesionId,endToEndId,requestedDate:date,
+          expectedAmountCents:amountCents as number
+        }),
+        this.pix.getReceivedPix(endToEndId)
+      ]);
+      const proof=parseVerifiedIncomingPix(bank,{
+        endToEndId,amountCents:amountCents as number,receivingPixKey:key
+      });
+      assertIncomingPixMatchesAutomaticPayment(of,proof,{
+        endToEndId,amountCents:amountCents as number
+      });
+      return {
+        success:true,receivedBankEvidenceMatched:true,
+        providerReceivableProofHash:proof.bankEvidenceRef,
+        bankSettledAt:proof.bankSettledAt,
+        receivingKeyMatched:true,refundDetected:false,
+        feesVerified:false,bankCreditPostedToLedger:false,
+        payoutAuthorized:false,payoutExecuted:false
+      };
+    }catch(_error:unknown) {
+      throw new ServiceUnavailableException('EFI_RECEIPT_PREVIEW_REQUIRES_MANUAL_REVIEW');
     }
   }
 }

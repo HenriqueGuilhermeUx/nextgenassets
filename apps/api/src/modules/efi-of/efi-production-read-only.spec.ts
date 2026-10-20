@@ -4,20 +4,22 @@ import { EfiProductionReadOnlyController } from './efi-production-read-only.cont
 import { EfiProductionReadOnlyService } from './efi-production-read-only.service';
 import { assertEfiProductionReadOnly, efiProductionReadOnlyPreflight } from './efi-production-read-only.policy';
 import { EfiOFService } from './efi-of.service';
+import { EfiPixIncomingReadService } from './efi-pix-incoming-read.service';
 
 const envKeys = [
   'NEXTGEN_EFI_PRODUCTION_READ_ONLY_ENABLED','NEXTGEN_EFI_AUTOMATIC_ENABLED',
   'NEXTGEN_EFI_AUTOMATIC_SANDBOX_REQUESTS','NEXTGEN_EFI_AUTOMATIC_SANDBOX_PAYMENTS',
   'NEXTGEN_CENTRALIZED_D1_ENABLED','NEXTGEN_DISABLE_BACKGROUND_WORKERS',
   'EFI_OF_API_URL','EFI_OAUTH_URL','EFI_CLIENT_ID','EFI_CLIENT_SECRET',
-  'EFI_CERTIFICATE_BASE64','EFI_P12_BASE64'
+  'EFI_CERTIFICATE_BASE64','EFI_P12_BASE64','EFI_PIX_RECEIVING_KEY'
 ] as const;
 
 describe('Efí real read-only isolated lookup — NO NETWORK, NO MONEY', () => {
   const original = Object.fromEntries(envKeys.map(key => [key, process.env[key]]));
   const efi = { getAutomaticAdhesionOfficial: jest.fn(), getAutomaticProductionPaymentStatus: jest.fn(), createConsent: jest.fn(),
     sendAutomaticPaymentSandbox: jest.fn(), initiatePayment: jest.fn() };
-  const service = new EfiProductionReadOnlyService(efi as unknown as EfiOFService);
+  const pix={getReceivedPix:jest.fn()};
+  const service = new EfiProductionReadOnlyService(efi as unknown as EfiOFService,pix as unknown as EfiPixIncomingReadService);
   const args = ['urn:efi:12345678-abcd-1234-efab-123456789abc', '2026-10-19'] as const;
   beforeEach(() => {
     for (const key of envKeys) delete process.env[key];
@@ -174,6 +176,32 @@ describe('Efí real read-only isolated lookup — NO NETWORK, NO MONEY', () => {
       new Error('CPF=12345678901 bank token=SENSITIVE'));
     await expect(service.lookupPayment(valid))
       .rejects.toThrow('EFI_PRODUCTION_READ_ONLY_PAYMENT_REQUIRES_REVIEW');
+  });
+  it('preview rejects missing recipient bank key without any bank query',async()=>{
+    enableReadOnly();
+    const input={adhesionId:args[0],endToEndId:'E090893562024101648554e991d24ccb',date:'2026-10-19',amountCents:10000};
+    await expect(service.previewIncoming(input)).rejects.toThrow('EFI_PIX_RECEIVING_KEY_UNVERIFIED');
+    expect(pix.getReceivedPix).not.toHaveBeenCalled();
+  });
+  it('preview checks two independent mocked bank GETs without writing any receipts',async()=>{
+    enableReadOnly();
+    const ref='E090893562024101648554e991d24ccb';
+    process.env.EFI_PIX_RECEIVING_KEY='test-receiver@example.invalid';
+    const input={adhesionId:args[0],endToEndId:ref,date:'2026-10-19',amountCents:10000};
+    efi.getAutomaticProductionPaymentStatus.mockResolvedValue({
+      status:'aceito',endToEndId:ref,hasRefunds:false
+    });
+    pix.getReceivedPix.mockResolvedValue({
+      endToEndId:ref,valor:'100.00',chave:process.env.EFI_PIX_RECEIVING_KEY,
+      horario:'2026-10-19T12:00:00.000Z'
+    });
+    const value=await service.previewIncoming(input);
+    expect(value).toMatchObject({
+      success:true,receivedBankEvidenceMatched:true,feesVerified:false,
+      bankCreditPostedToLedger:false,payoutAuthorized:false,payoutExecuted:false
+    });
+    expect(efi.createConsent).not.toHaveBeenCalled();
+    expect(efi.initiatePayment).not.toHaveBeenCalled();
   });
   it('redacts bank errors rather than echoing PII or raw tokens', async () => {
     enableReadOnly();

@@ -73,6 +73,7 @@ jobs:
           npx jest --runInBand efi-of-webhook-receiver.controller
           npx jest --runInBand efi-production-read-only
           npx jest --runInBand efi-incoming-pix-proof
+          npx jest --runInBand efi-pix-incoming-read.service
       - name: Validate Efí and D+1 migrations on ephemeral Postgres
         env:
           PGPASSWORD: ng_ci_ephemeral_only
