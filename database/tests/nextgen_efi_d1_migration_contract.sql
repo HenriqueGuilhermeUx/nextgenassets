@@ -26,14 +26,53 @@ INSERT INTO ng_efi_auto_cycles
 VALUES
 ('cycle-1','merchant-alpha','recur-1','a1','2026-10-16',35000,'PLANNED','cycle-idem-1');
 
+-- Import must begin quarantined; a fake reconciliation may NOT be asserted.
 INSERT INTO ng_efi_central_receipts
 (id,partner_id,cycle_id,incoming_e2e_id,bank_account_fingerprint,bank_settled_at,
- bank_verified_at,reconciliation_verified_at,gross_amount_cents,provider_fee_cents,
- retained_fee_cents,reconciliation_status,bank_evidence_ref,reconciled_reference)
+ bank_verified_at,gross_amount_cents,provider_fee_cents,
+ retained_fee_cents,reconciliation_status,compliance_hold,bank_evidence_ref)
 VALUES
 ('receipt-1','merchant-alpha','cycle-1','bank-e2e-unique-1','receiver-fingerprint',
- '2026-10-16 15:00:00+00',now(),now(),35000,51,0,'RECONCILED',
- 'bank-ledger-ref','matched-cycle-1');
+ '2026-10-16 15:00:00+00',now(),35000,0,0,'BANK_RECEIVED',true,'bank-ledger-ref');
+
+DO $
+BEGIN
+  BEGIN
+    UPDATE ng_efi_central_receipts
+       SET reconciliation_status='RECONCILED'
+     WHERE id='receipt-1';
+    RAISE EXCEPTION 'FAILED_TO_REQUIRE_BANK_STATEMENT_PROOF';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+END $;
+
+-- Test fixtures below represent *completed, authenticated* evidence only.
+-- The application has NO route that can generate these assertions by itself.
+UPDATE ng_efi_central_receipts
+  SET reconciliation_status='RECONCILED',
+      reconciliation_verified_at=now(),
+      reconciled_reference='bank-statement-verified-reference',
+      provider_fee_cents=51,
+      statement_report_id='abc12345-1234-4abc-8abc-123456789abc',
+      statement_evidence_sha256=repeat('a',64),
+      statement_verified_at=now(),provider_fee_verified_at=now(),
+      account_ownership_verified_at=now(),refund_checked_at=now(),
+      compliance_hold=true
+ WHERE id='receipt-1';
+
+DO $
+BEGIN
+  BEGIN
+    UPDATE ng_efi_central_receipts
+      SET compliance_hold=false
+    WHERE id='receipt-1';
+    RAISE EXCEPTION 'FAILED_TO_REQUIRE_COMPLIANCE_RELEASE';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+END $;
+
+UPDATE ng_efi_central_receipts
+ SET compliance_hold=false,compliance_cleared_at=now(),
+     compliance_evidence_sha256=repeat('b',64)
+ WHERE id='receipt-1';
 
 DO $$
 DECLARE net bigint;

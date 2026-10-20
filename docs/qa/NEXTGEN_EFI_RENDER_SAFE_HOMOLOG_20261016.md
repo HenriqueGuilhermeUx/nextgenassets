@@ -111,3 +111,13 @@ Importação privada `POST /v1/admin/efi-central-receipts/import-verified-cycle`
 3. Grava apenas comprovante redigido `BANK_RECEIVED` com `compliance_hold=true`, `reconciliation_verified_at=NULL`, `reconciled_reference=NULL` e sem validar tarifas (campos de taxas provisoriamente zero; **nunca calcular repasse a partir deles**). Auditoria e comprovante são atômicos. Repasse D+1 não é criado nem executado.
 
 A segunda reconciliação independente de extrato com taxas, titularidade bancária/compliance ainda é necessária para liberar `RECONCILED` e desbloquear retenções; ainda NÃO há endpoint para isso nem execução Pix OUT real. **Não habilitar a flag acima nem mesclar enquanto não houver comprovação de bank host/certificados, origem das permissões e testes ponta a ponta.**
+
+## Segurança D+1: extrato de conciliação independente (2026-10-20)
+Pesquisa oficial: https://dev.efipay.com.br/docs/api-pix/endpoints-exclusivos-efi/
+Efí gera relatório de conciliação por `POST /v2/gn/relatorios/extrato-conciliacao`
+(`gn.reports.write`) e entrega por `GET /v2/gn/relatorios/:id` (`gn.reports.read`).
+O arquivo CSV tem legenda oficial específica; **não assumir layout, CPF, E2E nem colunas de tarifa** sem o parser validado a partir dessa legenda. Os escopos adicionais NÃO foram confirmados para a aplicação NextGen. Não foi requisitado nenhum relatório real.
+
+Migração `20261020_nextgen_efi_reconciliation_proof_gate.sql`, aplicada só em banco isolado após análise: exige para estado `RECONCILED` identificação UUID do relatório, SHA-256 do arquivo, evidência de validação de tarifas, titularidade bancária, devoluções, referência autenticada e data de verificação. Remover `compliance_hold` de um recebimento conciliado requer carimbo de liberação e evidência SHA-256. O agendador D+1 exige os mesmos campos, além das condições já existentes, para não confiar apenas em uma atualização manual `RECONCILED`. Não existe fluxo automático que preencha estas colunas com prova real, portanto nenhum repasse será liberado nesta etapa.
+
+Passos reais ainda bloqueadores: confirmar `gn.reports.write/read`; validar conta Efí exata e chave Pix recebedora por leitura autenticada; documentar e testar o parser CSV de extrato e dedupe de linhas/tarifas/devoluções; adicionar verificador transacional de extrato, aprovação de compliance; validar contrato Efí de centralização e Pix OUT. Flags de pagamentos e D+1 permanecem OFF.

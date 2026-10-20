@@ -35,7 +35,15 @@ describe('NextGen centralized D+1 payout service — non-movement safety', () =>
     reconciliation_verified_at:new Date('2026-10-16T15:10:00.000Z'),
     gross_amount_cents:10000,provider_fee_cents:51,retained_fee_cents:0,
     reconciliation_status:'RECONCILED',compliance_hold:false,
-    bank_evidence_ref:'bank-proof-ref',reconciled_reference:'recon-ref'
+    bank_evidence_ref:'bank-proof-ref',reconciled_reference:'verified-reconciliation-ref',
+    statement_report_id:'abc12345-1234-4abc-8abc-123456789abc',
+    statement_evidence_sha256:'a'.repeat(64),
+    statement_verified_at:new Date('2026-10-16T15:10:00.000Z'),
+    provider_fee_verified_at:new Date('2026-10-16T15:10:00.000Z'),
+    account_ownership_verified_at:new Date('2026-10-16T15:10:00.000Z'),
+    refund_checked_at:new Date('2026-10-16T15:10:00.000Z'),
+    compliance_cleared_at:new Date('2026-10-16T15:15:00.000Z'),
+    compliance_evidence_sha256:'b'.repeat(64)
   });
   beforeAll(() => {
     for(const k of envKeys) originals[k] = process.env[k];
@@ -104,6 +112,26 @@ describe('NextGen centralized D+1 payout service — non-movement safety', () =>
     tx.$queryRaw.mockResolvedValueOnce([{...receipt(),...changes}]);
     await expect(service.scheduleVerifiedReceipt('partner-demo','receipt-001'))
       .rejects.toThrow('BANK_RECEIPT_NOT_VERIFIED_AND_RECONCILED');
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['no report identifier',{statement_report_id:null}],
+    ['unverified provider fee',{provider_fee_verified_at:null}],
+    ['missing report hash',{statement_evidence_sha256:null}],
+    ['no account ownership evidence',{account_ownership_verified_at:null}],
+    ['no refund check',{refund_checked_at:null}]
+  ])('rejects statement evidence: %s',async(_name,patch)=>{
+    tx.$queryRaw.mockResolvedValueOnce([{...receipt(),...patch}]);
+    await expect(service.scheduleVerifiedReceipt('partner-demo','receipt-001'))
+      .rejects.toThrow('BANK_STATEMENT_AND_FEES_NOT_VERIFIED');
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('blocks missing explicit compliance-clearance proof',async()=>{
+    tx.$queryRaw.mockResolvedValueOnce([{...receipt(),compliance_cleared_at:null}]);
+    await expect(service.scheduleVerifiedReceipt('partner-demo','receipt-001'))
+      .rejects.toThrow('BANK_COMPLIANCE_CLEARANCE_UNVERIFIED');
     expect(tx.$executeRaw).not.toHaveBeenCalled();
   });
 

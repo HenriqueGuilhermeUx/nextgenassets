@@ -92,6 +92,20 @@ export class EfiCentralizedD1PayoutService {
           !r.reconciled_reference || !r.reconciliation_verified_at) {
         throw new ConflictException('BANK_RECEIPT_NOT_VERIFIED_AND_RECONCILED');
       }
+      // A Pix GET and an 'aceito' OF payment are not the settled fee ledger.
+      // RECONCILED requires a completed independent statement and an auditable
+      // compliance clearance, never an operator-supplied fee estimate.
+      if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(
+            String(r.statement_report_id || '')) ||
+          !/^[a-f0-9]{64}$/.test(String(r.statement_evidence_sha256 || '')) ||
+          !r.statement_verified_at || !r.provider_fee_verified_at ||
+          !r.account_ownership_verified_at || !r.refund_checked_at) {
+        throw new ConflictException('BANK_STATEMENT_AND_FEES_NOT_VERIFIED');
+      }
+      if (!r.compliance_hold && (!r.compliance_cleared_at ||
+          !/^[a-f0-9]{64}$/.test(String(r.compliance_evidence_sha256 || '')))) {
+        throw new ConflictException('BANK_COMPLIANCE_CLEARANCE_UNVERIFIED');
+      }
       const receipt: ConfirmedCentralReceipt = {
         partnerId, sourcePaymentId: r.incoming_e2e_id,
         grossAmountCents: Number(r.gross_amount_cents),
