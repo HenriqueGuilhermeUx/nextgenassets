@@ -28,12 +28,18 @@ export class EfiProductionReadOnlyService {
       // The only remote operation is an OAuth exchange followed by a bank GET,
       // using pre-existing server-side credentials. No records are changed.
       const record = await this.efi.getAutomaticAdhesionOfficial(adhesionId, creation);
+      const bankStatus = typeof record.status === 'string' ? record.status.trim().toLowerCase() : '';
+      // Avoid reflecting untrusted provider text through an operator endpoint.
+      if (!['autorizado','authorized','ativo','ativa','pendente','pending','revogado',
+            'revoked','cancelado','cancelada','rejeitado','rejected','expirado','expired'].includes(bankStatus)) {
+        throw new Error('EFI_UNKNOWN_BANK_AUTHORIZATION_STATUS');
+      }
       // Do NOT expose account numbers, CPF/CNPJ, tokens, payee hash, consent
       // redirect URI, customer IDs or merchant configuration.
       return {
         success: true,
         bankRecordFound: true,
-        bankReportedStatus: record.status,
+        bankReportedStatus: bankStatus,
         localMandateMatched: false,
         anyPaymentSettled: false,
         customerRecordModified: false,

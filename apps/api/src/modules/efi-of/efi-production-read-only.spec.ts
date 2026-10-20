@@ -18,7 +18,7 @@ describe('Efí real read-only isolated lookup — NO NETWORK, NO MONEY', () => {
   const efi = { getAutomaticAdhesionOfficial: jest.fn(), createConsent: jest.fn(),
     sendAutomaticPaymentSandbox: jest.fn(), initiatePayment: jest.fn() };
   const service = new EfiProductionReadOnlyService(efi as unknown as EfiOFService);
-  const args = ['urn:efi:12345678-abcd-1234-efab-123456789abc', '2026-10-19'];
+  const args = ['urn:efi:12345678-abcd-1234-efab-123456789abc', '2026-10-19'] as const;
   beforeEach(() => {
     for (const key of envKeys) delete process.env[key];
     jest.clearAllMocks();
@@ -97,6 +97,14 @@ describe('Efí real read-only isolated lookup — NO NETWORK, NO MONEY', () => {
     expect(efi.sendAutomaticPaymentSandbox).not.toHaveBeenCalled();
     expect(efi.initiatePayment).not.toHaveBeenCalled();
     expect(JSON.stringify(result)).not.toContain('SECRET_TEST_ONLY');
+  });
+  it('fails closed for unknown or untrusted bank statuses', async () => {
+    enableReadOnly();
+    efi.getAutomaticAdhesionOfficial.mockResolvedValue({
+      providerId: args[0], status: 'authorized\\ncpf=00011122233'
+    });
+    await expect(service.lookupAdhesion(...args))
+      .rejects.toThrow('EFI_PRODUCTION_READ_ONLY_QUERY_REQUIRES_REVIEW');
   });
   it('redacts bank errors rather than echoing PII or raw tokens', async () => {
     enableReadOnly();
