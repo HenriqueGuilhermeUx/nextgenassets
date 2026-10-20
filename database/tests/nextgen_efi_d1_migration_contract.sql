@@ -35,7 +35,7 @@ VALUES
 ('receipt-1','merchant-alpha','cycle-1','bank-e2e-unique-1','receiver-fingerprint',
  '2026-10-16 15:00:00+00',now(),35000,0,0,'BANK_RECEIVED',true,'bank-ledger-ref');
 
-DO $
+DO $$
 BEGIN
   BEGIN
     UPDATE ng_efi_central_receipts
@@ -43,7 +43,7 @@ BEGIN
      WHERE id='receipt-1';
     RAISE EXCEPTION 'FAILED_TO_REQUIRE_BANK_STATEMENT_PROOF';
   EXCEPTION WHEN check_violation THEN NULL; END;
-END $;
+END $$;
 
 -- Test fixtures below represent *completed, authenticated* evidence only.
 -- The application has NO route that can generate these assertions by itself.
@@ -59,7 +59,7 @@ UPDATE ng_efi_central_receipts
       compliance_hold=true
  WHERE id='receipt-1';
 
-DO $
+DO $$
 BEGIN
   BEGIN
     UPDATE ng_efi_central_receipts
@@ -67,7 +67,7 @@ BEGIN
     WHERE id='receipt-1';
     RAISE EXCEPTION 'FAILED_TO_REQUIRE_COMPLIANCE_RELEASE';
   EXCEPTION WHEN check_violation THEN NULL; END;
-END $;
+END $$;
 
 UPDATE ng_efi_central_receipts
  SET compliance_hold=false,compliance_cleared_at=now(),
