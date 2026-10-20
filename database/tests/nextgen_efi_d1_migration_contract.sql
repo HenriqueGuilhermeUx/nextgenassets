@@ -88,6 +88,17 @@ BEGIN
     RAISE EXCEPTION 'FAILED_TO_BLOCK_DUPLICATE_BANK_RECEIPT';
   EXCEPTION WHEN unique_violation THEN NULL; END;
 
+  -- A different incoming bank E2E may NOT be credited to the same cycle.
+  BEGIN
+    INSERT INTO ng_efi_central_receipts
+      (id,partner_id,cycle_id,incoming_e2e_id,bank_account_fingerprint,
+       bank_settled_at,bank_verified_at,gross_amount_cents,reconciliation_status,bank_evidence_ref)
+    VALUES
+      ('receipt-same-cycle-second-e2e','merchant-alpha','cycle-1','SECOND-BANK-E2E',
+       'receiver-fingerprint',now(),now(),35000,'BANK_RECEIVED','bank-proof-2');
+    RAISE EXCEPTION 'DUPLICATE_CYCLE_RECEIPT_WAS_ACCEPTED';
+  EXCEPTION WHEN unique_violation THEN NULL; END;
+
   -- Cannot schedule two payouts for one receipt.
   BEGIN
     INSERT INTO ng_efi_central_payouts

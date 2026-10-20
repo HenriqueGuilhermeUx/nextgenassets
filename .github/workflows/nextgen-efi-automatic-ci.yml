@@ -7,6 +7,7 @@ on:
       - 'apps/api/**'
       - 'database/migrations/20261016_nextgen_efi_automatic_bridge.sql'
       - 'database/migrations/20261016_nextgen_centralized_d1_payout.sql'
+      - 'database/migrations/20261019_nextgen_efi_receipt_cycle_uniqueness.sql'
       - 'database/tests/nextgen_efi_d1_migration_contract.sql'
       - 'apps/marketing/src/app/pix-automatico/**'
       - 'apps/marketing/src/app/recorrencias/**'
@@ -71,6 +72,7 @@ jobs:
           npx jest --runInBand efi-operations.guard
           npx jest --runInBand efi-of-webhook-receiver.controller
           npx jest --runInBand efi-production-read-only
+          npx jest --runInBand efi-incoming-pix-proof
       - name: Validate Efí and D+1 migrations on ephemeral Postgres
         env:
           PGPASSWORD: ng_ci_ephemeral_only
@@ -86,6 +88,7 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f database/migrations/20260910_nextgen_smart_operations.sql
           psql -v ON_ERROR_STOP=1 -f database/migrations/20261016_nextgen_efi_automatic_bridge.sql
           psql -v ON_ERROR_STOP=1 -f database/migrations/20261016_nextgen_centralized_d1_payout.sql
+          psql -v ON_ERROR_STOP=1 -f database/migrations/20261019_nextgen_efi_receipt_cycle_uniqueness.sql
           psql -v ON_ERROR_STOP=1 -f database/tests/nextgen_efi_d1_migration_contract.sql
       - name: Build NestJS API
         working-directory: apps/api
