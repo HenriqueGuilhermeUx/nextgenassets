@@ -33,7 +33,7 @@ function GlobalFooter() {
             💬
           </a>
           <a
-            href="mailto:henriquecampos66@gmail.com?subject=Contato%20NextGen%20Assets"
+            href="mailto:corporate@alternativeventures.com.br?subject=Contato%20NextGen%20Assets"
             aria-label="Enviar e-mail"
             title="E-mail"
             className="flex h-12 w-12 items-center justify-center rounded-full border border-blue-300/30 bg-blue-300/10 text-xl text-blue-100 hover:bg-blue-300/20"
